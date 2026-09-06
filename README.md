@@ -1,6 +1,6 @@
 # PixelInjector
 
-Opinionated Xposed module of some tweaks, specially for Pixel phones so I can avoid having twenty modules installed .
+Opinionated Xposed module of some tweaks, specially for Pixel phones so I can avoid having twenty modules installed.
 
 ### System UI
 
@@ -33,6 +33,12 @@ Opinionated Xposed module of some tweaks, specially for Pixel phones so I can av
 ### File picker
 
 - Force sort by newest first: opens folders sorted by newest instead of by name in the system file picker and the storage browser. Both DocumentsUI builds. Same hook as [remember-my-sort](https://github.com/hxreborn/remember-my-sort).
+
+## Screenshots
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/hxreborn/PixelInjector/main/assets/dashboard.png" width="300" alt="Dashboard">
+</p>
 
 ## Credits
 
