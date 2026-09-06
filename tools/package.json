@@ -1,0 +1,8 @@
+{
+  "name": "pixelinjector-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@material/material-color-utilities": "0.4.0"
+  }
+}
