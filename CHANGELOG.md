@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/hxreborn/PixelInjector/compare/v1.0.0...v1.0.1) (2026-09-06)
+
+### Bug Fixes
+
+* **app:** open the dashboard at the top on cold start ([e41f73a](https://github.com/hxreborn/PixelInjector/commit/e41f73a62a00918357046d7370d22a70e194881d))
+
 ## 1.0.0 (2026-09-06)
 
 ### Features
