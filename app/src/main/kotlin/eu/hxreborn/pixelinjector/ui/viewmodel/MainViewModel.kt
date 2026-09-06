@@ -47,6 +47,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val SYSTEM_PROCESS = "system"
+private val fixedPackages =
+    mapOf(
+        TweakGroup.SYSTEM_UI to HookedPackages(listOf(ModuleConstants.SYSTEMUI_PACKAGE), true),
+        TweakGroup.SYSTEM to HookedPackages(listOf(SYSTEM_PROCESS), true),
+    )
 private const val PREFS_SUBSCRIPTION_TIMEOUT_MS = 5_000L
 private const val RESTART_POLLS = 10
 private const val RESTART_POLL_MS = 500L
@@ -105,7 +110,7 @@ class MainViewModel(
     val hookedPackages: StateFlow<Map<TweakGroup, HookedPackages>> =
         combine(scope, targets, homeApp) { scope, targets, home -> hookedPackages(scope, targets, home) }
             .flowOn(Dispatchers.IO)
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, fixedPackages)
 
     private fun hookedPackages(
         scope: Set<String>?,
@@ -124,8 +129,7 @@ class MainViewModel(
             }
         }
         return buildMap {
-            put(TweakGroup.SYSTEM_UI, HookedPackages(listOf(ModuleConstants.SYSTEMUI_PACKAGE), true))
-            put(TweakGroup.SYSTEM, HookedPackages(listOf(SYSTEM_PROCESS), true))
+            putAll(fixedPackages)
             home?.let { put(TweakGroup.LAUNCHER, HookedPackages(listOf(it.packageName), true)) }
             hooked(GBOARD_PACKAGES)?.let { put(TweakGroup.GBOARD, it) }
             hooked(setOf(ModuleConstants.DIALER_PACKAGE))?.let { put(TweakGroup.DIALER, it) }
