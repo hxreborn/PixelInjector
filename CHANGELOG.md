@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/hxreborn/PixelInjector/compare/v1.0.1...v1.0.2) (2026-09-06)
+
+### Bug Fixes
+
+* **hook:** hook ImageCaptureImpl in PillShot for Android 14 and 15 ([8495322](https://github.com/hxreborn/PixelInjector/commit/8495322b8744c66b73579914a00012eca6909f73))
+
 ## [1.0.1](https://github.com/hxreborn/PixelInjector/compare/v1.0.0...v1.0.1) (2026-09-06)
 
 ### Bug Fixes
