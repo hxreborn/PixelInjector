@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a bug in PixelInjector.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a report:
+
+        - Search existing issues so you don't file a duplicate.
+        - Name the tweak and the build of the app it hooks. Every tweak resolves its targets per app build, so this matters.
+  - type: input
+    attributes:
+      label: Tweak
+      placeholder: "Hide search bar"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Hooked app version
+      description: Settings → Apps → the app the tweak hooks (version name and code).
+      placeholder: "Pixel Launcher 17 (907)"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Module version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Android version and ROM
+      placeholder: "Android 16, Pixel / AOSP"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Xposed framework
+      placeholder: "LSPosed 2.2.0 (7854)"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Bug description
+      description: What happens and what you expected. Add steps to reproduce and screenshots if you can.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Logs
+      description: Relevant lines from the Module log screen in the app. A `target not found` line names the member that moved.
+      render: shell
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: I searched open and closed issues and this is not a duplicate.
+          required: true
+        - label: I included the tweak, the hooked app version and a clear description.
+          required: true
