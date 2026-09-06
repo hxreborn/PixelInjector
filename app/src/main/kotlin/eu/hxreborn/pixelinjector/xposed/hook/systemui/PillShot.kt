@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.optionalMethod
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethod
@@ -26,8 +27,13 @@ import java.lang.reflect.Method
 private const val TWEAK = "PillShot"
 private const val CONTROLLER = "com.android.systemui.screenshot.ScreenshotController"
 private const val DATA = "com.android.systemui.screenshot.ScreenshotData"
+private const val CAPTURE = "com.android.systemui.screenshot.ImageCaptureImpl"
+private const val TAKE_SCREENSHOT_FULLSCREEN = 1
+private const val LAST_INLINE_CAPTURE_SDK = 35
 
 private val switch = Switch(Prefs.PILL_SHOT)
+
+private val pending = ThreadLocal<Pair<Context, Any>>()
 
 internal val pillShot =
     Tweak(
@@ -39,7 +45,9 @@ internal val pillShot =
 
 private class ScreenshotBindings(
     val handleScreenshot: List<Method>,
+    val captureDisplay: Method?,
     val context: Field,
+    val type: Field,
     val bitmap: Field,
     val packageName: Method,
 ) {
@@ -47,24 +55,50 @@ private class ScreenshotBindings(
         fun resolve(cl: ClassLoader): ScreenshotBindings {
             val controller = cl.loadClass(CONTROLLER)
             val data = cl.loadClass(DATA)
+            val handleScreenshot = controller.requiredMethods("handleScreenshot")
+            val capture = runCatching { cl.loadClass(CAPTURE) }.getOrNull()
+            val captureDisplay = capture?.optionalMethod("captureDisplay", 2)
+            if (captureDisplay == null && Build.VERSION.SDK_INT <= LAST_INLINE_CAPTURE_SDK) {
+                throw NoSuchMethodException("ImageCaptureImpl.captureDisplay(int,Rect)")
+            }
             return ScreenshotBindings(
-                handleScreenshot = controller.requiredMethods("handleScreenshot"),
+                handleScreenshot = handleScreenshot,
+                captureDisplay = captureDisplay,
                 context = controller.requiredField("context", "mContext"),
+                type = data.requiredField("type", "mType"),
                 bitmap = data.requiredField("bitmap", "mBitmap"),
                 packageName = data.requiredMethod("getPackageNameString"),
             )
         }
     }
 
+    fun members(): String =
+        (handleScreenshot.map { it.signature() } + listOfNotNull(captureDisplay?.signature()))
+            .joinToString(",")
+
+    fun contextOf(controller: Any): Context? = context.get(controller) as? Context
+
+    fun awaitingCapture(shot: Any): Boolean =
+        runCatching {
+            type.getInt(shot) == TAKE_SCREENSHOT_FULLSCREEN && bitmap.get(shot) == null
+        }.getOrDefault(false)
+
     fun stamp(
-        controller: Any,
+        ctx: Context,
         shot: Any,
     ) {
         val src = bitmap.get(shot) as Bitmap? ?: return
+        bitmap.set(shot, pill(ctx, shot, src) ?: return)
+    }
+
+    fun pill(
+        ctx: Context,
+        shot: Any,
+        src: Bitmap,
+    ): Bitmap? {
         val pkg = packageName.invoke(shot) as String
-        if (pkg.isEmpty()) return
-        val ctx = context.get(controller) as Context
-        bitmap.set(shot, drawPill(ctx, label(ctx, pkg), src))
+        if (pkg.isEmpty()) return null
+        return drawPill(ctx, label(ctx, pkg), src)
     }
 }
 
@@ -80,15 +114,33 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
             }
             return false
         }
-    Logger.info(
-        "resolved tweak=$TWEAK members=${b.handleScreenshot.joinToString(",") { it.signature() }}",
-    )
+    Logger.info("resolved tweak=$TWEAK members=${b.members()}")
     for (method in b.handleScreenshot) {
         hook(method).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
-            runCatching { b.stamp(chain.thisObject, chain.getArg(0)) }
-                .onFailure { Logger.error("stamp failed tweak=$TWEAK reason=${it.message}", it) }
-            chain.proceed()
+            val shot = chain.getArg(0)
+            val ctx = b.contextOf(chain.thisObject) ?: return@intercept chain.proceed()
+            runCatching { b.stamp(ctx, shot) }
+                .onFailure {
+                    Logger.error("stamp failed tweak=$TWEAK path=entry reason=${it.message}", it)
+                }
+            pending.set(ctx to shot)
+            try {
+                chain.proceed()
+            } finally {
+                pending.remove()
+            }
+        }
+    }
+    b.captureDisplay?.let { method ->
+        hook(method).intercept { chain ->
+            val (ctx, shot) = pending.get() ?: return@intercept chain.proceed()
+            if (!switch.enabled || !b.awaitingCapture(shot)) return@intercept chain.proceed()
+            val captured = chain.proceed() as Bitmap? ?: return@intercept null
+            runCatching { b.pill(ctx, shot, captured) }
+                .onFailure {
+                    Logger.error("stamp failed tweak=$TWEAK path=capture reason=${it.message}", it)
+                }.getOrNull() ?: captured
         }
     }
     return true
