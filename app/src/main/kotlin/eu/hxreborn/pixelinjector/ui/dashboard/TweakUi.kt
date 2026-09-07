@@ -8,6 +8,7 @@ import eu.hxreborn.pixelinjector.prefs.BoolPref
 import eu.hxreborn.pixelinjector.prefs.IntPref
 import eu.hxreborn.pixelinjector.prefs.PrefSpec
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.prefs.StringPref
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 
 enum class TweakGroup {
@@ -32,6 +33,12 @@ class TweakSlider(
     val pref: IntPref,
 )
 
+class TweakSound(
+    val title: Int,
+    val pref: StringPref,
+    val destination: Destination,
+)
+
 class TweakUi(
     val key: String,
     val pref: BoolPref,
@@ -40,6 +47,7 @@ class TweakUi(
     val group: TweakGroup,
     val editor: TweakEditor? = null,
     val slider: TweakSlider? = null,
+    val sound: TweakSound? = null,
     val errorKeys: Set<String> = setOf(key),
 )
 
@@ -75,6 +83,7 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_biometric_bypass,
             R.string.tweak_biometric_bypass_desc,
             TweakGroup.SYSTEM_UI,
+            sound = TweakSound(R.string.tweak_biometric_sound, Prefs.BIOMETRIC_SOUND, Destination.SoundEditor),
         ),
         TweakUi(
             "ForceNewTask",

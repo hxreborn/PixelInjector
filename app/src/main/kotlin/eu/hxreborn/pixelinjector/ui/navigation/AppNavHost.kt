@@ -24,6 +24,7 @@ import eu.hxreborn.pixelinjector.ui.dashboard.DashboardActions
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardScreen
 import eu.hxreborn.pixelinjector.ui.editor.AppsSheet
 import eu.hxreborn.pixelinjector.ui.editor.RulesEditorScreen
+import eu.hxreborn.pixelinjector.ui.editor.SoundSheet
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogScreen
 import eu.hxreborn.pixelinjector.ui.reload.ProgressSheet
 import eu.hxreborn.pixelinjector.ui.reload.TargetsSheet
@@ -119,6 +120,12 @@ fun AppNavHost(
                         apps = launcherApps,
                         allowed = prefs[Prefs.CLIPBOARD_APPS],
                         onAllowedChange = { viewModel.save(Prefs.CLIPBOARD_APPS, it) },
+                    )
+                }
+                entry<Destination.SoundEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
+                    SoundSheet(
+                        selected = prefs[Prefs.BIOMETRIC_SOUND],
+                        onSelect = { viewModel.save(Prefs.BIOMETRIC_SOUND, it) },
                     )
                 }
                 entry<Destination.ModuleLog> {

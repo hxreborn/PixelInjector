@@ -23,6 +23,7 @@ object Prefs {
     val CLIPBOARD_APPS = StringSetPref("system.clipboard.apps", emptySet()).register()
     val DOUBLE_TAP_TO_SLEEP = BoolPref("launcher.doubleTapToSleep", false).register()
     val BIOMETRIC_BYPASS = BoolPref("systemui.biometricBypass", false).register()
+    val BIOMETRIC_SOUND = StringPref("systemui.biometricBypass.sound", "").register()
     val HIDE_PILL = BoolPref("launcher.hidePill", false).register()
     val NAV_SPACE = IntPref("launcher.navSpace", NAV_SPACE_FULL).register()
     val HIDE_SEARCH_BAR = BoolPref("launcher.hideSearchBar", false).register()

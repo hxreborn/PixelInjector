@@ -9,7 +9,7 @@ Opinionated Xposed module of some tweaks, specially for Pixel phones so I can av
 - Mute screenshot sound: skips the screenshot shutter sound.
 - Always expand notifications: opens notifications expanded unless you collapsed one by hand.
 - Double tap status bar to sleep: double tap empty status bar space and the phone sleeps.
-- Biometric Bypass: taps confirm on the biometric prompt after a face unlock. Same hook as [biometric-bypass](https://github.com/hxreborn/biometric-bypass).
+- Biometric Bypass: taps confirm on the biometric prompt after a face unlock and plays a system sound of your choice. Same hook as [biometric-bypass](https://github.com/hxreborn/biometric-bypass).
 
 ### System Framework
 

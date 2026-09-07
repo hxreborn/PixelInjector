@@ -3,6 +3,8 @@
     <string name="app_name">PixelInjector</string>
     <string name="app_desc">Small fixes for my Pixel as one module with one settings screen</string>
 
+    <string name="sound_none">None</string>
+
     <string name="scope_systemui">System UI</string>
     <string name="scope_system">System Framework</string>
     <string name="scope_launcher">Pixel Launcher</string>
@@ -31,6 +33,8 @@
     <string name="tweak_double_tap_sleep_desc">Sleeps the phone on a double tap of empty home screen space</string>
     <string name="tweak_biometric_bypass">Biometric Bypass</string>
     <string name="tweak_biometric_bypass_desc">Automatically taps confirm on the biometric prompt after a successful face unlock</string>
+    <string name="tweak_biometric_sound">Confirm sound</string>
+    <string name="tweak_biometric_sound_desc">Plays when the tweak taps confirm</string>
     <string name="tweak_hide_pill">Hide gesture pill</string>
     <string name="tweak_hide_pill_desc">Makes the navigation handle transparent</string>
     <string name="tweak_nav_space">Navigation bar space</string>

@@ -77,6 +77,7 @@ import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.AppPrefs
 import eu.hxreborn.pixelinjector.prefs.BoolPref
 import eu.hxreborn.pixelinjector.prefs.IntPref
+import eu.hxreborn.pixelinjector.sound.SystemSounds
 import eu.hxreborn.pixelinjector.ui.component.SectionGap
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileText
@@ -125,6 +126,13 @@ private sealed interface DashTile {
     ) : DashTile {
         override val title: Int get() = slider.title
     }
+
+    class Sound(
+        val sound: TweakSound,
+        val path: String,
+    ) : DashTile {
+        override val title: Int get() = sound.title
+    }
 }
 
 private fun rows(
@@ -137,6 +145,7 @@ private fun rows(
             DashTile.Toggle(tweak, checked),
             tweak.editor?.takeIf { checked }?.let { DashTile.Link(it, it.count(prefs)) },
             tweak.slider?.takeIf { checked }?.let { DashTile.Slide(it, prefs[it.pref]) },
+            tweak.sound?.takeIf { checked }?.let { DashTile.Sound(it, prefs[it.pref]) },
         )
     }
 
@@ -268,6 +277,7 @@ private fun LazyListScope.scope(
             is DashTile.Toggle -> ToggleTile(tile, shape, tile.tweak.errorKeys.firstNotNullOfOrNull { errors[it] }, onToggle)
             is DashTile.Link -> LinkTile(tile, shape, onOpen)
             is DashTile.Slide -> SlideTile(tile, shape, onSlide)
+            is DashTile.Sound -> SoundTile(tile, shape, onOpen)
         }
     }
 }
@@ -334,6 +344,21 @@ private fun ToggleTile(
                 )
             },
         )
+    }
+}
+
+@Composable
+private fun SoundTile(
+    tile: DashTile.Sound,
+    shape: RoundedCornerShape,
+    onOpen: (Destination) -> Unit,
+) {
+    Tile(shape = shape, onClick = { onOpen(tile.sound.destination) }) {
+        val label = if (tile.path.isEmpty()) stringResource(R.string.sound_none) else SystemSounds.label(tile.path)
+        TileText(stringResource(tile.title), label)
+        Box(Modifier.width(LinkChevronSlot), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
