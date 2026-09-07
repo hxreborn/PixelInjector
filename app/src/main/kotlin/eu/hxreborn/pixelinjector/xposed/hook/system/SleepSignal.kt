@@ -3,6 +3,10 @@ package eu.hxreborn.pixelinjector.xposed.hook.system
 import android.os.Binder
 import android.os.Build
 import android.os.SystemClock
+import android.view.InputDevice
+import android.view.InputEvent
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
 import eu.hxreborn.pixelinjector.ModuleConstants.SLEEP_CALLERS
 import eu.hxreborn.pixelinjector.util.optionalMethod
 import eu.hxreborn.pixelinjector.util.reason
@@ -17,6 +21,9 @@ import java.lang.reflect.Method
 
 private const val TWEAK = "SleepSignal"
 private const val BINDER_SERVICE = "com.android.server.power.PowerManagerService\$BinderService"
+private const val INPUT_GLOBAL = "android.hardware.input.InputManagerGlobal"
+private const val INPUT_MANAGER = "android.hardware.input.InputManager"
+private const val INJECT_ASYNC = 0
 
 internal val sleepSignal =
     Tweak(
@@ -30,10 +37,13 @@ private class PowerBindings(
     val goToSleep: Method,
     val getPackageManager: Method,
     val packagesForUid: Method,
+    val input: Any?,
+    val injectEvent: Method?,
 ) {
     companion object {
         fun resolve(cl: ClassLoader): PowerBindings {
             val binderService = cl.loadClass(BINDER_SERVICE)
+            val input = inputManager(cl)
             return PowerBindings(
                 levelChecks =
                     listOfNotNull(
@@ -56,8 +66,16 @@ private class PowerBindings(
                     cl
                         .loadClass("android.content.pm.IPackageManager")
                         .requiredMethod("getPackagesForUid", Int::class.javaPrimitiveType),
+                input = input,
+                injectEvent =
+                    input?.javaClass?.optionalMethod("injectInputEvent", 2),
             )
         }
+
+        private fun inputManager(cl: ClassLoader): Any? =
+            listOf(INPUT_GLOBAL, INPUT_MANAGER).firstNotNullOfOrNull { name ->
+                runCatching { cl.loadClass(name).getMethod("getInstance").invoke(null) }.getOrNull()
+            }
     }
 
     fun fromAllowedCaller(uid: Int): Boolean {
@@ -69,14 +87,43 @@ private class PowerBindings(
         return packages.any { it in SLEEP_CALLERS }
     }
 
-    fun sleep(binderService: Any) {
+    fun sleep(binderService: Any): String {
         val token = Binder.clearCallingIdentity()
         try {
+            if (pressPower()) return "key"
             goToSleep.invoke(binderService, SystemClock.uptimeMillis(), 0, 0)
+            return "power"
         } finally {
             Binder.restoreCallingIdentity(token)
         }
     }
+
+    private fun pressPower(): Boolean {
+        val inject = injectEvent ?: return false
+        val now = SystemClock.uptimeMillis()
+        return runCatching {
+            for (action in intArrayOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+                inject.invoke(input, powerKey(now, action), INJECT_ASYNC)
+            }
+        }.isSuccess
+    }
+
+    private fun powerKey(
+        now: Long,
+        action: Int,
+    ): InputEvent =
+        KeyEvent(
+            now,
+            now,
+            action,
+            KeyEvent.KEYCODE_POWER,
+            0,
+            0,
+            KeyCharacterMap.VIRTUAL_KEYBOARD,
+            0,
+            KeyEvent.FLAG_FROM_SYSTEM,
+            InputDevice.SOURCE_KEYBOARD,
+        )
 }
 
 private fun XposedModule.installSleepSignal(cl: ClassLoader): Boolean {
@@ -88,7 +135,8 @@ private fun XposedModule.installSleepSignal(cl: ClassLoader): Boolean {
             return false
         }
     Logger.info(
-        "resolved tweak=$TWEAK members=${b.levelChecks.joinToString(",") { it.signature() }}",
+        "resolved tweak=$TWEAK members=${b.levelChecks.joinToString(",") { it.signature() }} " +
+            "inject=${b.injectEvent != null}",
     )
     for (method in b.levelChecks) {
         hook(method).intercept { chain ->
@@ -99,7 +147,7 @@ private fun XposedModule.installSleepSignal(cl: ClassLoader): Boolean {
                 return@intercept false
             }
             runCatching { b.sleep(chain.thisObject) }
-                .onSuccess { Logger.info("sleep uid=$uid tweak=$TWEAK") }
+                .onSuccess { Logger.info("sleep uid=$uid tweak=$TWEAK via=$it") }
                 .onFailure {
                     Logger.error(
                         "sleep failed uid=$uid tweak=$TWEAK reason=${it.cause?.message ?: it.message}",
