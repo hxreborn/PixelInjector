@@ -1,3 +1,14 @@
+## [1.1.0](https://github.com/hxreborn/PixelInjector/compare/v1.0.2...v1.1.0) (2026-09-07)
+
+### Features
+
+* **app:** add a confirm sound picker for Biometric Bypass ([c51ee18](https://github.com/hxreborn/PixelInjector/commit/c51ee188b01bd64b65e5deb7b4f42207a73b4ce3))
+
+### Bug Fixes
+
+* **hook:** drop the click sound when BiometricBypass taps confirm ([2928fd0](https://github.com/hxreborn/PixelInjector/commit/2928fd05ba141d6142a8463bd64a52ca6d653155))
+* **hook:** press the power key instead of goToSleep in SleepSignal ([3dd59c2](https://github.com/hxreborn/PixelInjector/commit/3dd59c2766155b4853a0638f4f8d95e3b72e444f))
+
 ## [1.0.2](https://github.com/hxreborn/PixelInjector/compare/v1.0.1...v1.0.2) (2026-09-06)
 
 ### Bug Fixes
