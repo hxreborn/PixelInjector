@@ -102,8 +102,11 @@ private fun clickConfirm(
         }
 
         button != null && button.isShown -> {
-            button.performClick()
-            Logger.info("confirm clicked tweak=$TWEAK latencyMs=$elapsed")
+            if (button.callOnClick()) {
+                Logger.info("confirm clicked tweak=$TWEAK latencyMs=$elapsed")
+            } else {
+                Logger.warn("confirm skipped tweak=$TWEAK reason=no-listener")
+            }
         }
 
         elapsed >= MAX_WAIT_MS -> {
