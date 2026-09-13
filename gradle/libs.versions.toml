@@ -1,6 +1,6 @@
 [versions]
 agp = "9.4.0"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 libxposed = "102.0.0"
 composeBom = "2026.08.00"
 material3 = "1.5.0-alpha27"
