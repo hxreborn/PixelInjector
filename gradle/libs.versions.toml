@@ -2,7 +2,7 @@
 agp = "9.4.0"
 kotlin = "2.4.10"
 libxposed = "102.0.0"
-composeBom = "2026.08.00"
+composeBom = "2026.09.00"
 material3 = "1.5.0-alpha27"
 activityCompose = "1.13.0"
 lifecycle = "2.11.0"
