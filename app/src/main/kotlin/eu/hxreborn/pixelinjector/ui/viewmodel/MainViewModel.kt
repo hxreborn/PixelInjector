@@ -134,6 +134,7 @@ class MainViewModel(
             hooked(GBOARD_PACKAGES)?.let { put(TweakGroup.GBOARD, it) }
             hooked(setOf(ModuleConstants.DIALER_PACKAGE))?.let { put(TweakGroup.DIALER, it) }
             hooked(FILES_PACKAGES)?.let { put(TweakGroup.FILES, it) }
+            hooked(setOf(ModuleConstants.KDE_CONNECT_PACKAGE))?.let { put(TweakGroup.KDE_CONNECT, it) }
         }
     }
 

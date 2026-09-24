@@ -1,6 +1,7 @@
 package eu.hxreborn.pixelinjector.ui.dashboard
 
 import eu.hxreborn.pixelinjector.ModuleConstants.GBOARD_PACKAGES
+import eu.hxreborn.pixelinjector.ModuleConstants.KDE_CONNECT_PACKAGE
 import eu.hxreborn.pixelinjector.ModuleConstants.LAUNCHER_PACKAGES
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.AppPrefs
@@ -18,6 +19,7 @@ enum class TweakGroup {
     GBOARD,
     DIALER,
     FILES,
+    KDE_CONNECT,
 }
 
 class TweakEditor(
@@ -136,6 +138,13 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_files_sort_by_date_desc,
             TweakGroup.FILES,
         ),
+        TweakUi(
+            "KdeConnectQuiet",
+            Prefs.KDE_CONNECT_QUIET,
+            R.string.tweak_kde_connect_quiet,
+            R.string.tweak_kde_connect_quiet_desc,
+            TweakGroup.KDE_CONNECT,
+        ),
     )
 
 val restartOnChange: Map<PrefSpec<*>, Set<String>> =
@@ -143,4 +152,5 @@ val restartOnChange: Map<PrefSpec<*>, Set<String>> =
         Prefs.HIDE_SEARCH_BAR to LAUNCHER_PACKAGES,
         Prefs.NAV_SPACE to LAUNCHER_PACKAGES,
         Prefs.GBOARD_BLACK to GBOARD_PACKAGES,
+        Prefs.KDE_CONNECT_QUIET to setOf(KDE_CONNECT_PACKAGE),
     )

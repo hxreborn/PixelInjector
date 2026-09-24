@@ -34,6 +34,10 @@ Opinionated Xposed module of some tweaks, specially for Pixel phones so I can av
 
 - Force sort by newest first: opens folders sorted by newest instead of by name in the system file picker and the storage browser. Both DocumentsUI builds. Same hook as [remember-my-sort](https://github.com/hxreborn/remember-my-sort).
 
+### KDE Connect
+
+- KDE Connect Quiet: stops KDE Connect from holding the Wi-Fi multicast lock. Toggling restarts KDE Connect.
+
 ## Screenshots
 
 <p align="center">

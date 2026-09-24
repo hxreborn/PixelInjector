@@ -11,6 +11,7 @@
     <string name="scope_gboard">Gboard</string>
     <string name="scope_dialer">Phone</string>
     <string name="scope_files">File picker</string>
+    <string name="scope_kde_connect">KDE Connect</string>
 
     <string name="tweak_warm_tiles">Warm Tiles</string>
     <string name="tweak_warm_tiles_desc">Raises the limit of 3 bound tiles in Quick Settings</string>
@@ -47,6 +48,8 @@
     <string name="tweak_dialer_dechip_desc">Removes the Help us improve chip from the call list</string>
     <string name="tweak_files_sort_by_date">Force sort by newest first</string>
     <string name="tweak_files_sort_by_date_desc">Opens folders sorted by newest instead of by name</string>
+    <string name="tweak_kde_connect_quiet">KDE Connect Quiet</string>
+    <string name="tweak_kde_connect_quiet_desc">Stops KDE Connect from holding the Wi-Fi multicast lock</string>
     <string name="target_not_found">Target not found on %1$s. Open the module log</string>
     <string name="home_app_unsupported">Home app is %1$s. Needs Pixel Launcher or Launcher3</string>
     <string name="home_app_not_loaded">%1$s is not in the module scope. Add it in your Xposed manager then restart it</string>

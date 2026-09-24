@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import eu.hxreborn.pixelinjector.xposed.hook.dialer.dialerDechip
 import eu.hxreborn.pixelinjector.xposed.hook.files.filesSortByDate
 import eu.hxreborn.pixelinjector.xposed.hook.gboard.gboardBlack
+import eu.hxreborn.pixelinjector.xposed.hook.kdeconnect.kdeConnectQuiet
 import eu.hxreborn.pixelinjector.xposed.hook.launcher.doubleTapToSleep
 import eu.hxreborn.pixelinjector.xposed.hook.launcher.hideSearchBar
 import eu.hxreborn.pixelinjector.xposed.hook.launcher.taskbarHandle
@@ -34,6 +35,7 @@ internal val tweaks: List<Tweak> =
         gboardBlack,
         dialerDechip,
         filesSortByDate,
+        kdeConnectQuiet,
     )
 
 internal fun tweaksFor(target: Target): List<Tweak> = tweaks.filter { target in it.targets }

@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import eu.hxreborn.pixelinjector.ModuleConstants.DIALER_PACKAGE
 import eu.hxreborn.pixelinjector.ModuleConstants.FILES_PACKAGES
 import eu.hxreborn.pixelinjector.ModuleConstants.GBOARD_PACKAGES
+import eu.hxreborn.pixelinjector.ModuleConstants.KDE_CONNECT_PACKAGE
 import eu.hxreborn.pixelinjector.ModuleConstants.LAUNCHER_PACKAGES
 import eu.hxreborn.pixelinjector.ModuleConstants.SYSTEMUI_PACKAGE
 import eu.hxreborn.pixelinjector.prefs.BoolPref
@@ -18,6 +19,7 @@ internal enum class Target {
     GBOARD,
     DIALER,
     FILES,
+    KDE_CONNECT,
     ;
 
     companion object {
@@ -33,6 +35,7 @@ internal enum class Target {
                 process in GBOARD_PACKAGES -> GBOARD
                 process == DIALER_PACKAGE -> DIALER
                 process in FILES_PACKAGES -> FILES
+                process == KDE_CONNECT_PACKAGE -> KDE_CONNECT
                 else -> null
             }
     }
