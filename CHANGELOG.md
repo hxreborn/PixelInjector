@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/hxreborn/PixelInjector/compare/v1.1.0...v1.2.0) (2026-09-24)
+
+### Features
+
+* **hook:** add KDE Connect Quiet to block the Wi-Fi multicast lock ([cac024b](https://github.com/hxreborn/PixelInjector/commit/cac024b468aab1d3e873c4bd55699a0cb9cba7dd))
+
 ## [1.1.0](https://github.com/hxreborn/PixelInjector/compare/v1.0.2...v1.1.0) (2026-09-07)
 
 ### Features
