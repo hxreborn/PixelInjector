@@ -1,3 +1,13 @@
+## [1.3.0](https://github.com/hxreborn/PixelInjector/compare/v1.2.0...v1.3.0) (2026-09-28)
+
+### Features
+
+* **hook:** add a skip or only-selected app filter to PillShot ([d85eed1](https://github.com/hxreborn/PixelInjector/commit/d85eed197297c1babb6bc25dd6a75e185d397f26)), closes [#10](https://github.com/hxreborn/PixelInjector/issues/10)
+
+### Refactor
+
+* **app:** put Copy after Close in the hot reload sheet ([18eb7db](https://github.com/hxreborn/PixelInjector/commit/18eb7db883343567e88d3570ff92708522e8a967))
+
 ## [1.2.0](https://github.com/hxreborn/PixelInjector/compare/v1.1.0...v1.2.0) (2026-09-24)
 
 ### Features
