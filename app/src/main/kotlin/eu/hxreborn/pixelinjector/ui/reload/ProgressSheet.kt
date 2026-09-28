@@ -149,11 +149,11 @@ fun ProgressSheet(
             Console(run.lines, Modifier.weight(1f).padding(top = SectionGap))
             SheetActions {
                 if (!run.done) TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = onClose, enabled = run.done) { Text(stringResource(R.string.close)) }
                 FilledTonalButton(onClick = {
                     val clip = ClipData.newPlainText("PixelInjector hot reload", formatLines(run.lines))
                     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
                 }) { Text(stringResource(R.string.copy)) }
-                TextButton(onClick = onClose, enabled = run.done) { Text(stringResource(R.string.close)) }
             }
         }
     }
