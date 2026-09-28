@@ -20,6 +20,7 @@ import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Target
 import eu.hxreborn.pixelinjector.xposed.Tweak
+import eu.hxreborn.pixelinjector.xposed.Value
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -32,6 +33,8 @@ private const val TAKE_SCREENSHOT_FULLSCREEN = 1
 private const val LAST_INLINE_CAPTURE_SDK = 35
 
 private val switch = Switch(Prefs.PILL_SHOT)
+private val onlySelected = Switch(Prefs.PILL_SHOT_ONLY_SELECTED)
+private val selectedApps = Value(Prefs.PILL_SHOT_APPS) { HashSet(it) }
 
 private val pending = ThreadLocal<Pair<Context, Any>>()
 
@@ -39,7 +42,7 @@ internal val pillShot =
     Tweak(
         key = TWEAK,
         targets = setOf(Target.SYSTEMUI, Target.SCREENSHOT),
-        prefs = listOf(switch),
+        prefs = listOf(switch, onlySelected, selectedApps),
         install = XposedModule::installPillShot,
     )
 
@@ -98,6 +101,10 @@ private class ScreenshotBindings(
     ): Bitmap? {
         val pkg = packageName.invoke(shot) as String
         if (pkg.isEmpty()) return null
+        if (!stamps(pkg)) {
+            Logger.info("stamp skipped tweak=$TWEAK pkg=$pkg onlySelected=${onlySelected.enabled}")
+            return null
+        }
         return drawPill(ctx, label(ctx, pkg), src)
     }
 }
@@ -144,6 +151,11 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
         }
     }
     return true
+}
+
+private fun stamps(pkg: String): Boolean {
+    val selected = selectedApps.value
+    return selected.isEmpty() || (pkg in selected) == onlySelected.enabled
 }
 
 private fun label(

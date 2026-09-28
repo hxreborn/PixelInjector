@@ -27,6 +27,9 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -63,23 +66,29 @@ private val EmptyStatePadding = PaddingValues(horizontal = 32.dp, vertical = 40.
 private val EmptyIconSize = 48.dp
 private val AppRowHorizontalPadding = 12.dp
 private val AppRowVerticalPadding = 8.dp
+private val ModeRowPadding = PaddingValues(top = 4.dp, bottom = 10.dp)
+private val selectionModes = listOf(false to R.string.apps_mode_skip, true to R.string.apps_mode_only)
 private val checkboxRole = Modifier.semantics { role = Role.Checkbox }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppsSheet(
+    title: Int,
+    description: Int,
     apps: List<LauncherApp>?,
-    allowed: Set<String>,
-    onAllowedChange: (Set<String>) -> Unit,
+    selected: Set<String>,
+    onSelectedChange: (Set<String>) -> Unit,
+    onlySelected: Boolean? = null,
+    onOnlySelectedChange: (Boolean) -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
-    val current by rememberUpdatedState(allowed)
+    val current by rememberUpdatedState(selected)
     val onToggle = { packageName: String, on: Boolean ->
         haptic.performHapticFeedback(if (on) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
-        onAllowedChange(if (on) current + packageName else current - packageName)
+        onSelectedChange(if (on) current + packageName else current - packageName)
     }
     var query by rememberSaveable { mutableStateOf("") }
-    val pinned = remember(apps) { allowed }
+    val pinned = remember(apps) { selected }
     val visible =
         remember(apps, query, pinned) {
             apps
@@ -91,13 +100,25 @@ fun AppsSheet(
     val iconSizePx = with(LocalDensity.current) { AppIconSize.roundToPx() }
 
     Column(Modifier.fillMaxHeight(SHEET_HEIGHT_FRACTION).imePadding().padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) {
-        SheetHeader(stringResource(R.string.tweak_clipboard_apps), stringResource(R.string.tweak_clipboard_desc)) {
+        SheetHeader(stringResource(title), stringResource(description)) {
             Text(
-                pluralStringResource(R.plurals.apps_selected, allowed.size, allowed.size),
+                pluralStringResource(R.plurals.apps_selected, selected.size, selected.size),
                 style = AppText.meta,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 4.dp),
             )
+        }
+        if (onlySelected != null) {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(ModeRowPadding)) {
+                selectionModes.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = onlySelected == value,
+                        onClick = { onOnlySelectedChange(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index, selectionModes.size),
+                        icon = {},
+                    ) { Text(stringResource(label)) }
+                }
+            }
         }
         SearchBar(
             inputField = {
@@ -158,7 +179,7 @@ fun AppsSheet(
                 }
             }
             tileGroup(visible, key = { it.packageName }) { app, shape ->
-                val checked = app.packageName in allowed
+                val checked = app.packageName in selected
                 val icon = rememberAppIcon(app.packageName, iconSizePx)
                 Tile(
                     shape = shape,

@@ -14,6 +14,8 @@ object Prefs {
 
     val WARM_TILES = BoolPref("systemui.warmTiles", true).register()
     val PILL_SHOT = BoolPref("systemui.pillShot", true).register()
+    val PILL_SHOT_ONLY_SELECTED = BoolPref("systemui.pillShot.onlySelected", false).register()
+    val PILL_SHOT_APPS = StringSetPref("systemui.pillShot.apps", emptySet()).register()
     val SCREENSHOT_SOUND = BoolPref("systemui.screenshotSound", false).register()
     val EXPAND_NOTIFICATIONS = BoolPref("systemui.expandNotifications", false).register()
     val STATUS_BAR_DOUBLE_TAP = BoolPref("systemui.statusBarDoubleTap", false).register()

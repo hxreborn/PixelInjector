@@ -19,6 +19,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardActions
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardScreen
@@ -117,9 +118,22 @@ fun AppNavHost(
                 }
                 entry<Destination.AppsEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
                     AppsSheet(
+                        title = R.string.tweak_clipboard_apps,
+                        description = R.string.tweak_clipboard_desc,
                         apps = launcherApps,
-                        allowed = prefs[Prefs.CLIPBOARD_APPS],
-                        onAllowedChange = { viewModel.save(Prefs.CLIPBOARD_APPS, it) },
+                        selected = prefs[Prefs.CLIPBOARD_APPS],
+                        onSelectedChange = { viewModel.save(Prefs.CLIPBOARD_APPS, it) },
+                    )
+                }
+                entry<Destination.PillShotApps>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
+                    AppsSheet(
+                        title = R.string.tweak_pill_shot_apps,
+                        description = R.string.tweak_pill_shot_apps_desc,
+                        apps = launcherApps,
+                        selected = prefs[Prefs.PILL_SHOT_APPS],
+                        onSelectedChange = { viewModel.save(Prefs.PILL_SHOT_APPS, it) },
+                        onlySelected = prefs[Prefs.PILL_SHOT_ONLY_SELECTED],
+                        onOnlySelectedChange = { viewModel.save(Prefs.PILL_SHOT_ONLY_SELECTED, it) },
                     )
                 }
                 entry<Destination.SoundEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {

@@ -56,7 +56,14 @@ class TweakUi(
 val tweakUis: List<TweakUi> =
     listOf(
         TweakUi("WarmTiles", Prefs.WARM_TILES, R.string.tweak_warm_tiles, R.string.tweak_warm_tiles_desc, TweakGroup.SYSTEM_UI),
-        TweakUi("PillShot", Prefs.PILL_SHOT, R.string.tweak_pill_shot, R.string.tweak_pill_shot_desc, TweakGroup.SYSTEM_UI),
+        TweakUi(
+            "PillShot",
+            Prefs.PILL_SHOT,
+            R.string.tweak_pill_shot,
+            R.string.tweak_pill_shot_desc,
+            TweakGroup.SYSTEM_UI,
+            editor = TweakEditor(R.string.tweak_pill_shot_apps, null, Destination.PillShotApps) { it[Prefs.PILL_SHOT_APPS].size },
+        ),
         TweakUi(
             "ScreenshotSound",
             Prefs.SCREENSHOT_SOUND,

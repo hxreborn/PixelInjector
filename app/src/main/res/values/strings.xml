@@ -17,6 +17,8 @@
     <string name="tweak_warm_tiles_desc">Raises the limit of 3 bound tiles in Quick Settings</string>
     <string name="tweak_pill_shot">PillShot</string>
     <string name="tweak_pill_shot_desc">Draws the app name on screenshots</string>
+    <string name="tweak_pill_shot_apps">App filter</string>
+    <string name="tweak_pill_shot_apps_desc">Skips the selected apps or stamps only them. None selected stamps every app</string>
     <string name="tweak_screenshot_sound">Mute screenshot sound</string>
     <string name="tweak_screenshot_sound_desc">Skips the screenshot shutter sound</string>
     <string name="tweak_expand_notifications">Always expand notifications</string>
@@ -85,6 +87,8 @@
     <string name="copy">Copy</string>
     <string name="navigate_up">Navigate up</string>
     <string name="filter_apps">Filter apps</string>
+    <string name="apps_mode_skip">Skip selected</string>
+    <string name="apps_mode_only">Only selected</string>
     <string name="apps_filter_empty">No apps match</string>
     <string name="root_denied">Root denied. Grant it in your root manager then refresh</string>
     <string name="root_missing">Root denied. Grant it in your root manager then tap here</string>

@@ -17,6 +17,9 @@ sealed interface Destination : NavKey {
     data object AppsEditor : Destination
 
     @Serializable
+    data object PillShotApps : Destination
+
+    @Serializable
     data object SoundEditor : Destination
 
     @Serializable
