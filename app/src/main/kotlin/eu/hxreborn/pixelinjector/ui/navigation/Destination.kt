@@ -23,5 +23,8 @@ sealed interface Destination : NavKey {
     data object SoundEditor : Destination
 
     @Serializable
+    data object EmptyShadeEditor : Destination
+
+    @Serializable
     data object ModuleLog : Destination
 }

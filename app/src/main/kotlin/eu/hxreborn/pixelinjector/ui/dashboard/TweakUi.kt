@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.ui.dashboard
 
+import android.os.Build
 import eu.hxreborn.pixelinjector.ModuleConstants.GBOARD_PACKAGES
 import eu.hxreborn.pixelinjector.ModuleConstants.KDE_CONNECT_PACKAGE
 import eu.hxreborn.pixelinjector.ModuleConstants.LAUNCHER_PACKAGES
@@ -26,7 +27,7 @@ class TweakEditor(
     val title: Int,
     val description: Int?,
     val destination: Destination,
-    val count: (AppPrefs) -> Int,
+    val summary: (AppPrefs) -> String,
 )
 
 class TweakSlider(
@@ -51,6 +52,7 @@ class TweakUi(
     val slider: TweakSlider? = null,
     val sound: TweakSound? = null,
     val errorKeys: Set<String> = setOf(key),
+    val minSdk: Int = Build.VERSION_CODES.TIRAMISU,
 )
 
 val tweakUis: List<TweakUi> =
@@ -62,7 +64,12 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_pill_shot,
             R.string.tweak_pill_shot_desc,
             TweakGroup.SYSTEM_UI,
-            editor = TweakEditor(R.string.tweak_pill_shot_apps, null, Destination.PillShotApps) { it[Prefs.PILL_SHOT_APPS].size },
+            editor =
+                TweakEditor(
+                    R.string.tweak_pill_shot_apps,
+                    null,
+                    Destination.PillShotApps,
+                ) { it[Prefs.PILL_SHOT_APPS].size.toString() },
         ),
         TweakUi(
             "ScreenshotSound",
@@ -70,6 +77,15 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_screenshot_sound,
             R.string.tweak_screenshot_sound_desc,
             TweakGroup.SYSTEM_UI,
+        ),
+        TweakUi(
+            "EmptyShade",
+            Prefs.EMPTY_SHADE,
+            R.string.tweak_empty_shade,
+            R.string.tweak_empty_shade_desc,
+            TweakGroup.SYSTEM_UI,
+            editor = TweakEditor(R.string.tweak_empty_shade_edit, null, Destination.EmptyShadeEditor) { it[Prefs.EMPTY_SHADE_TEXT] },
+            minSdk = Build.VERSION_CODES.CINNAMON_BUN,
         ),
         TweakUi(
             "ExpandNotifications",
@@ -102,7 +118,7 @@ val tweakUis: List<TweakUi> =
             TweakGroup.SYSTEM,
             editor =
                 TweakEditor(R.string.tweak_new_task_rules, R.string.tweak_new_task_rules_desc, Destination.RulesEditor) { prefs ->
-                    prefs[Prefs.NEW_TASK_RULES].lines().count { it.isNotBlank() }
+                    prefs[Prefs.NEW_TASK_RULES].lines().count { it.isNotBlank() }.toString()
                 },
         ),
         TweakUi(
@@ -111,7 +127,7 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_clipboard,
             R.string.tweak_clipboard_desc,
             TweakGroup.SYSTEM,
-            editor = TweakEditor(R.string.tweak_clipboard_apps, null, Destination.AppsEditor) { it[Prefs.CLIPBOARD_APPS].size },
+            editor = TweakEditor(R.string.tweak_clipboard_apps, null, Destination.AppsEditor) { it[Prefs.CLIPBOARD_APPS].size.toString() },
         ),
         TweakUi(
             "DoubleTapToSleep",
@@ -152,7 +168,7 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_kde_connect_quiet_desc,
             TweakGroup.KDE_CONNECT,
         ),
-    )
+    ).filter { Build.VERSION.SDK_INT >= it.minSdk }
 
 val restartOnChange: Map<PrefSpec<*>, Set<String>> =
     mapOf(

@@ -7,6 +7,7 @@ Opinionated Xposed module of some tweaks, specially for Pixel phones so I can av
 - Warm Tiles: raises the limit of [3](https://android.googlesource.com/platform/frameworks/base/+/d5a204f16e7c71ffdbc6c8307a4134dcc1efd60d/packages/SystemUI/src/com/android/systemui/qs/external/TileServices.java#37) bound tiles in Quick Settings. Same hook as [qs-boundless-tiles](https://github.com/hxreborn/qs-boundless-tiles).
 - PillShot: draws the app name on screenshots. Revived from eXtreames/PillShot after its repo disappeared.
 - Mute screenshot sound: skips the screenshot shutter sound.
+- Empty shade message: replaces the trophy and text of the empty notification shade with your own text and one of 141 icons. Needs the Compose shade of Android 17.
 - Always expand notifications: opens notifications expanded unless you collapsed one by hand.
 - Double tap status bar to sleep: double tap empty status bar space and the phone sleeps.
 - Biometric Bypass: taps confirm on the biometric prompt after a face unlock and plays a system sound of your choice. Same hook as [biometric-bypass](https://github.com/hxreborn/biometric-bypass).

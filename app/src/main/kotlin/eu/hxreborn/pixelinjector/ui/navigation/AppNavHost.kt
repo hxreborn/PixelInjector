@@ -24,6 +24,7 @@ import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardActions
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardScreen
 import eu.hxreborn.pixelinjector.ui.editor.AppsSheet
+import eu.hxreborn.pixelinjector.ui.editor.EmptyShadeSheet
 import eu.hxreborn.pixelinjector.ui.editor.RulesEditorScreen
 import eu.hxreborn.pixelinjector.ui.editor.SoundSheet
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogScreen
@@ -140,6 +141,14 @@ fun AppNavHost(
                     SoundSheet(
                         selected = prefs[Prefs.BIOMETRIC_SOUND],
                         onSelect = { viewModel.save(Prefs.BIOMETRIC_SOUND, it) },
+                    )
+                }
+                entry<Destination.EmptyShadeEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
+                    EmptyShadeSheet(
+                        text = prefs[Prefs.EMPTY_SHADE_TEXT],
+                        iconPath = prefs[Prefs.EMPTY_SHADE_ICON_PATH],
+                        onTextChange = { viewModel.save(Prefs.EMPTY_SHADE_TEXT, it) },
+                        onIconPathChange = { viewModel.save(Prefs.EMPTY_SHADE_ICON_PATH, it) },
                     )
                 }
                 entry<Destination.ModuleLog> {

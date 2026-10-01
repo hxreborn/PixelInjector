@@ -21,6 +21,12 @@
     <string name="tweak_pill_shot_apps_desc">Skips the selected apps or stamps only them. None selected stamps every app</string>
     <string name="tweak_screenshot_sound">Mute screenshot sound</string>
     <string name="tweak_screenshot_sound_desc">Skips the screenshot shutter sound</string>
+    <string name="tweak_empty_shade">Empty shade message</string>
+    <string name="tweak_empty_shade_desc">Replaces the trophy and text shown when there are no notifications</string>
+    <string name="tweak_empty_shade_edit">Text and icon</string>
+    <string name="empty_shade_text_label">Text</string>
+    <string name="empty_shade_text_hint">Empty keeps the stock text</string>
+    <string name="empty_shade_icon_label">Icon</string>
     <string name="tweak_expand_notifications">Always expand notifications</string>
     <string name="tweak_expand_notifications_desc">Opens notifications expanded</string>
     <string name="tweak_status_bar_double_tap">Double tap status bar to sleep</string>

@@ -70,6 +70,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -115,7 +116,7 @@ private sealed interface DashTile {
 
     class Link(
         val editor: TweakEditor,
-        val count: Int,
+        val summary: String,
     ) : DashTile {
         override val title: Int get() = editor.title
     }
@@ -143,7 +144,7 @@ private fun rows(
         val checked = prefs[tweak.pref]
         listOfNotNull(
             DashTile.Toggle(tweak, checked),
-            tweak.editor?.takeIf { checked }?.let { DashTile.Link(it, it.count(prefs)) },
+            tweak.editor?.takeIf { checked }?.let { DashTile.Link(it, it.summary(prefs)) },
             tweak.slider?.takeIf { checked }?.let { DashTile.Slide(it, prefs[it.pref]) },
             tweak.sound?.takeIf { checked }?.let { DashTile.Sound(it, prefs[it.pref]) },
         )
@@ -372,10 +373,12 @@ private fun LinkTile(
     Tile(shape = shape, onClick = { onOpen(tile.editor.destination) }) {
         TileText(stringResource(tile.title), tile.editor.description?.let { stringResource(it) })
         Text(
-            tile.count.toString(),
+            tile.summary,
             style = AppText.count,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(end = 4.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false).padding(end = 4.dp),
         )
         Box(Modifier.width(LinkChevronSlot), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
