@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/hxreborn/PixelInjector/compare/v1.3.0...v1.4.0) (2026-10-01)
+
+### Features
+
+* **hook:** add Empty Shade to replace the empty shade text and icon ([767f39f](https://github.com/hxreborn/PixelInjector/commit/767f39fdfb45ac05f8755cc1bc040d0b93151264))
+
 ## [1.3.0](https://github.com/hxreborn/PixelInjector/compare/v1.2.0...v1.3.0) (2026-09-28)
 
 ### Features
