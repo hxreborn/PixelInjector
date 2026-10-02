@@ -18,6 +18,4 @@ object ModuleConstants {
 
     val FILES_PACKAGES: Set<String> =
         setOf("com.google.android.documentsui", "com.android.documentsui")
-
-    val SLEEP_CALLERS: Set<String> = LAUNCHER_PACKAGES + SYSTEMUI_PACKAGE
 }

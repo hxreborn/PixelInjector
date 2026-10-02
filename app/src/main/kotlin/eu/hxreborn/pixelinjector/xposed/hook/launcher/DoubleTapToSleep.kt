@@ -16,7 +16,7 @@ import java.lang.reflect.Method
 private const val TWEAK = "DoubleTapToSleep"
 private const val LISTENER = "com.android.launcher3.touch.WorkspaceTouchListener"
 
-private val trigger = SleepTrigger(TWEAK)
+private val trigger = SleepTrigger(TWEAK, viaRoot = true)
 private val switch = Switch(Prefs.DOUBLE_TAP_TO_SLEEP)
 
 internal val doubleTapToSleep =

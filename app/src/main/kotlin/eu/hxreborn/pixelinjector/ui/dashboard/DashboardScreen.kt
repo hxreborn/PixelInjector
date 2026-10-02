@@ -276,7 +276,7 @@ private fun LazyListScope.scope(
     sectionHeader(title, packages)
     tileGroup(tiles, key = { it.title }) { tile, shape ->
         when (tile) {
-            is DashTile.Toggle -> ToggleTile(tile, shape, tile.tweak.errorKeys.firstNotNullOfOrNull { errors[it] }, onToggle)
+            is DashTile.Toggle -> ToggleTile(tile, shape, errors[tile.tweak.key], onToggle)
             is DashTile.Link -> LinkTile(tile, shape, onOpen)
             is DashTile.Slide -> SlideTile(tile, shape, onSlide)
             is DashTile.Sound -> SoundTile(tile, shape, onOpen)

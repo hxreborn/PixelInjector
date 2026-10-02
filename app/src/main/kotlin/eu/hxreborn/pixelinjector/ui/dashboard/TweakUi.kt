@@ -51,7 +51,6 @@ class TweakUi(
     val editor: TweakEditor? = null,
     val slider: TweakSlider? = null,
     val sound: TweakSound? = null,
-    val errorKeys: Set<String> = setOf(key),
     val minSdk: Int = Build.VERSION_CODES.TIRAMISU,
 )
 
@@ -100,7 +99,6 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_status_bar_double_tap,
             R.string.tweak_status_bar_double_tap_desc,
             TweakGroup.SYSTEM_UI,
-            errorKeys = setOf("StatusBarDoubleTap", "SleepSignal"),
         ),
         TweakUi(
             "BiometricBypass",
@@ -135,7 +133,6 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_double_tap_sleep,
             R.string.tweak_double_tap_sleep_desc,
             TweakGroup.LAUNCHER,
-            errorKeys = setOf("DoubleTapToSleep", "SleepSignal"),
         ),
         TweakUi(
             "TaskbarHandle",

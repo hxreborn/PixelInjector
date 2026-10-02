@@ -25,7 +25,7 @@ private const val STATUS_BAR_VIEW = "com.android.systemui.statusbar.phone.PhoneS
 
 @Volatile private var current: StatusBarBindings? = null
 
-private val trigger = SleepTrigger(TWEAK)
+private val trigger = SleepTrigger(TWEAK, viaRoot = false)
 private val switch = Switch(Prefs.STATUS_BAR_DOUBLE_TAP) { if (it) current?.hookOnce() }
 
 internal val statusBarDoubleTap =
