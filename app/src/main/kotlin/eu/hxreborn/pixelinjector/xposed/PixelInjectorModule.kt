@@ -61,12 +61,8 @@ class PixelInjectorModule : XposedModule() {
             Logger.warn("hot reload rejected reason=no-classloader")
             return false
         }
-        if (target == null) {
-            Logger.warn("hot reload rejected reason=no-target")
-            return false
-        }
         val state = HashMap<String, Any?>()
-        for (tweak in tweaksFor(target)) {
+        for (tweak in target?.let(::tweaksFor).orEmpty()) {
             runCatching { tweak.saveState() }
                 .onSuccess { if (it != null) state[tweak.key] = it }
                 .onFailure {
