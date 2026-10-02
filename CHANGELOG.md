@@ -1,3 +1,9 @@
+## [1.4.1](https://github.com/hxreborn/PixelInjector/compare/v1.4.0...v1.4.1) (2026-10-02)
+
+### Bug Fixes
+
+* **hook:** lock the phone before double tap to sleep turns the screen off ([aa1725b](https://github.com/hxreborn/PixelInjector/commit/aa1725b3274d8d5acf87b72dda96e2fe924f4f03))
+
 ## [1.4.0](https://github.com/hxreborn/PixelInjector/compare/v1.3.0...v1.4.0) (2026-10-01)
 
 ### Features
