@@ -1,3 +1,9 @@
+## [1.4.2](https://github.com/hxreborn/PixelInjector/compare/v1.4.1...v1.4.2) (2026-10-02)
+
+### Bug Fixes
+
+* **module:** accept hot reload in processes without a target ([1302ed4](https://github.com/hxreborn/PixelInjector/commit/1302ed4f4f0f7f8f453e34c07f7971cbbb78374d))
+
 ## [1.4.1](https://github.com/hxreborn/PixelInjector/compare/v1.4.0...v1.4.1) (2026-10-02)
 
 ### Bug Fixes
