@@ -11,7 +11,7 @@ navigation3 = "1.1.7"
 kotlinxSerialization = "1.11.0"
 ktlintCli = "1.8.0"
 libsu = "6.0.0"
-dexkit = "2.2.0"
+dexkit = "2.3.0"
 
 [libraries]
 libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposed" }
