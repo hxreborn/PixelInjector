@@ -2,7 +2,7 @@ package eu.hxreborn.pixelinjector.ui.component
 
 import eu.hxreborn.pixelinjector.BuildConfig
 
-fun versionLabel(code: Long): String = "${code / 100}.${code / 10 % 10}.${code % 10} ($code)"
+fun versionLabel(versionCode: Long): String = "${versionCode / 10000}.${versionCode / 100 % 100}.${versionCode % 100} ($versionCode)"
 
 val installedVersionLabel: String = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
