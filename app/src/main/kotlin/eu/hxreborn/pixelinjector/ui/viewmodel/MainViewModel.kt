@@ -63,11 +63,6 @@ data class HomeApp(
     val loaded: Boolean,
 )
 
-data class AppTarget(
-    val target: HookedTarget,
-    val packageName: String,
-)
-
 class MainViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
@@ -85,11 +80,17 @@ class MainViewModel(
     private val targets = MutableStateFlow<List<HookedTarget>>(emptyList())
     private val scope = MutableStateFlow<Set<String>?>(null)
 
-    private fun reloadable(target: HookedTarget): Boolean =
-        target.processName == SYSTEM_PROCESS || target.processName.startsWith(ModuleConstants.SYSTEMUI_PACKAGE)
+    private fun targetRank(target: HookedTarget): Int =
+        when {
+            target.processName == SYSTEM_PROCESS -> 0
+            target.processName.startsWith(ModuleConstants.SYSTEMUI_PACKAGE) -> 1
+            else -> 2
+        }
 
     val reloadTargets: StateFlow<List<HookedTarget>> =
-        targets.map { list -> list.filter(::reloadable) }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        targets
+            .map { list -> list.sortedWith(compareBy(::targetRank, HookedTarget::getProcessName)) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private fun pendingTargets(list: List<HookedTarget>): List<HookedTarget> =
         list.filter { it.state == HookedTarget.State.STALE }.ifEmpty { list }
@@ -165,11 +166,6 @@ class MainViewModel(
 
     private val _moduleLog = MutableStateFlow(ModuleLogState())
     val moduleLog: StateFlow<ModuleLogState> = _moduleLog.asStateFlow()
-
-    val appTargets: StateFlow<List<AppTarget>> =
-        targets
-            .map { list -> list.filterNot(::reloadable).map { AppTarget(it, it.processName.substringBefore(':')) } }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()

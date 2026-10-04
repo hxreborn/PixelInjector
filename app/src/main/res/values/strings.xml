@@ -77,15 +77,9 @@
     <string name="module_log">Module log</string>
     <string name="reload">Hot reload</string>
     <string name="targets_sheet_open">Choose processes</string>
-    <string name="targets_title">Hooked processes</string>
+    <string name="targets_title">Hot reload</string>
     <string name="targets_subtitle">Processes where the framework loaded this module</string>
-    <string name="targets_group_reload">Hot reload</string>
-    <string name="targets_group_reload_detail">no restart</string>
-    <string name="targets_group_restart">Force stop</string>
-    <string name="targets_group_restart_detail">loads on next start</string>
     <string name="targets_apply_reload">Hot reload %1$d</string>
-    <string name="targets_apply_restart">Force stop %1$d</string>
-    <string name="targets_apply_both">Apply %1$d</string>
     <string name="targets_empty">No process has loaded this module</string>
     <string name="filter_processes">Filter processes</string>
     <string name="cancel">Cancel</string>

@@ -124,7 +124,7 @@ fun ProgressSheet(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
-                    Text(stringResource(R.string.targets_group_reload), style = AppText.progressTitle)
+                    Text(stringResource(R.string.reload), style = AppText.progressTitle)
                     Text(
                         "[${run.current}/${run.total}]",
                         style = AppText.progressCounter,

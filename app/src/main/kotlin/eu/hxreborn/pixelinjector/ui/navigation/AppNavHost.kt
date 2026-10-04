@@ -45,7 +45,6 @@ fun AppNavHost(
     val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
     val prefs by viewModel.prefs.collectAsStateWithLifecycle()
     val targets by viewModel.reloadTargets.collectAsStateWithLifecycle()
-    val apps by viewModel.appTargets.collectAsStateWithLifecycle()
     val run by viewModel.reload.collectAsStateWithLifecycle()
     val moduleLog by viewModel.moduleLog.collectAsStateWithLifecycle()
     val launcherApps by viewModel.launcherApps.collectAsStateWithLifecycle()
@@ -101,13 +100,11 @@ fun AppNavHost(
                 entry<Destination.Targets>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
                     TargetsSheet(
                         targets = targets,
-                        apps = apps,
                         onDismiss = { backStack.removeLastOrNull() },
                         onHotReload = {
                             backStack.removeLastOrNull()
                             viewModel.hotReload(it)
                         },
-                        onRestart = viewModel::restartApps,
                     )
                 }
                 entry<Destination.RulesEditor> {
