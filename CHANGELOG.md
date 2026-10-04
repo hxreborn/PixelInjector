@@ -1,3 +1,13 @@
+## [1.5.0](https://github.com/hxreborn/PixelInjector/compare/v1.4.2...v1.5.0) (2026-10-04)
+
+### Features
+
+* **app:** list every hooked process in the hot reload sheet ([c603a2b](https://github.com/hxreborn/PixelInjector/commit/c603a2b665dca20a698ab487a6c14133ca9f96d7))
+
+### Bug Fixes
+
+* **app:** decode the loaded version chip as major.minor.patch ([54c9f9f](https://github.com/hxreborn/PixelInjector/commit/54c9f9fc5485cbd9d0f2fd347045021b37d63160))
+
 ## [1.4.2](https://github.com/hxreborn/PixelInjector/compare/v1.4.1...v1.4.2) (2026-10-02)
 
 ### Bug Fixes
