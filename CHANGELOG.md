@@ -1,3 +1,17 @@
+## [1.6.0](https://github.com/hxreborn/PixelInjector/compare/v1.5.0...v1.6.0) (2026-10-05)
+
+### Features
+
+* **app:** exit the toolbar on scroll and morph buttons, toggles, checkboxes and menu items ([c76340b](https://github.com/hxreborn/PixelInjector/commit/c76340b50f87ca149abe82f934465adffae6123d))
+
+### Bug Fixes
+
+* **app:** shrink the collapsed dashboard title and right align link tile chevrons ([2710bc0](https://github.com/hxreborn/PixelInjector/commit/2710bc03673334f190da1240e0eb8b1c26309d4e))
+
+### Refactor
+
+* **app:** replace the scrollbar gist with the material3 scrollbar modifier ([ab0a501](https://github.com/hxreborn/PixelInjector/commit/ab0a501e327edad124ab5f589e6cdaa74d2cfe95))
+
 ## [1.5.0](https://github.com/hxreborn/PixelInjector/compare/v1.4.2...v1.5.0) (2026-10-04)
 
 ### Features
