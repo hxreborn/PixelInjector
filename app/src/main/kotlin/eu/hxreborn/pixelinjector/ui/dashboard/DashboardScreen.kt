@@ -185,6 +185,7 @@ fun DashboardScreen(
             TweakGroup.DIALER to stringResource(R.string.scope_dialer),
             TweakGroup.FILES to stringResource(R.string.scope_files),
             TweakGroup.KDE_CONNECT to stringResource(R.string.scope_kde_connect),
+            TweakGroup.GITHUB to stringResource(R.string.scope_github),
         ).filter { (group, _) -> group == TweakGroup.LAUNCHER || group in state.packages }
     val errorLines =
         buildMap {

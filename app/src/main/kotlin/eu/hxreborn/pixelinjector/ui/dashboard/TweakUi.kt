@@ -21,6 +21,7 @@ enum class TweakGroup {
     DIALER,
     FILES,
     KDE_CONNECT,
+    GITHUB,
 }
 
 class TweakEditor(
@@ -165,6 +166,7 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_kde_connect_quiet_desc,
             TweakGroup.KDE_CONNECT,
         ),
+        TweakUi("GhFastPass", Prefs.GH_FAST_PASS, R.string.tweak_gh_fast_pass, R.string.tweak_gh_fast_pass_desc, TweakGroup.GITHUB),
     ).filter { Build.VERSION.SDK_INT >= it.minSdk }
 
 val restartOnChange: Map<PrefSpec<*>, Set<String>> =
