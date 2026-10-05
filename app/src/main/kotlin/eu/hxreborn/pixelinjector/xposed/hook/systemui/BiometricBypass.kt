@@ -97,8 +97,9 @@ private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
     )
     b.playToken?.let { token ->
         hook(token).intercept { chain ->
+            if (!switch.enabled) return@intercept chain.proceed()
             val quiet =
-                sound.value != null &&
+                confirmedAt != 0L && sound.value != null &&
                     chain.getArg(0) == TOKEN_UNLOCK &&
                     SystemClock.uptimeMillis() - confirmedAt <= SUPPRESS_MS
             if (!quiet) return@intercept chain.proceed()
