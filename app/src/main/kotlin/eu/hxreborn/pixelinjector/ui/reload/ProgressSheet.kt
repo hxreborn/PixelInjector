@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -148,9 +149,9 @@ fun ProgressSheet(
             }
             Console(run.lines, Modifier.weight(1f).padding(top = SectionGap))
             SheetActions {
-                if (!run.done) TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-                TextButton(onClick = onClose, enabled = run.done) { Text(stringResource(R.string.close)) }
-                FilledTonalButton(onClick = {
+                if (!run.done) TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = onClose, shapes = ButtonDefaults.shapes(), enabled = run.done) { Text(stringResource(R.string.close)) }
+                FilledTonalButton(shapes = ButtonDefaults.shapes(), onClick = {
                     val clip = ClipData.newPlainText("PixelInjector hot reload", formatLines(run.lines))
                     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
                 }) { Text(stringResource(R.string.copy)) }

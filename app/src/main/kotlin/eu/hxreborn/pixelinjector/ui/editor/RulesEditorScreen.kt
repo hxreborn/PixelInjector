@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -111,7 +112,7 @@ fun RulesEditorScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { commit(lines - rule) }) {
+                    IconButton(onClick = { commit(lines - rule) }, shapes = IconButtonDefaults.shapes()) {
                         Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.rule_delete))
                     }
                 }
@@ -141,7 +142,7 @@ fun RulesEditorScreen(
                 lineLimits = TextFieldLineLimits.SingleLine,
             )
             Spacer(Modifier.width(8.dp))
-            FilledIconButton(onClick = add) {
+            FilledIconButton(onClick = add, shapes = IconButtonDefaults.shapes()) {
                 Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.rule_add))
             }
         }

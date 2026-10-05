@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -129,8 +130,9 @@ fun TargetsSheet(
         }
         val reload = targets.filter { it.pid in reloadPids }
         SheetActions {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = onDismiss, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.cancel)) }
             Button(
+                shapes = ButtonDefaults.shapes(),
                 enabled = reload.isNotEmpty(),
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)

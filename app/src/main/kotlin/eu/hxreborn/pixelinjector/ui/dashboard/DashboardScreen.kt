@@ -38,9 +38,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingToolbarDefaults
+import androidx.compose.material3.FloatingToolbarExitDirection
+import androidx.compose.material3.FloatingToolbarScrollBehavior
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -159,6 +162,7 @@ fun DashboardScreen(
     modifier: Modifier = Modifier,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val toolbarScrollBehavior = FloatingToolbarDefaults.exitAlwaysScrollBehavior(exitDirection = FloatingToolbarExitDirection.Bottom)
     var resumedBefore by rememberSaveable { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
         if (resumedBefore) actions.onRefresh() else resumedBefore = true
@@ -196,7 +200,7 @@ fun DashboardScreen(
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection).nestedScroll(toolbarScrollBehavior),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
             TwoRowsTopAppBar(
@@ -230,6 +234,7 @@ fun DashboardScreen(
                 onOpenLog = actions.onOpenLog,
                 onHotReload = actions.onHotReload,
                 onToggleTargets = actions.onToggleTargets,
+                scrollBehavior = toolbarScrollBehavior,
                 modifier =
                     Modifier
                         .align(Alignment.BottomCenter)
@@ -401,14 +406,16 @@ private fun Toolbar(
     onOpenLog: () -> Unit,
     onHotReload: () -> Unit,
     onToggleTargets: () -> Unit,
+    scrollBehavior: FloatingToolbarScrollBehavior,
     modifier: Modifier = Modifier,
 ) {
     HorizontalFloatingToolbar(
         expanded = true,
         modifier = modifier,
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+        scrollBehavior = scrollBehavior,
     ) {
-        IconButton(onClick = onOpenLog, modifier = Modifier.size(ToolbarButtonSize)) {
+        IconButton(onClick = onOpenLog, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(ToolbarButtonSize)) {
             Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = stringResource(R.string.module_log))
         }
         Spacer(Modifier.width(ToolbarGap))

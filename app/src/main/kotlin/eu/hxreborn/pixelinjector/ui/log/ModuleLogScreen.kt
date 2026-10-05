@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,18 +39,21 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
 import androidx.compose.material.icons.outlined.VerticalAlignTop
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -169,11 +173,12 @@ fun ModuleLogScreen(
             },
         onBack = onBack,
         actions = {
-            IconToggleButton(checked = wrap, onCheckedChange = { wrap = it }) {
+            IconToggleButton(checked = wrap, onCheckedChange = { wrap = it }, shapes = IconButtonDefaults.toggleableShapes()) {
                 Icon(Icons.AutoMirrored.Outlined.WrapText, contentDescription = stringResource(R.string.log_wrap))
             }
             LevelMenu(minLevel) { minLevel = it }
             IconButton(
+                shapes = IconButtonDefaults.shapes(),
                 onClick = {
                     val text = visible.joinToString("\n") { "${it.time} ${it.pid} ${it.level} ${it.body}" }
                     val clip = ClipData.newPlainText("PixelInjector module log", text)
@@ -181,7 +186,9 @@ fun ModuleLogScreen(
                 },
                 enabled = visible.isNotEmpty(),
             ) { Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy)) }
-            IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.refresh)) }
+            IconButton(onClick = onRefresh, shapes = IconButtonDefaults.shapes()) {
+                Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.refresh))
+            }
         },
     ) { _ ->
         SearchBar(
@@ -251,7 +258,7 @@ fun ModuleLogScreen(
                 visible.isEmpty() -> {
                     Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.Start) {
                         Message(stringResource(R.string.log_filter_empty))
-                        TextButton(onClick = {
+                        TextButton(shapes = ButtonDefaults.shapes(), onClick = {
                             query = ""
                             minLevel = ALL_LEVELS
                             filter = null
@@ -328,7 +335,7 @@ private fun LevelMenu(
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) {
+        IconButton(onClick = { open = true }, shapes = IconButtonDefaults.shapes()) {
             Icon(
                 Icons.Outlined.FilterList,
                 contentDescription = stringResource(R.string.log_filter_level),
@@ -336,14 +343,22 @@ private fun LevelMenu(
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            levelFilters.forEach { (level, label) ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(label)) },
+            levelFilters.forEachIndexed { index, (level, label) ->
+                SelectableDropdownMenuItem(
+                    selected = level == minLevel,
                     onClick = {
                         onSelect(level)
                         open = false
                     },
-                    trailingIcon = if (level == minLevel) ({ Icon(Icons.Outlined.Check, contentDescription = null) }) else null,
+                    text = { Text(stringResource(label)) },
+                    shapes = MenuDefaults.itemShape(index, levelFilters.size),
+                    selectedLeadingIcon = {
+                        Icon(
+                            Icons.Outlined.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(MenuDefaults.LeadingIconSize),
+                        )
+                    },
                 )
             }
         }

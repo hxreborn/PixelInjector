@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -103,6 +104,7 @@ fun EmptyShadeSheet(
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     FilledTonalIconToggleButton(
                         checked = item.iconPath == iconPath,
+                        shapes = IconButtonDefaults.toggleableShapes(),
                         onCheckedChange = {
                             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             onIconPathChange(item.iconPath)
