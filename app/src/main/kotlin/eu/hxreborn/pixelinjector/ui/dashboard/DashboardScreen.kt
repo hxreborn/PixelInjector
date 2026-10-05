@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -90,6 +91,7 @@ import eu.hxreborn.pixelinjector.ui.component.sectionHeader
 import eu.hxreborn.pixelinjector.ui.component.tileGroup
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.theme.AppText
+import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 import kotlin.math.roundToInt
 
 private val TopBarExpandedHeight = 152.dp
@@ -199,6 +201,7 @@ fun DashboardScreen(
             }
         }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val listState = rememberLazyListState()
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection).nestedScroll(toolbarScrollBehavior),
@@ -244,7 +247,8 @@ fun DashboardScreen(
                         .zIndex(1f),
             )
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                modifier = Modifier.fillMaxSize().verticalScrollbar(listState),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = ToolbarClearance + navBottom),
             ) {
                 if (!state.bound) {
