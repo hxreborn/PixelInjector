@@ -5,7 +5,11 @@ import java.lang.reflect.Method
 
 fun Class<*>.optionalField(vararg names: String): Field? =
     names.firstNotNullOfOrNull { name ->
-        runCatching { getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
+        try {
+            getDeclaredField(name).apply { isAccessible = true }
+        } catch (_: NoSuchFieldException) {
+            null
+        }
     }
 
 fun Class<*>.requiredField(vararg names: String): Field =
@@ -15,7 +19,9 @@ fun Class<*>.requiredMethod(
     name: String,
     vararg params: Class<*>?,
 ): Method =
-    runCatching { getDeclaredMethod(name, *params).apply { isAccessible = true } }.getOrElse {
+    try {
+        getDeclaredMethod(name, *params).apply { isAccessible = true }
+    } catch (_: NoSuchMethodException) {
         throw NoSuchMethodException(
             "$simpleName.$name(${params.joinToString(",") { it?.simpleName ?: "?" }})",
         )
@@ -37,9 +43,7 @@ fun Class<*>.optionalMethod(
         ?.apply { isAccessible = true }
 
 fun Class<*>.findFieldUpward(name: String): Field? =
-    generateSequence(this) { it.superclass }.firstNotNullOfOrNull { cls ->
-        runCatching { cls.getDeclaredField(name).apply { isAccessible = true } }.getOrNull()
-    }
+    generateSequence(this) { it.superclass }.firstNotNullOfOrNull { it.optionalField(name) }
 
 fun Method.signature(): String =
     "${declaringClass.simpleName}#$name(${parameterTypes.joinToString(",") { it.simpleName }})"
