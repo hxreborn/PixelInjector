@@ -23,7 +23,8 @@ internal object DexKit {
     }
 
     fun release() {
-        bridge?.close()
+        val live = bridge
         bridge = null
+        live?.close()
     }
 }
