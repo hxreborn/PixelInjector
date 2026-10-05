@@ -16,12 +16,7 @@ class PrefsRepository(
         callbackFlow {
             fun sendState() = trySend(snapshot())
             val listener =
-                SharedPreferences.OnSharedPreferenceChangeListener {
-                    _,
-                    _,
-                    ->
-                    sendState()
-                }
+                SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> sendState() }
             local.registerOnSharedPreferenceChangeListener(listener)
             sendState()
             awaitClose { local.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -46,13 +41,7 @@ class PrefsRepository(
         val remote = remoteProvider() ?: return
         runCatching {
             remote.edit {
-                Prefs.all.forEach {
-                    it.copyIfChanged(
-                        local,
-                        remote,
-                        this,
-                    )
-                }
+                Prefs.all.forEach { it.copyIfChanged(local, remote, this) }
             }
         }.onFailure {
             Log.w(

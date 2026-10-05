@@ -64,7 +64,7 @@ private fun field(
 fun deriveErrors(entries: List<LogEntry>): Map<String, String> {
     val procByPid = mutableMapOf<Int, String>()
     val errorsByProc = mutableMapOf<String, MutableMap<String, String>>()
-    for ((_, pid, _, tweak1, _, body) in entries) {
+    for ((_, pid, _, tweak, _, body) in entries) {
         when {
             body.startsWith("install proc=") -> {
                 val proc = field(body, "proc") ?: continue
@@ -78,10 +78,10 @@ fun deriveErrors(entries: List<LogEntry>): Map<String, String> {
 
             body.startsWith("target not found") || body.startsWith("install failed") -> {
                 val proc = procByPid[pid] ?: continue
-                val tweak = tweak1 ?: continue
+                if (tweak == null) continue
                 errorsByProc.getOrPut(proc) { mutableMapOf() }[tweak] = field(body, "build") ?: "?"
             }
         }
     }
-    return errorsByProc.values.fold(mutableMapOf()) { acc, m -> acc.also { it.putAll(m) } }
+    return buildMap { errorsByProc.values.forEach { putAll(it) } }
 }
