@@ -39,6 +39,10 @@ Opinionated Xposed module of some tweaks, specially for Pixel phones so I can av
 
 - KDE Connect Quiet: stops KDE Connect from holding the Wi-Fi multicast lock. Toggling restarts KDE Connect.
 
+### GitHub
+
+- GH FastPass: closes the Verification request approved dialog of the GitHub app as soon as a 2FA push is approved. Same hook as [gh-fast-pass](https://github.com/hxreborn/gh-fast-pass).
+
 ## Screenshots
 
 <p align="center">
