@@ -15,7 +15,6 @@ class PrefsRepository(
     val state: Flow<AppPrefs> =
         callbackFlow {
             fun sendState() = trySend(snapshot())
-            sendState()
             val listener =
                 SharedPreferences.OnSharedPreferenceChangeListener {
                     _,
@@ -24,6 +23,7 @@ class PrefsRepository(
                     sendState()
                 }
             local.registerOnSharedPreferenceChangeListener(listener)
+            sendState()
             awaitClose { local.unregisterOnSharedPreferenceChangeListener(listener) }
         }
 
