@@ -1,3 +1,23 @@
+## [1.7.0](https://github.com/hxreborn/PixelInjector/compare/v1.6.0...v1.7.0) (2026-10-05)
+
+### Features
+
+* **app:** draw a scrollbar on the dashboard list ([b6b82f7](https://github.com/hxreborn/PixelInjector/commit/b6b82f7b5de2de47df312de04e2e48e8e2e5d84a))
+* **hook:** add GH FastPass closing the approved 2FA dialog in the GitHub app ([b936f16](https://github.com/hxreborn/PixelInjector/commit/b936f16385b5dadef6466fd07c2d73581337b25e))
+
+### Bug Fixes
+
+* **app:** register the prefs listener before sending the first snapshot ([3801d51](https://github.com/hxreborn/PixelInjector/commit/3801d51af747b246df5eed9e4faf4a45680970ee))
+* **hook:** catch failures inside the posted confirm retries ([043d61f](https://github.com/hxreborn/PixelInjector/commit/043d61f797d3c0d1e0d932e104511821c710dbc6))
+* **hook:** drop the DexKit bridge reference before closing it ([d1e9d65](https://github.com/hxreborn/PixelInjector/commit/d1e9d65303363e637780194ee6fe6758e4507cd2))
+* **hook:** keep the unlock sound while Biometric Bypass is off ([ef4d909](https://github.com/hxreborn/PixelInjector/commit/ef4d909d304dfa36269f21b40760552aa0d261c2))
+
+### Refactor
+
+* **app:** collapse single line lambdas in the prefs sync and log parser ([82f2c45](https://github.com/hxreborn/PixelInjector/commit/82f2c450e7e13a5961fdd85d9fe3bf865eeb2b8b))
+* **hook:** name every bindings value and pending state explicitly ([3dfe6d9](https://github.com/hxreborn/PixelInjector/commit/3dfe6d9efc4a335785af700869c48187743b2d32))
+* **util:** catch only missing members in the reflection helpers ([c28c464](https://github.com/hxreborn/PixelInjector/commit/c28c4645813f2c5872bff4ae06b193e89d460eae))
+
 ## [1.6.0](https://github.com/hxreborn/PixelInjector/compare/v1.5.0...v1.6.0) (2026-10-05)
 
 ### Features
