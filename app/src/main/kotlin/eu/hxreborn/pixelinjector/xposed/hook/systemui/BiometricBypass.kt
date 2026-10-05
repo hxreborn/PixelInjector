@@ -152,7 +152,12 @@ private fun clickConfirm(
         }
 
         else -> {
-            view.postOnAnimation { clickConfirm(view, id, start) }
+            view.postOnAnimation {
+                runCatching { clickConfirm(view, id, start) }
+                    .onFailure {
+                        Logger.error("confirm failed tweak=$TWEAK reason=${it.message}", it)
+                    }
+            }
         }
     }
 }
