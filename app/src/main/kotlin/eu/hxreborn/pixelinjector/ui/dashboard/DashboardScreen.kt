@@ -200,7 +200,13 @@ fun DashboardScreen(
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         topBar = {
             TwoRowsTopAppBar(
-                title = { Text(stringResource(R.string.app_name), style = AppText.appBarTitle, modifier = Modifier.padding(start = 8.dp)) },
+                title = { expanded ->
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = if (expanded) AppText.appBarTitle else MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                },
                 subtitle = { expanded ->
                     if (expanded) {
                         Text(
@@ -378,7 +384,7 @@ private fun LinkTile(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false).padding(end = 4.dp),
+            modifier = Modifier.padding(end = 4.dp),
         )
         Box(Modifier.width(LinkChevronSlot), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
