@@ -91,7 +91,7 @@ import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.ui.component.DetailScaffold
 import eu.hxreborn.pixelinjector.ui.component.processNameForDisplay
 import eu.hxreborn.pixelinjector.ui.theme.AppText
-import eu.hxreborn.pixelinjector.ui.util.drawVerticalScrollbar
+import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 import kotlinx.coroutines.launch
 
 private val levelFilters = listOf('V' to R.string.filter_all, 'W' to R.string.log_filter_warnings, 'E' to R.string.log_filter_errors)
@@ -264,7 +264,7 @@ fun ModuleLogScreen(
                         remember(
                             wrap,
                         ) { if (wrap) AppText.console.copy(textIndent = TextIndent(restLine = HangingIndent)) else AppText.console }
-                    BoxWithConstraints(Modifier.fillMaxWidth().drawVerticalScrollbar(listState)) {
+                    BoxWithConstraints(Modifier.fillMaxWidth().verticalScrollbar(listState)) {
                         val listWidth = with(LocalDensity.current) { maxOf(maxWidth, widestPx.toDp() + PanSlack) }
                         val viewportWidth = maxWidth
                         Box(if (wrap) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().horizontalScroll(panState)) {

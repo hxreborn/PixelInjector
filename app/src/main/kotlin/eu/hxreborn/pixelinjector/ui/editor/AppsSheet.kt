@@ -58,8 +58,8 @@ import eu.hxreborn.pixelinjector.ui.component.tileGroup
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.AppIconSize
 import eu.hxreborn.pixelinjector.ui.util.LauncherApp
-import eu.hxreborn.pixelinjector.ui.util.drawVerticalScrollbar
 import eu.hxreborn.pixelinjector.ui.util.rememberAppIcon
+import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 
 private const val SHEET_HEIGHT_FRACTION = 0.8f
 private val EmptyStatePadding = PaddingValues(horizontal = 32.dp, vertical = 40.dp)
@@ -153,7 +153,7 @@ fun AppsSheet(
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).drawVerticalScrollbar(listState),
+            modifier = Modifier.weight(1f).verticalScrollbar(listState),
             contentPadding = PaddingValues(bottom = 8.dp),
         ) {
             if (visible.isEmpty()) {

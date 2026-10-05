@@ -29,7 +29,7 @@ import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.component.tileGroup
-import eu.hxreborn.pixelinjector.ui.util.drawVerticalScrollbar
+import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 
 private const val SHEET_HEIGHT_FRACTION = 0.8f
 private val SoundRowVerticalPadding = 8.dp
@@ -52,7 +52,7 @@ fun SoundSheet(
         SheetHeader(stringResource(R.string.tweak_biometric_sound), stringResource(R.string.tweak_biometric_sound_desc))
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).drawVerticalScrollbar(listState),
+            modifier = Modifier.weight(1f).verticalScrollbar(listState),
             contentPadding = PaddingValues(bottom = 8.dp),
         ) {
             tileGroup(sounds, key = { it }) { path, shape ->
