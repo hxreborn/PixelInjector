@@ -52,18 +52,18 @@ private class SoundBindings(
 }
 
 private fun XposedModule.installScreenshotSound(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { SoundBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.member}")
-    hook(b.play).intercept { chain ->
+    Logger.info("resolved tweak=$TWEAK members=${bindings.member}")
+    hook(bindings.play).intercept { chain ->
         if (!switch.enabled) return@intercept chain.proceed()
         Logger.info("sound skipped tweak=$TWEAK")
-        b.skipped
+        bindings.skipped
     }
     return true
 }

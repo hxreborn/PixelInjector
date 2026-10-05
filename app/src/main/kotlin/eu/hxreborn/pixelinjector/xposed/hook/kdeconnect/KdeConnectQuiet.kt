@@ -41,20 +41,22 @@ private class LockBindings(
 }
 
 private fun XposedModule.installKdeConnectQuiet(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { LockBindings.resolve() }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.acquire.signature()},${b.release.signature()}")
-    hook(b.acquire).intercept { chain ->
+    Logger.info(
+        "resolved tweak=$TWEAK members=${bindings.acquire.signature()},${bindings.release.signature()}",
+    )
+    hook(bindings.acquire).intercept { chain ->
         if (!switch.enabled) return@intercept chain.proceed()
         Logger.info("multicast lock acquire skipped tweak=$TWEAK")
         null
     }
-    hook(b.release).intercept { chain ->
+    hook(bindings.release).intercept { chain ->
         if ((chain.thisObject as WifiManager.MulticastLock).isHeld) chain.proceed() else null
     }
     return true

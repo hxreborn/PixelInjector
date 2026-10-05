@@ -34,7 +34,7 @@ private class ChipBindings(
     private val listFields = ConcurrentHashMap<Class<*>, List<Field>>()
     private val enumFields = ConcurrentHashMap<Class<*>, List<Field>>()
 
-    fun strip(model: Any) {
+    fun removeFeedbackChips(model: Any) {
         val fields =
             listFields.getOrPut(model.javaClass) {
                 fieldsOf(model.javaClass) { List::class.java.isAssignableFrom(it) }
@@ -69,19 +69,21 @@ private class ChipBindings(
 }
 
 private fun XposedModule.installDialerDechip(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { ChipBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.adapters.joinToString(",") { it.signature() }}")
-    for (adapter in b.adapters) {
+    Logger.info(
+        "resolved tweak=$TWEAK members=${bindings.adapters.joinToString(",") { it.signature() }}",
+    )
+    for (adapter in bindings.adapters) {
         hook(adapter).intercept { chain ->
             val model = chain.proceed()
             if (switch.enabled && model != null) {
-                runCatching { b.strip(model) }
+                runCatching { bindings.removeFeedbackChips(model) }
                     .onFailure {
                         Logger.error(
                             "strip failed tweak=$TWEAK reason=${it.message}",

@@ -86,15 +86,15 @@ private class TypedArrayBindings(
 }
 
 private fun XposedModule.installGboardBlack(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { TypedArrayBindings.resolve() }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.getColor.signature()}")
-    current = b
-    if (switch.enabled) b.hookOnce()
+    Logger.info("resolved tweak=$TWEAK members=${bindings.getColor.signature()}")
+    current = bindings
+    if (switch.enabled) bindings.hookOnce()
     return true
 }

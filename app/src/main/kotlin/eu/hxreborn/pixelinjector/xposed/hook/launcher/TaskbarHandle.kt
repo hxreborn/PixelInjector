@@ -192,7 +192,7 @@ private class TaskbarBindings(
 }
 
 private fun XposedModule.installTaskbarHandle(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { TaskbarBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
@@ -200,23 +200,27 @@ private fun XposedModule.installTaskbarHandle(cl: ClassLoader): Boolean {
             return false
         }
     Logger.info(
-        "resolved tweak=$TWEAK members=${b.updateHandleColor.signature()}," +
-            b.notifyUpdateLayoutParams.signature(),
+        "resolved tweak=$TWEAK members=${bindings.updateHandleColor.signature()}," +
+            bindings.notifyUpdateLayoutParams.signature(),
     )
-    current = b
-    hook(b.updateHandleColor).intercept { chain ->
+    current = bindings
+    hook(bindings.updateHandleColor).intercept { chain ->
         runCatching {
             val view = chain.thisObject as View
-            if (b.live?.get() !== view) b.live = WeakReference(view)
-            b.paint(view)
+            if (bindings.live?.get() !== view) bindings.live = WeakReference(view)
+            bindings.paint(view)
         }.onFailure { Logger.error("paint failed tweak=$TWEAK reason=${it.message}", it) }
         chain.proceed()
     }
-    hook(b.notifyUpdateLayoutParams).intercept { chain ->
+    hook(bindings.notifyUpdateLayoutParams).intercept { chain ->
         runCatching {
             val context = chain.thisObject
-            if (b.liveContext?.get() !== context) b.liveContext = WeakReference(context)
-            b.scale(context)
+            if (bindings.liveContext?.get() !==
+                context
+            ) {
+                bindings.liveContext = WeakReference(context)
+            }
+            bindings.scale(context)
         }.onFailure { Logger.error("scale failed tweak=$TWEAK reason=${it.message}", it) }
         chain.proceed()
     }

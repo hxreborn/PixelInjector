@@ -126,7 +126,7 @@ private class HotseatBindings(
 }
 
 private fun XposedModule.installHideSearchBar(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { HotseatBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
@@ -136,20 +136,20 @@ private fun XposedModule.installHideSearchBar(cl: ClassLoader): Boolean {
     Logger.info(
         "resolved tweak=$TWEAK members=" +
             listOfNotNull(
-                b.qsb.signature(),
-                b.setInsets?.signature(),
-                b.getDimensionPixelSize.signature(),
+                bindings.qsb.signature(),
+                bindings.setInsets?.signature(),
+                bindings.getDimensionPixelSize.signature(),
             ).joinToString(","),
     )
-    current = b
-    for (member in listOfNotNull<Executable>(b.constructor, b.setInsets)) {
+    current = bindings
+    for (member in listOfNotNull<Executable>(bindings.constructor, bindings.setInsets)) {
         hook(member).intercept { chain ->
             val result = chain.proceed()
-            runCatching { chain.thisObject?.let(b::capture) }
+            runCatching { chain.thisObject?.let(bindings::capture) }
                 .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
             result
         }
     }
-    if (switch.enabled) b.hookOnce()
+    if (switch.enabled) bindings.hookOnce()
     return true
 }

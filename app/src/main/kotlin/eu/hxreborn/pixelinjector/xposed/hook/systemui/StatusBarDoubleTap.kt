@@ -68,16 +68,16 @@ private class StatusBarBindings(
 }
 
 private fun XposedModule.installStatusBarDoubleTap(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { StatusBarBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.onTouchEvent.signature()}")
-    current = b
-    if (switch.enabled) b.hookOnce()
+    Logger.info("resolved tweak=$TWEAK members=${bindings.onTouchEvent.signature()}")
+    current = bindings
+    if (switch.enabled) bindings.hookOnce()
     return true
 }
 

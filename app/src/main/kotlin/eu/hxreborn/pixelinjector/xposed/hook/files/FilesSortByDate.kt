@@ -52,7 +52,7 @@ private class SortBindings(
 }
 
 private fun XposedModule.installFilesSortByDate(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { SortBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
@@ -60,11 +60,11 @@ private fun XposedModule.installFilesSortByDate(cl: ClassLoader): Boolean {
             return false
         }
     Logger.info(
-        "resolved tweak=$TWEAK members=${b.setDefaultDimension.signature()} dateId=${b.dateId}",
+        "resolved tweak=$TWEAK members=${bindings.setDefaultDimension.signature()} dateId=${bindings.dateId}",
     )
-    hook(b.setDefaultDimension).intercept { chain ->
+    hook(bindings.setDefaultDimension).intercept { chain ->
         if (!switch.enabled) return@intercept chain.proceed()
-        chain.proceed(arrayOf<Any?>(b.dateId))
+        chain.proceed(arrayOf<Any?>(bindings.dateId))
     }
     return true
 }

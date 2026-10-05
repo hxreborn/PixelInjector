@@ -108,20 +108,19 @@ private class StarterBindings(
 }
 
 private fun XposedModule.installForceNewTask(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { StarterBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info(
-        "resolved tweak=$TWEAK members=${b.executeRequest.joinToString(",") { it.signature() }}",
-    )
-    for (method in b.executeRequest) {
+    val members = bindings.executeRequest.joinToString(",") { it.signature() }
+    Logger.info("resolved tweak=$TWEAK members=$members")
+    for (method in bindings.executeRequest) {
         hook(method).intercept { chain ->
             if (switch.enabled && rules.value.isNotEmpty()) {
-                runCatching { b.apply(chain.getArg(0)) }
+                runCatching { bindings.apply(chain.getArg(0)) }
                     .onFailure {
                         Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it)
                     }

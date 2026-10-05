@@ -84,7 +84,7 @@ private class AuthBindings(
 }
 
 private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { AuthBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
@@ -92,10 +92,10 @@ private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
             return false
         }
     Logger.info(
-        "resolved tweak=$TWEAK members=${b.animatedIn.signature()} " +
-            "quiet=${b.playToken != null}",
+        "resolved tweak=$TWEAK members=${bindings.animatedIn.signature()} " +
+            "quiet=${bindings.playToken != null}",
     )
-    b.playToken?.let { token ->
+    bindings.playToken?.let { token ->
         hook(token).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
             val quiet =
@@ -108,12 +108,12 @@ private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
             chain.proceed(arrayOf(chain.getArg(0), false, chain.getArg(2)))
         }
     }
-    hook(b.animatedIn).intercept { chain ->
+    hook(bindings.animatedIn).intercept { chain ->
         val result = chain.proceed()
         if (!switch.enabled) return@intercept result
         runCatching {
             val view = chain.thisObject as View
-            val id = b.confirmId(view)
+            val id = bindings.confirmId(view)
             if (id == 0) {
                 Logger.warn("confirm skipped tweak=$TWEAK reason=no-id")
             } else {

@@ -37,10 +37,10 @@ private const val STATE = "androidx.compose.runtime.State"
 private const val MUTABLE_STATE = "androidx.compose.runtime.MutableState"
 private const val DEFAULT_POLICY_ARG_MASK = 2
 
-@Volatile private var bindings: ShadeBindings? = null
+@Volatile private var current: ShadeBindings? = null
 
 private val requestRecompose: (Any?) -> Unit = {
-    runCatching { bindings?.requestRecompose() }
+    runCatching { current?.requestRecompose() }
         .onFailure { Logger.warn("recompose failed tweak=$TWEAK reason=${it.reason()}") }
 }
 
@@ -92,8 +92,8 @@ internal val emptyShade =
         key = TWEAK,
         targets = setOf(Target.SYSTEMUI),
         prefs = listOf(switch, customText, customIcon),
-        saveState = { bindings?.recomposeState },
-        restoreState = { saved -> bindings?.restoreRecomposeState(saved) },
+        saveState = { current?.recomposeState },
+        restoreState = { saved -> current?.restoreRecomposeState(saved) },
         install = XposedModule::installEmptyShade,
     )
 
@@ -187,21 +187,21 @@ private fun XposedModule.installEmptyShade(cl: ClassLoader): Boolean {
         Logger.debug { "install skipped tweak=$TWEAK reason=sdk sdk=${Build.VERSION.SDK_INT}" }
         return false
     }
-    val b =
+    val bindings =
         runCatching { ShadeBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.content.signature()}")
-    bindings = b
-    hook(b.content).intercept { chain ->
-        runCatching { b.readRecomposeState() }
+    Logger.info("resolved tweak=$TWEAK members=${bindings.content.signature()}")
+    current = bindings
+    hook(bindings.content).intercept { chain ->
+        runCatching { bindings.readRecomposeState() }
         if (!switch.enabled) return@intercept chain.proceed()
         val args = chain.args.toTypedArray<Any?>()
         val rewritten =
-            runCatching { b.rewriteCaughtUp(args) }.getOrElse {
+            runCatching { bindings.rewriteCaughtUp(args) }.getOrElse {
                 Logger.warn("rewrite failed tweak=$TWEAK reason=${it.reason()}")
                 false
             }

@@ -81,15 +81,15 @@ private class RowBindings(
 }
 
 private fun XposedModule.installExpandNotifications(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { RowBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.isExpanded.signature()}")
-    current = b
-    if (switch.enabled) b.hookOnce()
+    Logger.info("resolved tweak=$TWEAK members=${bindings.isExpanded.signature()}")
+    current = bindings
+    if (switch.enabled) bindings.hookOnce()
     return true
 }

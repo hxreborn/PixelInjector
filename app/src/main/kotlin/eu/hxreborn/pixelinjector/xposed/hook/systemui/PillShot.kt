@@ -36,7 +36,7 @@ private val switch = Switch(Prefs.PILL_SHOT)
 private val onlySelected = Switch(Prefs.PILL_SHOT_ONLY_SELECTED)
 private val selectedApps = Value(Prefs.PILL_SHOT_APPS) { HashSet(it) }
 
-private val pending = ThreadLocal<Pair<Context, Any>>()
+private val pendingScreenshot = ThreadLocal<Pair<Context, Any>>()
 
 internal val pillShot =
     Tweak(
@@ -87,30 +87,30 @@ private class ScreenshotBindings(
         }.getOrDefault(false)
 
     fun stamp(
-        ctx: Context,
+        context: Context,
         shot: Any,
     ) {
         val src = bitmap.get(shot) as Bitmap? ?: return
-        bitmap.set(shot, pill(ctx, shot, src) ?: return)
+        bitmap.set(shot, stampBitmap(context, shot, src) ?: return)
     }
 
-    fun pill(
-        ctx: Context,
+    fun stampBitmap(
+        context: Context,
         shot: Any,
         src: Bitmap,
     ): Bitmap? {
         val pkg = packageName.invoke(shot) as String
         if (pkg.isEmpty()) return null
-        if (!stamps(pkg)) {
+        if (!shouldStamp(pkg)) {
             Logger.info("stamp skipped tweak=$TWEAK pkg=$pkg onlySelected=${onlySelected.enabled}")
             return null
         }
-        return drawPill(ctx, label(ctx, pkg), src)
+        return drawPill(context, label(context, pkg), src)
     }
 }
 
 private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { ScreenshotBindings.resolve(cl) }.getOrElse {
             if (it is ClassNotFoundException) {
                 Logger.debug { "skipped tweak=$TWEAK reason=no-class" }
@@ -121,30 +121,30 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
             }
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.members()}")
-    for (method in b.handleScreenshot) {
+    Logger.info("resolved tweak=$TWEAK members=${bindings.members()}")
+    for (method in bindings.handleScreenshot) {
         hook(method).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
             val shot = chain.getArg(0)
-            val ctx = b.contextOf(chain.thisObject) ?: return@intercept chain.proceed()
-            runCatching { b.stamp(ctx, shot) }
+            val context = bindings.contextOf(chain.thisObject) ?: return@intercept chain.proceed()
+            runCatching { bindings.stamp(context, shot) }
                 .onFailure {
                     Logger.error("stamp failed tweak=$TWEAK path=entry reason=${it.message}", it)
                 }
-            pending.set(ctx to shot)
+            pendingScreenshot.set(context to shot)
             try {
                 chain.proceed()
             } finally {
-                pending.remove()
+                pendingScreenshot.remove()
             }
         }
     }
-    b.captureDisplay?.let { method ->
+    bindings.captureDisplay?.let { method ->
         hook(method).intercept { chain ->
-            val (ctx, shot) = pending.get() ?: return@intercept chain.proceed()
-            if (!switch.enabled || !b.awaitingCapture(shot)) return@intercept chain.proceed()
+            val (context, shot) = pendingScreenshot.get() ?: return@intercept chain.proceed()
+            if (!switch.enabled || !bindings.awaitingCapture(shot)) return@intercept chain.proceed()
             val captured = chain.proceed() as Bitmap? ?: return@intercept null
-            runCatching { b.pill(ctx, shot, captured) }
+            runCatching { bindings.stampBitmap(context, shot, captured) }
                 .onFailure {
                     Logger.error("stamp failed tweak=$TWEAK path=capture reason=${it.message}", it)
                 }.getOrNull() ?: captured
@@ -153,7 +153,7 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
     return true
 }
 
-private fun stamps(pkg: String): Boolean {
+private fun shouldStamp(pkg: String): Boolean {
     val selected = selectedApps.value
     return selected.isEmpty() || (pkg in selected) == onlySelected.enabled
 }

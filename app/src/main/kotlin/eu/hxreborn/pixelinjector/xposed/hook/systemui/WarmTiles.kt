@@ -24,7 +24,9 @@ private const val SAVED_ORIGINAL = "original"
 
 private val switch =
     Switch(Prefs.WARM_TILES) { _ ->
-        current?.let { b -> b.live?.get()?.let { live -> b.apply(live, "applied") } }
+        current?.let { bindings ->
+            bindings.live?.get()?.let { live -> bindings.apply(live, "applied") }
+        }
     }
 
 internal val warmTiles =
@@ -33,10 +35,10 @@ internal val warmTiles =
         targets = setOf(Target.SYSTEMUI),
         prefs = listOf(switch),
         saveState = {
-            current?.let { b ->
+            current?.let { bindings ->
                 hashMapOf(
-                    SAVED_LIVE to b.live?.get(),
-                    SAVED_ORIGINAL to b.original,
+                    SAVED_LIVE to bindings.live?.get(),
+                    SAVED_ORIGINAL to bindings.original,
                 )
             }
         },
@@ -85,7 +87,7 @@ private class TileServicesBindings(
 }
 
 private fun XposedModule.installWarmTiles(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { TileServicesBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
@@ -93,14 +95,14 @@ private fun XposedModule.installWarmTiles(cl: ClassLoader): Boolean {
             return false
         }
     Logger.info(
-        "resolved tweak=$TWEAK members=${b.maxBound.signature()}," +
-            b.recalculateBindAllowance.signature(),
+        "resolved tweak=$TWEAK members=${bindings.maxBound.signature()}," +
+            bindings.recalculateBindAllowance.signature(),
     )
-    current = b
-    hook(b.recalculateBindAllowance).intercept { chain ->
+    current = bindings
+    hook(bindings.recalculateBindAllowance).intercept { chain ->
         val instance = chain.thisObject
-        if (instance != null && b.live?.get() !== instance) {
-            runCatching { b.capture(instance) }
+        if (instance != null && bindings.live?.get() !== instance) {
+            runCatching { bindings.capture(instance) }
                 .onFailure { Logger.error("capture failed tweak=$TWEAK reason=${it.message}", it) }
         }
         chain.proceed()
@@ -109,14 +111,14 @@ private fun XposedModule.installWarmTiles(cl: ClassLoader): Boolean {
 }
 
 private fun restoreWarmTiles(saved: Any?) {
-    val b = current ?: return
+    val bindings = current ?: return
     val map = saved as? Map<*, *>
     val carried = map?.get(SAVED_LIVE)
-    if (carried == null || !b.cls.isInstance(carried)) {
+    if (carried == null || !bindings.cls.isInstance(carried)) {
         Logger.warn("restore skipped tweak=$TWEAK reason=no-live")
         return
     }
-    b.live = WeakReference(carried)
-    b.original = map[SAVED_ORIGINAL]
-    b.apply(carried, "carried")
+    bindings.live = WeakReference(carried)
+    bindings.original = map[SAVED_ORIGINAL]
+    bindings.apply(carried, "carried")
 }

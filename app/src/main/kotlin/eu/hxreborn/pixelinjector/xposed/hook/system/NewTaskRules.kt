@@ -17,8 +17,7 @@ internal data class NewTaskRule(
         val selfStart = source == target
         val sourceOk = sourcePackage == source || (sourcePackage == "*" && !selfStart)
         val targetOk = targetPackage == target || (targetPackage == "*" && !selfStart)
-        return sourceOk &&
-            targetOk &&
+        return sourceOk && targetOk &&
             (
                 this.sourceComponent.isEmpty() ||
                     matchSimple(

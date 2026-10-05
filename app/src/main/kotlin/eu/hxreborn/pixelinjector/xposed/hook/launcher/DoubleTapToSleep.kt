@@ -53,19 +53,19 @@ private class LauncherBindings(
 }
 
 private fun XposedModule.installDoubleTapToSleep(cl: ClassLoader): Boolean {
-    val b =
+    val bindings =
         runCatching { LauncherBindings.resolve(cl) }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.message} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${b.onDoubleTap.signature()}")
-    hook(b.onDoubleTap).intercept { chain ->
-        if (!switch.enabled || !b.listener.isInstance(chain.thisObject)) {
+    Logger.info("resolved tweak=$TWEAK members=${bindings.onDoubleTap.signature()}")
+    hook(bindings.onDoubleTap).intercept { chain ->
+        if (!switch.enabled || !bindings.listener.isInstance(chain.thisObject)) {
             return@intercept chain.proceed()
         }
-        runCatching { b.application()?.let(trigger::sleep) }
+        runCatching { bindings.application()?.let(trigger::sleep) }
             .onFailure { Logger.error("sleep failed tweak=$TWEAK reason=${it.message}", it) }
         chain.proceed()
     }
