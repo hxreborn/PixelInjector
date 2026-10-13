@@ -52,7 +52,7 @@ class TweakUi(
     val editor: TweakEditor? = null,
     val slider: TweakSlider? = null,
     val sound: TweakSound? = null,
-    val minSdk: Int = Build.VERSION_CODES.TIRAMISU,
+    val minSdk: Int = Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
 )
 
 val tweakUis: List<TweakUi> =

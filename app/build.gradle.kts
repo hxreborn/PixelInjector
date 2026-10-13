@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "eu.hxreborn.pixelinjector"
-        minSdk = 33
+        minSdk = 34
         targetSdk = 37
         versionCode = versionCodeProvider.get()
         versionName = versionNameProvider.get()

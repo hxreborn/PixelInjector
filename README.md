@@ -2,6 +2,8 @@
 
 Opinionated Xposed module of some tweaks, specially for Pixel phones so I can avoid having twenty modules installed.
 
+Needs Android 14 or newer and an Xposed framework with libxposed API 102.
+
 ### System UI
 
 - Warm Tiles: raises the limit of [3](https://android.googlesource.com/platform/frameworks/base/+/d5a204f16e7c71ffdbc6c8307a4134dcc1efd60d/packages/SystemUI/src/com/android/systemui/qs/external/TileServices.java#37) bound tiles in Quick Settings. Same hook as [qs-boundless-tiles](https://github.com/hxreborn/qs-boundless-tiles).
