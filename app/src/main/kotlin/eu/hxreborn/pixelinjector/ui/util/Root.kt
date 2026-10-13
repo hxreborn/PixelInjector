@@ -2,6 +2,7 @@ package eu.hxreborn.pixelinjector.ui.util
 
 import com.topjohnwu.superuser.Shell
 import eu.hxreborn.pixelinjector.ModuleConstants
+import java.io.File
 
 object Root {
     sealed interface LogRead {
@@ -32,6 +33,32 @@ object Root {
             .out
             .map { it.trim() }
             .filter { it in packages }
+    }
+
+    sealed interface Install {
+        data object Denied : Install
+
+        data object Done : Install
+
+        data class Failed(
+            val message: String,
+        ) : Install
+    }
+
+    fun installApk(apk: File): Install {
+        if (!Shell.getShell().isRoot) {
+            Shell.getCachedShell()?.close()
+            return Install.Denied
+        }
+        val result = Shell.cmd("cat '${apk.path}' | pm install -r -S ${apk.length()}").exec()
+        val output = (result.out + result.err).joinToString(" ").trim()
+        return if (result.isSuccess &&
+            output.contains("Success")
+        ) {
+            Install.Done
+        } else {
+            Install.Failed(output.ifEmpty { "exit ${result.code}" })
+        }
     }
 
     fun readModuleLog(): LogRead {

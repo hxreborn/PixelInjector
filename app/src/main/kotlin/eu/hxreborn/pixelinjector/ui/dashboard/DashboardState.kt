@@ -34,4 +34,10 @@ class DashboardActions(
     val onOpen: (Destination) -> Unit,
     val onHotReload: () -> Unit,
     val onToggleTargets: () -> Unit,
+    val onOpenSettings: () -> Unit,
+    val onReport: (String?) -> Unit,
+    val onUpdate: () -> Unit,
+    val onLater: (Int) -> Unit,
+    val onResumeSupport: () -> Unit,
+    val onUpdatedNoticeShown: () -> Unit,
 )

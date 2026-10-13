@@ -34,7 +34,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -48,15 +51,21 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SplitButtonDefaults
 import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TwoRowsTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -70,6 +79,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -78,6 +88,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.AppPrefs
 import eu.hxreborn.pixelinjector.prefs.BoolPref
@@ -87,9 +98,12 @@ import eu.hxreborn.pixelinjector.ui.component.SectionGap
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.component.installedVersionLabel
+import eu.hxreborn.pixelinjector.ui.component.readableGutter
 import eu.hxreborn.pixelinjector.ui.component.sectionHeader
 import eu.hxreborn.pixelinjector.ui.component.tileGroup
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
+import eu.hxreborn.pixelinjector.ui.support.SupportState
+import eu.hxreborn.pixelinjector.ui.support.UpdateCard
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 import kotlin.math.roundToInt
@@ -98,12 +112,12 @@ private val TopBarExpandedHeight = 152.dp
 private val TitleBottomPadding = 28.dp
 private val ToolbarOverlap = (-20).dp
 private val ToolbarClearance = 96.dp
-import eu.hxreborn.pixelinjector.ui.component.readableGutter
 private val ToolbarButtonSize = 48.dp
 private val ToolbarGap = 4.dp
 private val ChevronSize = 22.dp
 private val LinkChevronSlot = 40.dp
 private val LeadingButtonPadding = PaddingValues(start = 16.dp, end = 20.dp)
+private val ReportButtonInset = (-12).dp
 private const val CHEVRON_OPEN_ROTATION = 180f
 private const val RELOAD_COUNT_ALPHA = 0.85f
 private const val PERCENT_MAX = 100
@@ -160,6 +174,8 @@ private fun rows(
 @Composable
 fun DashboardScreen(
     state: DashboardState,
+    support: SupportState,
+    updatedNotice: Pair<Int, Int>?,
     targetsOpen: Boolean,
     actions: DashboardActions,
     modifier: Modifier = Modifier,
@@ -169,7 +185,35 @@ fun DashboardScreen(
     var resumedBefore by rememberSaveable { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
         if (resumedBefore) actions.onRefresh() else resumedBefore = true
+        actions.onResumeSupport()
         onPauseOrDispose {}
+    }
+    val snackbar = remember { SnackbarHostState() }
+    val reloadLabel = stringResource(R.string.reload)
+    val updatedText =
+        updatedNotice?.let { (reloaded, stale) ->
+            if (stale > 0) {
+                pluralStringResource(
+                    R.plurals.updated_stale,
+                    stale,
+                    stale,
+                    BuildConfig.VERSION_NAME,
+                    stringResource(R.string.updated_previous),
+                )
+            } else {
+                pluralStringResource(R.plurals.updated_reloaded, reloaded, reloaded, BuildConfig.VERSION_NAME)
+            }
+        }
+    LaunchedEffect(updatedNotice) {
+        val notice = updatedNotice ?: return@LaunchedEffect
+        val result =
+            snackbar.showSnackbar(
+                updatedText.orEmpty(),
+                reloadLabel.takeIf { notice.second > 0 },
+                duration = SnackbarDuration.Long,
+            )
+        actions.onUpdatedNoticeShown()
+        if (result == SnackbarResult.ActionPerformed) actions.onHotReload()
     }
     val homeApp = state.homeApp
     val launcherTitle = homeApp?.takeIf { it.supported }?.label ?: stringResource(R.string.scope_launcher)
@@ -203,10 +247,15 @@ fun DashboardScreen(
         }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val listState = rememberLazyListState()
+    val updateCardShown = support.available != null && support.showUpdateCard
+    LaunchedEffect(updateCardShown) {
+        if (updateCardShown && listState.firstVisibleItemIndex <= 1) listState.animateScrollToItem(0)
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection).nestedScroll(toolbarScrollBehavior),
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+        snackbarHost = { SnackbarHost(snackbar, Modifier.navigationBarsPadding().padding(bottom = ToolbarClearance)) },
         topBar = {
             TwoRowsTopAppBar(
                 title = { expanded ->
@@ -231,12 +280,20 @@ fun DashboardScreen(
             )
         },
     ) { innerPadding ->
+        val gutter = readableGutter()
         Box(Modifier.fillMaxSize().padding(innerPadding)) {
             Toolbar(
                 bound = state.bound,
                 reloadCount = state.reloadCount,
                 targetsOpen = targetsOpen,
                 onOpenLog = actions.onOpenLog,
+                onOpenSettings = actions.onOpenSettings,
+                badge =
+                    when {
+                        support.needsReply -> stringResource(R.string.settings_reply_badge)
+                        support.available != null -> stringResource(R.string.settings_update_badge)
+                        else -> null
+                    },
                 onHotReload = actions.onHotReload,
                 onToggleTargets = actions.onToggleTargets,
                 scrollBehavior = toolbarScrollBehavior,
@@ -258,6 +315,18 @@ fun DashboardScreen(
                         Spacer(Modifier.height(SectionGap))
                     }
                 }
+                val release = support.available
+                if (release != null && support.showUpdateCard) {
+                    item(key = "update") {
+                        UpdateCard(
+                            release,
+                            support.fixedByUpdate,
+                            onLater = { actions.onLater(release.versionCode) },
+                            onUpdate = actions.onUpdate,
+                        )
+                        Spacer(Modifier.height(SectionGap))
+                    }
+                }
                 if (state.rootDenied) {
                     item(key = "root-denied") {
                         AlertSurface(Icons.Outlined.Terminal, stringResource(R.string.root_missing), actions.onRefresh)
@@ -274,13 +343,13 @@ fun DashboardScreen(
                         actions.onToggle,
                         actions.onSlide,
                         actions.onOpen,
+                        actions.onReport,
                     )
                 }
             }
         }
     }
 }
-        val gutter = readableGutter()
 
 private fun LazyListScope.scope(
     title: String,
@@ -290,11 +359,12 @@ private fun LazyListScope.scope(
     onToggle: (BoolPref, Boolean) -> Unit,
     onSlide: (IntPref, Int) -> Unit,
     onOpen: (Destination) -> Unit,
+    onReport: (String?) -> Unit,
 ) {
     sectionHeader(title, packages)
     tileGroup(tiles, key = { it.title }) { tile, shape ->
         when (tile) {
-            is DashTile.Toggle -> ToggleTile(tile, shape, errors[tile.tweak.key], onToggle)
+            is DashTile.Toggle -> ToggleTile(tile, shape, errors[tile.tweak.key], onToggle, onReport)
             is DashTile.Link -> LinkTile(tile, shape, onOpen)
             is DashTile.Slide -> SlideTile(tile, shape, onSlide)
             is DashTile.Sound -> SoundTile(tile, shape, onOpen)
@@ -337,6 +407,7 @@ private fun ToggleTile(
     shape: RoundedCornerShape,
     error: String?,
     onToggle: (BoolPref, Boolean) -> Unit,
+    onReport: (String?) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
     Tile(
@@ -349,7 +420,14 @@ private fun ToggleTile(
         modifier = Modifier.semantics { role = Role.Switch },
     ) {
         if (error != null) {
-            TileText(stringResource(tile.title), error, supportingColor = MaterialTheme.colorScheme.error)
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TileText(stringResource(tile.title), error, supportingColor = MaterialTheme.colorScheme.error)
+                }
+                TextButton(onClick = { onReport(tile.tweak.key) }, modifier = Modifier.offset(x = ReportButtonInset)) {
+                    Text(stringResource(R.string.report), style = AppText.button)
+                }
+            }
         } else {
             TileText(stringResource(tile.title), stringResource(tile.tweak.description))
         }
@@ -411,6 +489,8 @@ private fun Toolbar(
     reloadCount: Int,
     targetsOpen: Boolean,
     onOpenLog: () -> Unit,
+    onOpenSettings: () -> Unit,
+    badge: String?,
     onHotReload: () -> Unit,
     onToggleTargets: () -> Unit,
     scrollBehavior: FloatingToolbarScrollBehavior,
@@ -424,6 +504,11 @@ private fun Toolbar(
     ) {
         IconButton(onClick = onOpenLog, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(ToolbarButtonSize)) {
             Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = stringResource(R.string.module_log))
+        }
+        IconButton(onClick = onOpenSettings, shapes = IconButtonDefaults.shapes(), modifier = Modifier.size(ToolbarButtonSize)) {
+            BadgedBox(badge = { if (badge != null) Badge() }) {
+                Icon(Icons.Outlined.Settings, contentDescription = badge ?: stringResource(R.string.settings))
+            }
         }
         Spacer(Modifier.width(ToolbarGap))
         SplitButtonLayout(

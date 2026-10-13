@@ -1,5 +1,7 @@
 package eu.hxreborn.pixelinjector.ui.navigation
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -11,9 +13,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -21,6 +27,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.support.ReportConfig
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardActions
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardScreen
 import eu.hxreborn.pixelinjector.ui.editor.AppsSheet
@@ -30,6 +37,12 @@ import eu.hxreborn.pixelinjector.ui.editor.SoundSheet
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogScreen
 import eu.hxreborn.pixelinjector.ui.reload.ProgressSheet
 import eu.hxreborn.pixelinjector.ui.reload.TargetsSheet
+import eu.hxreborn.pixelinjector.ui.support.ReportSheet
+import eu.hxreborn.pixelinjector.ui.support.ReportsSheet
+import eu.hxreborn.pixelinjector.ui.support.SettingsActions
+import eu.hxreborn.pixelinjector.ui.support.SettingsScreen
+import eu.hxreborn.pixelinjector.ui.support.UpdateActions
+import eu.hxreborn.pixelinjector.ui.support.UpdateSheet
 import eu.hxreborn.pixelinjector.ui.viewmodel.MainViewModel
 
 private val SlideDistance = 30.dp
@@ -48,6 +61,17 @@ fun AppNavHost(
     val run by viewModel.reload.collectAsStateWithLifecycle()
     val moduleLog by viewModel.moduleLog.collectAsStateWithLifecycle()
     val launcherApps by viewModel.launcherApps.collectAsStateWithLifecycle()
+    val support by viewModel.supportState.collectAsStateWithLifecycle()
+    val reportPreview by viewModel.reportPreview.collectAsStateWithLifecycle()
+    val reportPhase by viewModel.reportPhase.collectAsStateWithLifecycle()
+    val updatedNotice by viewModel.updatedNotice.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+
+    fun openReport(destination: Destination.Report) {
+        viewModel.openReport()
+        backStack.add(destination)
+    }
     val targetsOpen = backStack.lastOrNull() is Destination.Targets
     val actions =
         remember(viewModel, backStack) {
@@ -66,6 +90,15 @@ fun AppNavHost(
                 onToggleTargets = {
                     if (backStack.lastOrNull() is Destination.Targets) backStack.removeLastOrNull() else backStack.add(Destination.Targets)
                 },
+                onOpenSettings = { backStack.add(Destination.Settings) },
+                onReport = { openReport(Destination.Report(tweak = it)) },
+                onUpdate = {
+                    viewModel.support.resetInstall()
+                    backStack.add(Destination.Update)
+                },
+                onLater = { viewModel.support.postponeUpdate(it) },
+                onResumeSupport = viewModel::onResumeSupport,
+                onUpdatedNoticeShown = viewModel::consumeUpdatedNotice,
             )
         }
     val slideDistance = with(LocalDensity.current) { SlideDistance.roundToPx() }
@@ -77,7 +110,7 @@ fun AppNavHost(
     NavDisplay(
         modifier = modifier,
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
         sceneStrategies = listOf(sheetStrategy),
         transitionSpec = {
             (slideInHorizontally(enterSpatialSpec) { slideDistance } + fadeIn(enterEffectsSpec)) togetherWith
@@ -94,7 +127,13 @@ fun AppNavHost(
         entryProvider =
             entryProvider<NavKey> {
                 entry<Destination.Dashboard> {
-                    DashboardScreen(state = dashboard, targetsOpen = targetsOpen, actions = actions)
+                    DashboardScreen(
+                        state = dashboard,
+                        support = support,
+                        updatedNotice = updatedNotice,
+                        targetsOpen = targetsOpen,
+                        actions = actions,
+                    )
                     run?.let { ProgressSheet(it, onCancel = viewModel::cancelHotReload, onClose = viewModel::dismissHotReload) }
                 }
                 entry<Destination.Targets>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
@@ -111,7 +150,7 @@ fun AppNavHost(
                     RulesEditorScreen(
                         rules = prefs[Prefs.NEW_TASK_RULES],
                         onRulesChange = { viewModel.save(Prefs.NEW_TASK_RULES, it) },
-                        onBack = { backStack.removeLastOrNull() },
+                        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
                     )
                 }
                 entry<Destination.AppsEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
@@ -148,11 +187,94 @@ fun AppNavHost(
                         onIconPathChange = { viewModel.save(Prefs.EMPTY_SHADE_ICON_PATH, it) },
                     )
                 }
+                entry<Destination.Settings> {
+                    SettingsScreen(
+                        state = support,
+                        actions =
+                            SettingsActions(
+                                onCheck = { viewModel.support.checkRelease(force = true) },
+                                onUpdate = {
+                                    viewModel.support.resetInstall()
+                                    backStack.add(Destination.Update)
+                                },
+                                onSendReport = {
+                                    openReport(Destination.Report())
+                                },
+                                onReports = {
+                                    backStack.add(Destination.Reports)
+                                },
+                                onShareHookStatus = viewModel.support::setShareHookStatus,
+                                onModuleLog = {
+                                    backStack.add(Destination.ModuleLog)
+                                },
+                                onGitHub = { uriHandler.openUri("https://github.com/${ReportConfig.repo}") },
+                            ),
+                        onBack = { backStack.removeLastOrNull() },
+                    )
+                }
+                entry<Destination.Report>(metadata = BottomSheetSceneStrategy.bottomSheet()) { destination ->
+                    ReportSheet(
+                        initialTweak = destination.tweak,
+                        replyTo = destination.replyTo,
+                        preview = reportPreview,
+                        phase = reportPhase,
+                        onSend = { message, tweak -> viewModel.sendReport(message, tweak, destination.replyTo) },
+                        onTryNow = { viewModel.support.retryWaiting() },
+                        onViewReports = {
+                            backStack.removeLastOrNull()
+                            backStack.add(Destination.Reports)
+                        },
+                        onClose = { backStack.removeLastOrNull() },
+                    )
+                }
+                entry<Destination.Reports>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
+                    ReportsSheet(
+                        reports = support.reports,
+                        onOpened = {
+                            viewModel.support.refreshStatuses()
+                            viewModel.support.markNotesSeen()
+                        },
+                        onReply = {
+                            backStack.removeLastOrNull()
+                            openReport(Destination.Report(tweak = it.tweak, replyTo = it.id))
+                        },
+                        onTryNow = { viewModel.support.retryWaiting() },
+                        onDelete = viewModel.support::delete,
+                        onUndo = viewModel.support::restore,
+                    )
+                }
+                entry<Destination.Update>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
+                    val release = support.available
+                    if (release == null) {
+                        backStack.removeLastOrNull()
+                    } else {
+                        LifecycleResumeEffect(release) {
+                            viewModel.support.resumeAfterInstallPermission()
+                            onPauseOrDispose {}
+                        }
+                        UpdateSheet(
+                            release = release,
+                            fixed = support.fixedByUpdate,
+                            step = support.install,
+                            actions =
+                                UpdateActions(
+                                    onInstall = { viewModel.support.startInstall(release) },
+                                    onOpenSettings = {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri()),
+                                        )
+                                    },
+                                    onGitHub = { uriHandler.openUri(release.url) },
+                                    onCancel = viewModel.support::cancelInstall,
+                                ),
+                        )
+                    }
+                }
                 entry<Destination.ModuleLog> {
                     ModuleLogScreen(
                         state = moduleLog,
                         onRefresh = viewModel::refreshModuleLog,
-                        onBack = { backStack.removeLastOrNull() },
+                        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
                     )
                 }
             },

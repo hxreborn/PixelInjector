@@ -27,4 +27,19 @@ sealed interface Destination : NavKey {
 
     @Serializable
     data object ModuleLog : Destination
+
+    @Serializable
+    data object Settings : Destination
+
+    @Serializable
+    data class Report(
+        val tweak: String? = null,
+        val replyTo: String? = null,
+    ) : Destination
+
+    @Serializable
+    data object Reports : Destination
+
+    @Serializable
+    data object Update : Destination
 }

@@ -7,6 +7,7 @@ import androidx.core.content.edit
 import com.topjohnwu.superuser.Shell
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.prefs.PrefsRepository
+import eu.hxreborn.pixelinjector.support.Support
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,8 @@ class App :
         private set
 
     private val state by lazy { getSharedPreferences(STATE_PREFS, MODE_PRIVATE) }
+
+    val support: Support by lazy { Support(this) }
 
     override fun onCreate() {
         super.onCreate()
