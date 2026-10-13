@@ -21,15 +21,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 
 val SectionGap = 14.dp
+val ContentMaxWidth = 640.dp
+private val MinGutter = 16.dp
 val TileGap = 2.dp
 private val TileStartPadding = 16.dp
 private val TileEndPadding = 8.dp
@@ -180,4 +185,11 @@ fun <T> LazyListScope.tileGroup(
             if (index < items.lastIndex) Spacer(Modifier.height(TileGap))
         }
     }
+}
+
+@Composable
+fun readableGutter(): Dp {
+    val windowWidthPx = LocalWindowInfo.current.containerSize.width
+    val width = with(LocalDensity.current) { windowWidthPx.toDp() }
+    return max(MinGutter, (width - ContentMaxWidth) / 2)
 }

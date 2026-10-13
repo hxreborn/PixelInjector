@@ -98,6 +98,7 @@ private val TopBarExpandedHeight = 152.dp
 private val TitleBottomPadding = 28.dp
 private val ToolbarOverlap = (-20).dp
 private val ToolbarClearance = 96.dp
+import eu.hxreborn.pixelinjector.ui.component.readableGutter
 private val ToolbarButtonSize = 48.dp
 private val ToolbarGap = 4.dp
 private val ChevronSize = 22.dp
@@ -249,7 +250,7 @@ fun DashboardScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().verticalScrollbar(listState),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = ToolbarClearance + navBottom),
+                contentPadding = PaddingValues(start = gutter, end = gutter, bottom = ToolbarClearance + navBottom),
             ) {
                 if (!state.bound) {
                     item(key = "not-bound") {
@@ -279,6 +280,7 @@ fun DashboardScreen(
         }
     }
 }
+        val gutter = readableGutter()
 
 private fun LazyListScope.scope(
     title: String,

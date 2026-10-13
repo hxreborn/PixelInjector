@@ -37,6 +37,7 @@ import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.ui.component.DetailScaffold
 import eu.hxreborn.pixelinjector.ui.component.SectionGap
 import eu.hxreborn.pixelinjector.ui.component.Tile
+import eu.hxreborn.pixelinjector.ui.component.readableGutter
 import eu.hxreborn.pixelinjector.ui.component.tileGroup
 import eu.hxreborn.pixelinjector.ui.component.tileShape
 import eu.hxreborn.pixelinjector.ui.theme.AppText
@@ -70,11 +71,12 @@ fun RulesEditorScreen(
             input.clearText()
         }
     }
+    val gutter = readableGutter()
     DetailScaffold(
         title = stringResource(R.string.tweak_new_task_rules),
         subtitle = stringResource(R.string.tweak_new_task_rules_desc),
         onBack = onBack,
-        contentPadding = PaddingValues(horizontal = 16.dp),
+        contentPadding = PaddingValues(horizontal = gutter),
     ) { padding ->
         LazyColumn(modifier = Modifier.weight(1f), contentPadding = padding) {
             item(key = "format") {
@@ -124,7 +126,7 @@ fun RulesEditorScreen(
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = gutter, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedTextField(
