@@ -32,7 +32,7 @@ data class SupportState(
     val install: InstallStep,
     val framework: String?,
 ) {
-    val available: Release? get() = (release as? ReleaseCheck.Done)?.release?.takeIf { it.newer }
+    val available: Release? get() = release.known?.takeIf { it.newer }
     val needsReply: Boolean get() = reports.any { it.status == ReportStatus.NEED_INFO && !it.noteSeen }
     val showUpdateCard: Boolean get() = available?.let { it.versionCode > postponedVersion } == true
 

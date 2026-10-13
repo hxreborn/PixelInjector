@@ -3,6 +3,7 @@ package eu.hxreborn.pixelinjector.ui.navigation
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,11 +29,19 @@ private data class BottomSheetScene<T : Any>(
 
     override val entries: List<NavEntry<T>> = listOf(entry)
 
+    private var sheetState: SheetState? = null
+
+    override suspend fun onRemove() {
+        sheetState?.hide()
+    }
+
     override val content: @Composable () -> Unit = {
         val lifecycleOwner = rememberLifecycleOwner()
+        val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = state
         ModalBottomSheet(
             onDismissRequest = onBack,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            sheetState = state,
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
