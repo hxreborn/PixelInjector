@@ -178,7 +178,7 @@ private fun ReportTile(
                 style = AppText.meta,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            var open by rememberSaveable(report.id) { mutableStateOf(report.status == ReportStatus.NEED_INFO) }
+            var open by rememberSaveable(report.id, report.status) { mutableStateOf(report.status == ReportStatus.NEED_INFO) }
             TextButton(onClick = { open = !open }, modifier = Modifier.offset(x = ThreadToggleInset)) {
                 Text(stringResource(if (open) R.string.report_thread_hide else R.string.report_thread_show))
             }
