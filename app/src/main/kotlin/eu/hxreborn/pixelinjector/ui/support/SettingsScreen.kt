@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -280,7 +281,7 @@ fun StatusChip(report: SentReport) {
     val style = statusStyle(report)
     Surface(shape = RoundedCornerShape(8.dp), color = style.container, contentColor = style.content) {
         Row(
-            Modifier.height(ChipHeight).padding(start = 8.dp, end = 10.dp),
+            Modifier.heightIn(min = ChipHeight).padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {

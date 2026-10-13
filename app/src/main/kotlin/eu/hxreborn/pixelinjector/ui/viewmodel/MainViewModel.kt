@@ -27,6 +27,7 @@ import eu.hxreborn.pixelinjector.support.ReportBuilder
 import eu.hxreborn.pixelinjector.support.ReportFacts
 import eu.hxreborn.pixelinjector.support.ReportPreview
 import eu.hxreborn.pixelinjector.support.SendResult
+import eu.hxreborn.pixelinjector.support.SentReport
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardState
 import eu.hxreborn.pixelinjector.ui.dashboard.HookedPackages
 import eu.hxreborn.pixelinjector.ui.dashboard.TweakGroup
@@ -43,7 +44,9 @@ import eu.hxreborn.pixelinjector.ui.util.LauncherApp
 import eu.hxreborn.pixelinjector.ui.util.Root
 import eu.hxreborn.pixelinjector.ui.util.loadLauncherApps
 import io.github.libxposed.service.HookedTarget
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,6 +57,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -307,10 +311,33 @@ class MainViewModel(
     private val _reportPhase = MutableStateFlow<ReportPhase>(ReportPhase.Compose)
     val reportPhase: StateFlow<ReportPhase> = _reportPhase.asStateFlow()
 
+    private var reportJob: Job? = null
+
     fun openReport() {
+        reportJob?.cancel()
         _reportPhase.value = ReportPhase.Compose
         _reportPreview.value = null
-        viewModelScope.launch(Dispatchers.IO) { _reportPreview.value = ReportBuilder.preview(reportFacts()) }
+        reportJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                if (rawLog == null || _moduleLog.value.denied) loadModuleLog()
+                _reportPreview.value = ReportBuilder.preview(reportFacts())
+            }
+    }
+
+    fun retryReport(report: SentReport) {
+        reportJob?.cancel()
+        _reportPhase.value = ReportPhase.Sending
+        reportJob = viewModelScope.launch(Dispatchers.IO) { showResult(support.resend(report)) }
+    }
+
+    private fun CoroutineScope.showResult(result: SendResult) {
+        if (!isActive) return
+        _reportPhase.value =
+            when (result) {
+                is SendResult.Sent -> ReportPhase.Sent(result.report)
+                is SendResult.Waiting -> ReportPhase.Waiting(result.report)
+                is SendResult.Rejected -> ReportPhase.Rejected(result.reason)
+            }
     }
 
     fun sendReport(
@@ -320,18 +347,14 @@ class MainViewModel(
     ) {
         val preview = _reportPreview.value ?: return
         _reportPhase.value = ReportPhase.Sending
-        viewModelScope.launch(Dispatchers.IO) {
-            val result =
-                runCatching { support.send(ReportBuilder.encrypt(getApplication(), preview, message, tweak, replyTo), tweak, replyTo) }
-                    .onFailure { Log.e(ModuleConstants.LOG_TAG, "report failed reason=${it.message}", it) }
-                    .getOrElse { SendResult.Rejected(it.message ?: it.javaClass.simpleName) }
-            _reportPhase.value =
-                when (result) {
-                    is SendResult.Sent -> ReportPhase.Sent(result.report)
-                    is SendResult.Waiting -> ReportPhase.Waiting(result.report)
-                    is SendResult.Rejected -> ReportPhase.Rejected(result.reason)
-                }
-        }
+        reportJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                val result =
+                    runCatching { support.send(ReportBuilder.encrypt(getApplication(), preview, message, tweak, replyTo), tweak, replyTo) }
+                        .onFailure { Log.e(ModuleConstants.LOG_TAG, "report failed reason=${it.message}", it) }
+                        .getOrElse { SendResult.Rejected(it.message ?: it.javaClass.simpleName) }
+                showResult(result)
+            }
     }
 
     fun onResumeSupport() {
@@ -373,24 +396,26 @@ class MainViewModel(
     }
 
     fun refreshModuleLog() {
-        _moduleLog.update { it.copy(loading = true) }
-        viewModelScope.launch(Dispatchers.IO) {
-            val state =
-                when (val read = runCatching { Root.readModuleLog() }.getOrElse { Root.LogRead.Denied }) {
-                    Root.LogRead.Denied -> {
-                        ModuleLogState(loading = false, denied = true)
-                    }
+        viewModelScope.launch(Dispatchers.IO) { loadModuleLog() }
+    }
 
-                    is Root.LogRead.Lines -> {
-                        val lines = logArchive.merge(read.lines)
-                        rawLog = lines
-                        ModuleLogState(loading = false, entries = parseModuleLog(lines, read.processes))
-                    }
-                }
-            _moduleLog.value = state
-            _errors.value = deriveErrors(state.entries)
-            postHookStatus()
+    private fun loadModuleLog() {
+        _moduleLog.update { it.copy(loading = true) }
+        when (val read = runCatching { Root.readModuleLog() }.getOrElse { Root.LogRead.Denied }) {
+            Root.LogRead.Denied -> {
+                rawLog = null
+                _moduleLog.value = ModuleLogState(loading = false, denied = true)
+                _errors.value = deriveErrors(emptyList())
+            }
+
+            is Root.LogRead.Lines -> {
+                val lines = logArchive.merge(read.lines)
+                rawLog = lines
+                _moduleLog.value = ModuleLogState(loading = false, entries = parseModuleLog(lines, read.processes))
+                _errors.value = deriveErrors(parseModuleLog(read.lines, read.processes))
+            }
         }
+        postHookStatus()
     }
 
     fun hotReload(selected: List<HookedTarget>) {

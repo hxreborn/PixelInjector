@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -189,7 +193,14 @@ fun <T> LazyListScope.tileGroup(
 
 @Composable
 fun readableGutter(): Dp {
-    val windowWidthPx = LocalWindowInfo.current.containerSize.width
-    val width = with(LocalDensity.current) { windowWidthPx.toDp() }
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val insets = WindowInsets.safeDrawing.asPaddingValues()
+    val windowWidth =
+        with(density) {
+            LocalWindowInfo.current.containerSize.width
+                .toDp()
+        }
+    val width = windowWidth - insets.calculateLeftPadding(direction) - insets.calculateRightPadding(direction)
     return max(MinGutter, (width - ContentMaxWidth) / 2)
 }

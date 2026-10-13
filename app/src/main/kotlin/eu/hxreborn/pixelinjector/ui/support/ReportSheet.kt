@@ -2,6 +2,10 @@ package eu.hxreborn.pixelinjector.ui.support
 
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -68,7 +72,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.support.ReportConfig
 import eu.hxreborn.pixelinjector.support.ReportPreview
@@ -153,7 +159,7 @@ fun ReportSheet(
                     onValueChange = { if (it.length <= MESSAGE_MAX) message = it },
                     label = { Text(stringResource(if (replyTo != null) R.string.report_your_answer else R.string.report_what_happened)) },
                     minLines = 3,
-                    enabled = phase == ReportPhase.Compose,
+                    enabled = phase == ReportPhase.Compose || phase is ReportPhase.Rejected,
                     modifier = Modifier.fillMaxWidth(),
                     supportingText = {
                         Row {
@@ -169,7 +175,7 @@ fun ReportSheet(
                     !exact
             })
         }
-        Footer(phase, onSend = { onSend(message.trim(), tweak) }, onTryNow = onTryNow, onClose = onClose)
+        Footer(phase, ready = preview != null, onSend = { onSend(message.trim(), tweak) }, onTryNow = onTryNow, onClose = onClose)
     }
 }
 
@@ -318,14 +324,23 @@ private fun Disclosure(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onToggle) {
+                val toggleState = stringResource(if (expanded) R.string.state_expanded else R.string.state_collapsed)
+                IconButton(onClick = onToggle, modifier = Modifier.semantics { stateDescription = toggleState }) {
                     Icon(
                         if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = stringResource(R.string.report_what_gets_sent),
                     )
                 }
             }
-            AnimatedVisibility(expanded) {
+            AnimatedVisibility(
+                expanded,
+                enter =
+                    expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                        fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                exit =
+                    shrinkVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                        fadeOut(MaterialTheme.motionScheme.defaultEffectsSpec()),
+            ) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (exact && preview != null) {
                         ExactText(preview)
@@ -350,10 +365,25 @@ private fun Disclosure(
                         FieldGroup(
                             stringResource(R.string.report_public_group),
                             listOf(
-                                stringResource(R.string.report_field_phone) to Build.MODEL,
+                                stringResource(R.string.report_field_app) to BuildConfig.VERSION_NAME,
+                                stringResource(R.string.report_field_phone) to "${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})",
                                 stringResource(R.string.report_field_build) to Build.ID,
+                                stringResource(R.string.report_field_fingerprint) to Build.FINGERPRINT,
+                                stringResource(R.string.report_field_android) to
+                                    "${Build.VERSION.RELEASE} patch ${Build.VERSION.SECURITY_PATCH}",
+                                stringResource(R.string.report_field_root) to
+                                    stringResource(
+                                        if (facts?.rootDenied ==
+                                            true
+                                        ) {
+                                            R.string.report_root_denied
+                                        } else {
+                                            R.string.report_root_granted
+                                        },
+                                    ),
+                                stringResource(R.string.report_field_tweaks) to stringResource(R.string.report_tweaks_value),
                                 stringResource(R.string.report_field_framework) to
-                                    (facts?.framework?.let { "${it.name} ${it.version}" } ?: "?"),
+                                    (facts?.framework?.let { "${it.name} ${it.version}" } ?: stringResource(R.string.report_none)),
                                 stringResource(R.string.report_field_failed) to
                                     (
                                         facts
@@ -361,7 +391,7 @@ private fun Disclosure(
                                             ?.map { m ->
                                                 tweakUis.firstOrNull { it.key == m.tweak }?.let { stringResource(it.title) }
                                                     ?: m.tweak
-                                            }?.joinToString(" and ")
+                                            }?.joinToString("\n")
                                             ?.ifEmpty { null } ?: stringResource(R.string.report_none)
                                     ),
                             ),
@@ -427,6 +457,7 @@ private const val EXACT_TAIL = 20_000
 @Composable
 private fun ColumnScope.Footer(
     phase: ReportPhase,
+    ready: Boolean,
     onSend: () -> Unit,
     onTryNow: () -> Unit,
     onClose: () -> Unit,
@@ -447,11 +478,11 @@ private fun ColumnScope.Footer(
             )
         }
         when (phase) {
-            ReportPhase.Compose, ReportPhase.Sending -> {
+            ReportPhase.Compose, ReportPhase.Sending, is ReportPhase.Rejected -> {
                 val sending = phase == ReportPhase.Sending
                 Button(
                     onClick = onSend,
-                    enabled = !sending,
+                    enabled = !sending && ready,
                     shapes = ButtonDefaults.shapes(),
                     modifier = Modifier.fillMaxWidth().heightIn(min = SendButtonHeight),
                 ) {
@@ -493,7 +524,10 @@ private fun SentContent(
     onViewReports: () -> Unit,
     onClose: () -> Unit,
 ) {
-    Column(Modifier.padding(start = SheetPadding, end = SheetPadding, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(
+        Modifier.verticalScroll(rememberScrollState()).padding(start = SheetPadding, end = SheetPadding, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
         Column(
             Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -544,7 +578,7 @@ private fun SentContent(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onViewReports, shapes = ButtonDefaults.shapes(), modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.report_view))
+                Text(stringResource(R.string.your_reports))
             }
             Button(onClick = onClose, shapes = ButtonDefaults.shapes()) { Text(stringResource(R.string.done)) }
         }

@@ -98,6 +98,13 @@ fun UpdateSheet(
                     }
                     Primary(stringResource(R.string.update_open_settings), Icons.AutoMirrored.Outlined.OpenInNew, actions.onOpenSettings)
                 } else {
+                    if (release.asset == null) {
+                        Text(
+                            stringResource(R.string.update_no_asset),
+                            style = AppText.tileSupporting,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Primary(
                         stringResource(R.string.update_install),
                         Icons.Outlined.Download,
@@ -215,6 +222,7 @@ fun UpdateSheet(
                     Text(stringResource(R.string.update_install_failed, step.message), style = AppText.tileSupporting)
                 }
                 Primary(stringResource(R.string.try_again), Icons.Outlined.Refresh, actions.onInstall)
+                GitHubLink(actions.onGitHub)
             }
         }
     }

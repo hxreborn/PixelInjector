@@ -75,6 +75,7 @@ fun ReportsSheet(
                         onTryNow = onTryNow,
                         onDelete = {
                             onDelete(report)
+                            snackbar.currentSnackbarData?.dismiss()
                             scope.launch {
                                 if (snackbar.showSnackbar(deleted, undo, withDismissAction = false, duration = SnackbarDuration.Short) ==
                                     SnackbarResult.ActionPerformed
