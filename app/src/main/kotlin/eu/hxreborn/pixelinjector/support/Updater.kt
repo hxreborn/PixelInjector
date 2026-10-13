@@ -220,7 +220,7 @@ class Updater(
     ): Pair<File, String> {
         dir.listFiles()?.forEach(File::delete)
         if (!dir.isDirectory && !dir.mkdirs()) throw IOException("cannot create ${dir.path}")
-        val file = File(dir, asset.name)
+        val file = File(dir, DOWNLOAD_NAME)
         val digest = MessageDigest.getInstance("SHA-256")
         val connection = URL(asset.url).openConnection() as HttpURLConnection
         try {
@@ -342,26 +342,32 @@ class Updater(
                 }
             }
         context.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
-        installer.openSession(sessionId).use { session ->
-            file.inputStream().use { input ->
-                session.openWrite("base.apk", 0, file.length()).use { output ->
-                    input.copyTo(output)
-                    session.fsync(output)
+        try {
+            installer.openSession(sessionId).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, file.length()).use { output ->
+                        input.copyTo(output)
+                        session.fsync(output)
+                    }
                 }
+                val statusIntent =
+                    PendingIntent.getBroadcast(
+                        context,
+                        sessionId,
+                        Intent(action).setPackage(context.packageName),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                    )
+                session.commit(statusIntent.intentSender)
             }
-            val statusIntent =
-                PendingIntent.getBroadcast(
-                    context,
-                    sessionId,
-                    Intent(action).setPackage(context.packageName),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
-                )
-            session.commit(statusIntent.intentSender)
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(sessionId) }
+            runCatching { context.unregisterReceiver(receiver) }
+            throw e
         }
-        onResult(InstallStep.Installing)
     }
 
     companion object {
+        private const val DOWNLOAD_NAME = "update.apk"
         private const val TIMEOUT_MS = 30_000
         private const val BUFFER = 64 * 1024
         private const val REPORT_EVERY = 256 * 1024L

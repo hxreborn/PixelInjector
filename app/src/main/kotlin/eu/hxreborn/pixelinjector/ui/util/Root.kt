@@ -50,7 +50,8 @@ object Root {
             Shell.getCachedShell()?.close()
             return Install.Denied
         }
-        val result = Shell.cmd("cat '${apk.path}' | pm install -r -S ${apk.length()}").exec()
+        val quoted = "'" + apk.path.replace("'", "'\\''") + "'"
+        val result = Shell.cmd("cat $quoted | pm install -r -S ${apk.length()}").exec()
         val output = (result.out + result.err).joinToString(" ").trim()
         return if (result.isSuccess &&
             output.contains("Success")

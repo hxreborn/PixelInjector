@@ -7,6 +7,7 @@ import androidx.core.content.edit
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.ui.util.Root
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,24 +17,36 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 sealed interface ReleaseCheck {
-    data object Idle : ReleaseCheck
+    val known: Release?
 
-    data object Checking : ReleaseCheck
+    data object Idle : ReleaseCheck {
+        override val known: Release? = null
+    }
+
+    data class Checking(
+        override val known: Release?,
+    ) : ReleaseCheck
 
     data class Done(
         val release: Release?,
         val checkedAt: Long,
-    ) : ReleaseCheck
+    ) : ReleaseCheck {
+        override val known: Release? get() = release
+    }
 
     data class Failed(
         val lastCheckedAt: Long?,
+        override val known: Release?,
     ) : ReleaseCheck
 }
 
@@ -54,7 +67,17 @@ sealed interface SendResult {
 class Support(
     private val context: Context,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope =
+        CoroutineScope(
+            SupervisorJob() + Dispatchers.IO +
+                CoroutineExceptionHandler {
+                    _,
+                    e,
+                    ->
+                    Log.e(ModuleConstants.LOG_TAG, "support task failed reason=${e.message}", e)
+                },
+        )
+    private val ledgerWriter = Dispatchers.IO.limitedParallelism(1)
     private val prefs = context.getSharedPreferences("support", Context.MODE_PRIVATE)
     private val ledger = Ledger(context.filesDir)
     private val sendLock = Mutex()
@@ -87,7 +110,8 @@ class Support(
     }
 
     private fun mutate(change: (List<SentReport>) -> List<SentReport>) {
-        _reports.update { current -> change(current).also(ledger::write) }
+        val next = _reports.updateAndGet(change)
+        scope.launch(ledgerWriter) { ledger.write(next) }
     }
 
     private fun replace(report: SentReport) =
@@ -142,6 +166,18 @@ class Support(
 
     private suspend fun upload(report: SentReport): SendResult =
         sendLock.withLock {
+            val current =
+                _reports.value.firstOrNull { it.id == report.id }
+                    ?: return@withLock SendResult.Rejected("report deleted")
+            if (current.status != ReportStatus.WAITING) {
+                return@withLock if (current.status ==
+                    ReportStatus.REJECTED
+                ) {
+                    SendResult.Rejected(current.error ?: "rejected")
+                } else {
+                    SendResult.Sent(current)
+                }
+            }
             val envelope = ledger.envelope(report.id).takeIf { it.exists() }?.readBytes()
             val meta = ledger.meta(report.id).takeIf { it.exists() }?.readBytes()
             if (envelope == null || meta == null) return SendResult.Rejected("missing payload")
@@ -157,8 +193,16 @@ class Support(
                     )
             ) {
                 is ApiResponse.Ok -> {
+                    val json = runCatching { JSONObject(reply.body) }.getOrNull()
+                    if (json == null) {
+                        Log.w(
+                            ModuleConstants.LOG_TAG,
+                            "report queued id=${report.id} reason=reply is not JSON code=${reply.code}",
+                        )
+                        replace(report.copy(error = "reply is not JSON"))
+                        return@withLock SendResult.Waiting(report)
+                    }
                     Log.i(ModuleConstants.LOG_TAG, "report sent id=${report.id} code=${reply.code}")
-                    val json = JSONObject(reply.body)
                     val sent =
                         report.copy(
                             short = json.optStringOrNull("short"),
@@ -191,6 +235,8 @@ class Support(
             }
         }
 
+    suspend fun resend(report: SentReport): SendResult = upload(report)
+
     fun retryWaiting() {
         scope.launch {
             _reports.value.filter { it.status == ReportStatus.WAITING }.forEach { upload(it) }
@@ -211,7 +257,7 @@ class Support(
             val byId =
                 runCatching {
                     ReportClient.parseStatuses(reply.body)
-                }.getOrDefault(emptyList()).associateBy { it.getString("id") }
+                }.getOrDefault(emptyList()).associateBy { it.optString("id") }
             mutate { list ->
                 list.mapNotNull { report ->
                     val json = byId[report.id] ?: return@mapNotNull report
@@ -230,14 +276,14 @@ class Support(
         }
     }
 
-    private val pendingDeletes = mutableMapOf<String, Job>()
+    private val pendingDeletes = ConcurrentHashMap<String, Job>()
 
     fun delete(report: SentReport) {
         mutate { list -> list.filterNot { it.id == report.id } }
         pendingDeletes[report.id] =
             scope.launch {
                 delay(UNDO_WINDOW_MS)
-                pendingDeletes.remove(report.id)
+                if (!pendingDeletes.remove(report.id, coroutineContext.job)) return@launch
                 ledger.deletePayload(report.id)
                 if (report.status != ReportStatus.WAITING &&
                     report.status != ReportStatus.REJECTED
@@ -248,7 +294,8 @@ class Support(
     }
 
     fun restore(report: SentReport) {
-        pendingDeletes.remove(report.id)?.cancel()
+        val pending = pendingDeletes.remove(report.id) ?: return
+        pending.cancel()
         mutate { list -> (list + report).sortedByDescending { it.sentAt } }
     }
 
@@ -257,7 +304,7 @@ class Support(
         if (!force && System.currentTimeMillis() - last < CHECK_INTERVAL_MS) return
         if (_release.value is ReleaseCheck.Checking) return
         val previous = _release.value
-        _release.value = ReleaseCheck.Checking
+        _release.value = ReleaseCheck.Checking(previous.known)
         scope.launch {
             _release.value =
                 when (val reply = fetchRelease()) {
@@ -277,7 +324,7 @@ class Support(
                             "release check failed source=github reason=$reply",
                         )
                         if (force) {
-                            ReleaseCheck.Failed(last.takeIf { it > 0 })
+                            ReleaseCheck.Failed(last.takeIf { it > 0 }, previous.known)
                         } else {
                             previous.takeUnless { it is ReleaseCheck.Checking }
                                 ?: ReleaseCheck.Idle
@@ -332,15 +379,18 @@ class Support(
         installJob?.cancel()
         installJob =
             scope.launch {
+                val job = coroutineContext.job
                 _install.value = InstallStep.Downloading(0, asset.size, "")
                 val downloaded =
                     runCatching {
-                        updater.download(asset, { installJob?.isActive == false }) {
-                            _install.value =
-                                it
+                        updater.download(asset, { !job.isActive }) {
+                            if (job.isActive) {
+                                _install.value =
+                                    it
+                            }
                         }
                     }.getOrElse {
-                        if (installJob?.isActive == false) return@launch
+                        if (!job.isActive) return@launch
                         val bytes = (_install.value as? InstallStep.Downloading)?.bytes ?: 0
                         _install.value =
                             InstallStep.DownloadFailed(bytes, it.message ?: it.javaClass.simpleName)
@@ -348,6 +398,7 @@ class Support(
                     }
                 val (file, hash) = downloaded
                 val rejection = verify(file, hash, asset.sha256)
+                if (!job.isActive) return@launch
                 if (rejection != null) {
                     file.delete()
                     _install.value = rejection
