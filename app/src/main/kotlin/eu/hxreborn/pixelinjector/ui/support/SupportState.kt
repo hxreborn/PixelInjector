@@ -33,6 +33,12 @@ data class SupportState(
     val framework: String?,
 ) {
     val available: Release? get() = release.known?.takeIf { it.newer }
+    val conversations: List<SentReport> get() =
+        reports.filter { report ->
+            report.replyTo == null ||
+                reports.none { it.id == report.replyTo }
+        }
+
     val needsReply: Boolean get() = reports.any { it.status == ReportStatus.NEED_INFO && !it.noteSeen }
     val showUpdateCard: Boolean get() = available?.let { it.versionCode > postponedVersion } == true
 

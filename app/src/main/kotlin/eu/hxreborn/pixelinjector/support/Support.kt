@@ -284,14 +284,19 @@ class Support(
     }
 
     private val pendingDeletes = ConcurrentHashMap<String, Job>()
+    private val pendingGroups = ConcurrentHashMap<String, List<SentReport>>()
 
     fun delete(report: SentReport) {
-        mutate { list -> list.filterNot { it.id == report.id } }
+        val group = listOf(report) + _reports.value.filter { it.replyTo == report.id }
+        val ids = group.map { it.id }.toSet()
+        mutate { list -> list.filterNot { it.id in ids } }
+        pendingGroups[report.id] = group
         pendingDeletes[report.id] =
             scope.launch {
                 delay(UNDO_WINDOW_MS)
                 if (!pendingDeletes.remove(report.id, coroutineContext.job)) return@launch
-                ledger.deletePayload(report.id)
+                pendingGroups.remove(report.id)
+                group.forEach { ledger.deletePayload(it.id) }
                 if (report.status != ReportStatus.WAITING &&
                     report.status != ReportStatus.REJECTED
                 ) {
@@ -303,7 +308,8 @@ class Support(
     fun restore(report: SentReport) {
         val pending = pendingDeletes.remove(report.id) ?: return
         pending.cancel()
-        mutate { list -> (list + report).sortedByDescending { it.sentAt } }
+        val group = pendingGroups.remove(report.id) ?: listOf(report)
+        mutate { list -> (list + group).sortedByDescending { it.sentAt } }
     }
 
     fun checkRelease(force: Boolean) {

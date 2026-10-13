@@ -238,7 +238,7 @@
     <string name="report_no_message">No message</string>
     <string name="report_delete_title">Delete report %1$s?</string>
     <string name="report_delete_body">It is removed from this phone and from the report site. You stop getting answers on it.</string>
-    <string name="report_delete_confirm">Delete</string>
+    <string name="report_delete_confirm">Delete report</string>
     <string name="undo">Undo</string>
     <string name="report_general">General report</string>
     <string name="report_retention">The site deletes every report after 90 days.</string>

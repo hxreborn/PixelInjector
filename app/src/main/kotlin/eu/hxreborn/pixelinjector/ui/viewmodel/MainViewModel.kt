@@ -227,7 +227,7 @@ class MainViewModel(
             support.install,
             bound,
         ) { (release, reports, share), postponed, install, _ ->
-            SupportState(release, reports.filter { it.replyTo == null }, share, postponed, install, frameworkLabel())
+            SupportState(release, reports, share, postponed, install, frameworkLabel())
         }.stateIn(
             viewModelScope,
             SharingStarted.Eagerly,

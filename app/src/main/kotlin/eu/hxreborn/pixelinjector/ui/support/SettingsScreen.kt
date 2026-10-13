@@ -246,7 +246,7 @@ private fun ReportsTile(
     onClick: () -> Unit,
 ) {
     val newest: SentReport? =
-        state.reports.firstOrNull { it.status == ReportStatus.NEED_INFO && !it.noteSeen } ?: state.reports.firstOrNull()
+        state.conversations.firstOrNull { it.status == ReportStatus.NEED_INFO && !it.noteSeen } ?: state.conversations.firstOrNull()
     Tile(shape = shape, onClick = onClick) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,12 +257,12 @@ private fun ReportsTile(
                 }
             }
             Text(
-                if (state.reports.isEmpty()) {
+                if (state.conversations.isEmpty()) {
                     stringResource(
                         R.string.reports_none,
                     )
                 } else {
-                    pluralStringResource(R.plurals.reports_count, state.reports.size, state.reports.size)
+                    pluralStringResource(R.plurals.reports_count, state.conversations.size, state.conversations.size)
                 },
                 style = AppText.tileSupporting,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
