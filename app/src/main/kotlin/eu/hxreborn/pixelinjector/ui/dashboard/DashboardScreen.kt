@@ -236,11 +236,15 @@ fun DashboardScreen(
         ).filter { (group, _) -> group == TweakGroup.LAUNCHER || group in state.packages }
     val errorLines =
         buildMap {
-            state.errors.forEach { (tweak, build) -> put(tweak, stringResource(R.string.target_not_found, build)) }
-            launcherError?.let { error -> tweakUis.filter { it.group == TweakGroup.LAUNCHER }.forEach { put(it.key, error) } }
+            state.errors.forEach { (tweak, build) ->
+                put(tweak, TileError(stringResource(R.string.target_not_found, build), reportable = true))
+            }
+            launcherError?.let { error ->
+                tweakUis.filter { it.group == TweakGroup.LAUNCHER }.forEach { put(it.key, TileError(error, reportable = false)) }
+            }
             sections.forEach { (group, title) ->
                 if (state.packages[group]?.scoped == false) {
-                    val error = stringResource(R.string.home_app_not_loaded, title)
+                    val error = TileError(stringResource(R.string.home_app_not_loaded, title), reportable = false)
                     tweakUis.filter { it.group == group }.forEach { put(it.key, error) }
                 }
             }
@@ -351,11 +355,16 @@ fun DashboardScreen(
     }
 }
 
+private data class TileError(
+    val text: String,
+    val reportable: Boolean,
+)
+
 private fun LazyListScope.scope(
     title: String,
     packages: List<String>,
     tiles: List<DashTile>,
-    errors: Map<String, String>,
+    errors: Map<String, TileError>,
     onToggle: (BoolPref, Boolean) -> Unit,
     onSlide: (IntPref, Int) -> Unit,
     onOpen: (Destination) -> Unit,
@@ -405,7 +414,7 @@ private fun SlideTile(
 private fun ToggleTile(
     tile: DashTile.Toggle,
     shape: RoundedCornerShape,
-    error: String?,
+    error: TileError?,
     onToggle: (BoolPref, Boolean) -> Unit,
     onReport: (String?) -> Unit,
 ) {
@@ -422,10 +431,12 @@ private fun ToggleTile(
         if (error != null) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TileText(stringResource(tile.title), error, supportingColor = MaterialTheme.colorScheme.error)
+                    TileText(stringResource(tile.title), error.text, supportingColor = MaterialTheme.colorScheme.error)
                 }
-                TextButton(onClick = { onReport(tile.tweak.key) }, modifier = Modifier.offset(x = ReportButtonInset)) {
-                    Text(stringResource(R.string.report), style = AppText.button)
+                if (error.reportable) {
+                    TextButton(onClick = { onReport(tile.tweak.key) }, modifier = Modifier.offset(x = ReportButtonInset)) {
+                        Text(stringResource(R.string.report), style = AppText.button)
+                    }
                 }
             }
         } else {
