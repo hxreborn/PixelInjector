@@ -141,6 +141,7 @@ class Support(
 
     suspend fun send(
         encrypted: EncryptedReport,
+        message: String,
         tweak: String?,
         replyTo: String?,
     ): SendResult {
@@ -157,6 +158,7 @@ class Support(
                 deleteToken = encrypted.deleteToken,
                 replyTo = replyTo,
                 build = Build.ID,
+                message = message.ifBlank { null },
             )
         ledger.envelope(report.id).writeBytes(encrypted.envelope)
         ledger.meta(report.id).writeBytes(encrypted.meta)
@@ -270,6 +272,11 @@ class Support(
                         fixedIn = json.optStringOrNull("fixedIn"),
                         note = note,
                         noteSeen = report.noteSeen && note == report.note,
+                        events =
+                            ReportEvent
+                                .list(
+                                    json.optJSONArray("events"),
+                                ).ifEmpty { report.events },
                     )
                 }
             }
@@ -331,7 +338,6 @@ class Support(
                         }
                     }
                 }
-            refreshStatuses()
         }
     }
 
