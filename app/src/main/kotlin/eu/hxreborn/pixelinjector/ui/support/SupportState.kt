@@ -53,9 +53,15 @@ class StatusStyle(
 )
 
 @Composable
-fun statusStyle(report: SentReport): StatusStyle {
+fun statusStyle(report: SentReport): StatusStyle = statusStyle(report.status, report.fixedIn)
+
+@Composable
+fun statusStyle(
+    status: ReportStatus,
+    fixedIn: String?,
+): StatusStyle {
     val scheme = MaterialTheme.colorScheme
-    return when (report.status) {
+    return when (status) {
         ReportStatus.WAITING -> {
             StatusStyle(
                 stringResource(R.string.status_waiting),
@@ -94,7 +100,7 @@ fun statusStyle(report: SentReport): StatusStyle {
 
         ReportStatus.FIXED -> {
             StatusStyle(
-                report.fixedIn?.let { stringResource(R.string.status_fixed, it) } ?: stringResource(R.string.status_fixed_plain),
+                fixedIn?.let { stringResource(R.string.status_fixed, it) } ?: stringResource(R.string.status_fixed_plain),
                 Icons.Outlined.CheckCircle,
                 scheme.primaryContainer,
                 scheme.onPrimaryContainer,

@@ -313,6 +313,16 @@ class MainViewModel(
 
     private var reportJob: Job? = null
 
+    private val _reportDrafts = MutableStateFlow<Map<String, String>>(emptyMap())
+    val reportDrafts: StateFlow<Map<String, String>> = _reportDrafts.asStateFlow()
+
+    fun saveReportDraft(
+        replyTo: String?,
+        message: String,
+    ) {
+        _reportDrafts.update { it + (replyTo.orEmpty() to message) }
+    }
+
     fun openReport() {
         reportJob?.cancel()
         _reportPhase.value = ReportPhase.Compose
@@ -350,9 +360,16 @@ class MainViewModel(
         reportJob =
             viewModelScope.launch(Dispatchers.IO) {
                 val result =
-                    runCatching { support.send(ReportBuilder.encrypt(getApplication(), preview, message, tweak, replyTo), tweak, replyTo) }
-                        .onFailure { Log.e(ModuleConstants.LOG_TAG, "report failed reason=${it.message}", it) }
+                    runCatching {
+                        support.send(
+                            ReportBuilder.encrypt(getApplication(), preview, message, tweak, replyTo),
+                            message,
+                            tweak,
+                            replyTo,
+                        )
+                    }.onFailure { Log.e(ModuleConstants.LOG_TAG, "report failed reason=${it.message}", it) }
                         .getOrElse { SendResult.Rejected(it.message ?: it.javaClass.simpleName) }
+                if (result !is SendResult.Rejected) _reportDrafts.update { it - replyTo.orEmpty() }
                 showResult(result)
             }
     }

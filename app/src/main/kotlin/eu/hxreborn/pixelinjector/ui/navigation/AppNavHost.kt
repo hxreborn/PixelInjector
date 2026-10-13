@@ -66,6 +66,7 @@ fun AppNavHost(
     val support by viewModel.supportState.collectAsStateWithLifecycle()
     val reportPreview by viewModel.reportPreview.collectAsStateWithLifecycle()
     val reportPhase by viewModel.reportPhase.collectAsStateWithLifecycle()
+    val reportDrafts by viewModel.reportDrafts.collectAsStateWithLifecycle()
     val updatedNotice by viewModel.updatedNotice.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -226,6 +227,8 @@ fun AppNavHost(
                         replyTo = destination.replyTo,
                         preview = reportPreview,
                         phase = reportPhase,
+                        message = reportDrafts[destination.replyTo.orEmpty()].orEmpty(),
+                        onMessageChange = { viewModel.saveReportDraft(destination.replyTo, it) },
                         onSend = { message, tweak -> viewModel.sendReport(message, tweak, destination.replyTo) },
                         onTryNow = { (reportPhase as? ReportPhase.Waiting)?.report?.let(viewModel::retryReport) },
                         onViewReports = {

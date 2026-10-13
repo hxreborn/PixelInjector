@@ -20,6 +20,40 @@ enum class ReportStatus(
     }
 }
 
+data class ReportEvent(
+    val status: ReportStatus,
+    val fixedIn: String?,
+    val note: String?,
+    val at: Long,
+) {
+    fun toJson(): JSONObject =
+        JSONObject()
+            .put(
+                "status",
+                status.wire,
+            ).put("fixedIn", fixedIn)
+            .put("note", note)
+            .put("at", at)
+
+    companion object {
+        fun from(json: JSONObject): ReportEvent? =
+            ReportStatus.of(json.optString("status"))?.let {
+                ReportEvent(
+                    it,
+                    json.optStringOrNull("fixedIn"),
+                    json.optStringOrNull("note"),
+                    json.optLong("at"),
+                )
+            }
+
+        fun list(array: JSONArray?): List<ReportEvent> =
+            array
+                ?.let { a ->
+                    List(a.length()) { a.optJSONObject(it) }.mapNotNull { it?.let(::from) }
+                }.orEmpty()
+    }
+}
+
 data class SentReport(
     val id: String,
     val short: String?,
@@ -34,6 +68,8 @@ data class SentReport(
     val build: String,
     val error: String? = null,
     val noteSeen: Boolean = true,
+    val message: String? = null,
+    val events: List<ReportEvent> = emptyList(),
 ) {
     fun toJson(): JSONObject =
         JSONObject()
@@ -50,6 +86,8 @@ data class SentReport(
             .put("build", build)
             .put("error", error)
             .put("noteSeen", noteSeen)
+            .put("message", message)
+            .put("events", JSONArray(events.map { it.toJson() }))
 
     companion object {
         fun from(json: JSONObject): SentReport =
@@ -67,6 +105,8 @@ data class SentReport(
                 build = json.optString("build"),
                 error = json.optStringOrNull("error"),
                 noteSeen = json.optBoolean("noteSeen", true),
+                message = json.optStringOrNull("message"),
+                events = ReportEvent.list(json.optJSONArray("events")),
             )
     }
 }

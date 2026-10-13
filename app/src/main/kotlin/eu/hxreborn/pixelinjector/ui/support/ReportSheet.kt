@@ -118,12 +118,13 @@ fun ReportSheet(
     replyTo: String?,
     preview: ReportPreview?,
     phase: ReportPhase,
+    message: String,
+    onMessageChange: (String) -> Unit,
     onSend: (message: String, tweak: String?) -> Unit,
     onTryNow: () -> Unit,
     onViewReports: () -> Unit,
     onClose: () -> Unit,
 ) {
-    var message by rememberSaveable { mutableStateOf("") }
     var tweak by rememberSaveable { mutableStateOf(initialTweak) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var exact by rememberSaveable { mutableStateOf(false) }
@@ -156,7 +157,7 @@ fun ReportSheet(
             Column {
                 OutlinedTextField(
                     value = message,
-                    onValueChange = { if (it.length <= MESSAGE_MAX) message = it },
+                    onValueChange = { if (it.length <= MESSAGE_MAX) onMessageChange(it) },
                     label = { Text(stringResource(if (replyTo != null) R.string.report_your_answer else R.string.report_what_happened)) },
                     minLines = 3,
                     enabled = phase == ReportPhase.Compose || phase is ReportPhase.Rejected,
