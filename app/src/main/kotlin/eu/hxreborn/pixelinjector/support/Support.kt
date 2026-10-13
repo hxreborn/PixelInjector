@@ -277,6 +277,7 @@ class Support(
                                 .list(
                                     json.optJSONArray("events"),
                                 ).ifEmpty { report.events },
+                        message = report.message ?: json.optStringOrNull("message"),
                     )
                 }
             }
