@@ -76,6 +76,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -116,6 +117,7 @@ import eu.hxreborn.pixelinjector.ui.support.SupportState
 import eu.hxreborn.pixelinjector.ui.support.UpdateCard
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val TopBarExpandedHeight = 152.dp
@@ -226,16 +228,21 @@ fun DashboardScreen(
                 pluralStringResource(R.plurals.updated_reloaded, reloaded, reloaded, BuildConfig.VERSION_NAME)
             }
         }
+    val noticeScope = rememberCoroutineScope()
     LaunchedEffect(updatedNotice) {
         val notice = updatedNotice ?: return@LaunchedEffect
-        val result =
-            snackbar.showSnackbar(
-                updatedText.orEmpty(),
-                reloadLabel.takeIf { notice.second > 0 },
-                duration = SnackbarDuration.Long,
-            )
+        val text = updatedText.orEmpty()
+        val action = reloadLabel.takeIf { notice.second > 0 }
         actions.onUpdatedNoticeShown()
-        if (result == SnackbarResult.ActionPerformed) actions.onHotReload()
+        noticeScope.launch {
+            val result =
+                snackbar.showSnackbar(
+                    text,
+                    action,
+                    duration = if (action != null) SnackbarDuration.Long else SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) actions.onHotReload()
+        }
     }
     val homeApp = state.homeApp
     val launcherTitle = homeApp?.takeIf { it.supported }?.label ?: stringResource(R.string.scope_launcher)
