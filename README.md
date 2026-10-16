@@ -39,7 +39,7 @@ A modular Xposed module of Pixel tweaks, each behind its own switch. I built it 
 Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed API 102 (LSPosed 2.x or Vector).
 
 1. Download the APK from [Releases](https://github.com/hxreborn/PixelInjector/releases/latest) or the [Xposed Modules Repo](https://github.com/Xposed-Modules-Repo/eu.hxreborn.pixelinjector/releases).
-2. Enable PixelInjector in your Xposed manager. The scope comes preset.
+2. Enable PixelInjector in your Xposed manager and select the apps of the tweaks you need in its scope.
 3. Reboot once. Later updates install from the app and reload without a reboot.
 
 ## Tweaks
