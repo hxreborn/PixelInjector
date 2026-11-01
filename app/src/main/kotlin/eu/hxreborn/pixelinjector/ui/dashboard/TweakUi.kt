@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.EditNotifications
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.HideSource
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.HorizontalRule
 import androidx.compose.material.icons.outlined.Keyboard
@@ -182,6 +183,13 @@ val tweakUis: List<TweakUi> =
                 TweakEditor(R.string.tweak_fingerprint_icon_edit, null, Destination.FingerprintIconEditor) {
                     it[Prefs.FINGERPRINT_ICON_STYLE].substringBefore(':').ifEmpty { "stock" }.replaceFirstChar(Char::uppercase)
                 },
+        ),
+        TweakUi(
+            "HideShortcutCircles",
+            Prefs.HIDE_SHORTCUT_CIRCLES,
+            R.string.tweak_hide_shortcut_circles,
+            R.string.tweak_hide_shortcut_circles_desc,
+            TweakGroup.SYSTEM_UI,
         ),
         TweakUi(
             "HeadsUpDuration",
@@ -353,6 +361,7 @@ private val tweakSymbols: Map<String, ImageVector> =
         "OngoingNoDismiss" to Icons.Outlined.PushPin,
         "HeadsUpDuration" to Icons.Outlined.Timer,
         "FingerprintIcon" to Icons.Outlined.Fingerprint,
+        "HideShortcutCircles" to Icons.Outlined.HideSource,
         "ChargingDetails" to Icons.Outlined.BatteryChargingFull,
         "DownloadChip" to Icons.Outlined.Download,
         "StatusBarDoubleTap" to Icons.Outlined.TouchApp,

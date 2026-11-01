@@ -56,6 +56,8 @@
     <string name="fingerprint_style_custom">Image</string>
     <string name="fingerprint_pick_image">Pick an image</string>
     <string name="fingerprint_image_failed">Image not saved</string>
+    <string name="tweak_hide_shortcut_circles">Hide shortcut circles</string>
+    <string name="tweak_hide_shortcut_circles_desc">Removes the circle behind the lock screen shortcuts while they are off</string>
     <string name="tweak_heads_up_duration">Heads-up duration</string>
     <string name="tweak_heads_up_duration_desc">Sets how long a heads-up notification stays on screen</string>
     <string name="tweak_heads_up_seconds">Seconds on screen</string>
