@@ -31,6 +31,7 @@ import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
+import eu.hxreborn.pixelinjector.xposed.hook.proceedReplacing
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import java.lang.ref.WeakReference
@@ -983,11 +984,6 @@ private fun ComposeBindings.navButtonModifier(
         sheetSurface.set(outer)
     }
 }
-
-private fun XposedInterface.Chain.proceedReplacing(
-    index: Int,
-    value: Any?,
-): Any? = proceed(args.toTypedArray<Any?>().also { it[index] = value })
 
 private fun disabledContainer(onSurface: Long): Long {
     val rgb = (onSurface ushr COLOR_SHIFT) and RGB_MASK

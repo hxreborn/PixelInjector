@@ -25,6 +25,7 @@ import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
 import eu.hxreborn.pixelinjector.xposed.Value
+import eu.hxreborn.pixelinjector.xposed.hook.RecomposeTrigger
 import io.github.libxposed.api.XposedModule
 import java.lang.ref.WeakReference
 import java.lang.reflect.Constructor
@@ -51,10 +52,6 @@ private const val STOCK_ICON = "ic_trophy"
 private const val DRAWABLE_TYPE = "drawable"
 private const val TEXT_ARG = 0
 private const val ICON_ARG = 1
-private const val SNAPSHOT_STATE = "androidx.compose.runtime.SnapshotStateKt"
-private const val STATE = "androidx.compose.runtime.State"
-private const val MUTABLE_STATE = "androidx.compose.runtime.MutableState"
-private const val DEFAULT_POLICY_ARG_MASK = 2
 private const val CARRIED_VIEW = "view"
 private const val CARRIED_MODEL = "model"
 
@@ -63,7 +60,7 @@ private const val CARRIED_MODEL = "model"
 @Volatile private var currentView: ViewBindings? = null
 
 private val requestRecompose: (Any?) -> Unit = {
-    runCatching { current?.requestRecompose() }
+    runCatching { current?.recompose?.bump() }
         .onFailure { Logger.warn("recompose failed tweak=$TWEAK reason=${it.reason()}") }
     currentView?.reapply()
 }
@@ -116,9 +113,9 @@ internal val emptyShade =
         key = TWEAK,
         targets = setOf(Target.SYSTEMUI),
         prefs = listOf(switch, customText, customIcon),
-        saveState = { current?.recomposeState ?: currentView?.carry() },
+        saveState = { current?.recompose?.state ?: currentView?.carry() },
         restoreState = { saved ->
-            current?.restoreRecomposeState(saved)
+            current?.recompose?.adopt(saved)
             currentView?.restoreLive(saved)
         },
         install = XposedModule::installEmptyShade,
@@ -255,9 +252,7 @@ private class ShadeBindings(
     val content: Method,
     private val stockIcon: StockIcon,
     private val newLoadedIcon: Constructor<*>,
-    private val getStateValue: Method,
-    private val setStateValue: Method,
-    @Volatile var recomposeState: Any,
+    val recompose: RecomposeTrigger,
 ) {
     @Volatile private var lastLoaded: Pair<Drawable, Any>? = null
 
@@ -276,25 +271,9 @@ private class ShadeBindings(
         return icon
     }
 
-    fun readRecomposeState() {
-        getStateValue.invoke(recomposeState)
-    }
-
-    fun requestRecompose() {
-        setStateValue.invoke(recomposeState, getStateValue.invoke(recomposeState) as Int + 1)
-    }
-
-    fun restoreRecomposeState(saved: Any?) {
-        if (saved == null || !getStateValue.declaringClass.isInstance(saved)) return
-        recomposeState = saved
-        requestRecompose()
-    }
-
     companion object {
-        fun resolve(cl: ClassLoader): ShadeBindings {
-            val newState =
-                cl.loadClass(SNAPSHOT_STATE).requiredMethods("mutableStateOf\$default").single()
-            return ShadeBindings(
+        fun resolve(cl: ClassLoader): ShadeBindings =
+            ShadeBindings(
                 content =
                     cl
                         .loadClass(CONTENT)
@@ -302,14 +281,8 @@ private class ShadeBindings(
                         .single { it.parameterTypes.firstOrNull() == String::class.java },
                 stockIcon = StockIcon.resolve(cl),
                 newLoadedIcon = cl.loadClass(LOADED_ICON).getConstructor(Drawable::class.java),
-                getStateValue = cl.loadClass(STATE).getMethod("getValue"),
-                setStateValue = cl.loadClass(MUTABLE_STATE).getMethod("setValue", Any::class.java),
-                recomposeState =
-                    checkNotNull(
-                        newState.invoke(null, 0, null, DEFAULT_POLICY_ARG_MASK, null),
-                    ),
+                recompose = RecomposeTrigger.resolve(cl),
             )
-        }
     }
 }
 
@@ -325,7 +298,7 @@ private fun XposedModule.installEmptyShade(cl: ClassLoader): Boolean {
     Logger.info("resolved tweak=$TWEAK members=${bindings.content.signature()}")
     current = bindings
     hook(bindings.content).intercept { chain ->
-        runCatching { bindings.readRecomposeState() }
+        runCatching { bindings.recompose.read() }
         if (!switch.enabled) return@intercept chain.proceed()
         val args = chain.args.toTypedArray<Any?>()
         val rewritten =
