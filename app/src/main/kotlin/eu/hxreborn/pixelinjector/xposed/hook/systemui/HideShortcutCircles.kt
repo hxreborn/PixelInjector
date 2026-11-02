@@ -75,8 +75,13 @@ private val switch =
         views?.updateAll()
         compose?.let { shortcuts ->
             if (enabled) shortcuts.hookOnce()
-            runCatching { shortcuts.recompose.bump() }
-                .onFailure { Logger.warn("recompose failed tweak=$TWEAK reason=${it.reason()}") }
+            try {
+                shortcuts.recompose.bump()
+            } catch (e: Exception) {
+                Logger.warn("recompose failed tweak=$TWEAK reason=${e.reason()}")
+            } catch (e: LinkageError) {
+                Logger.warn("recompose failed tweak=$TWEAK reason=${e.reason()}")
+            }
             Logger.info("applied tweak=$TWEAK on=$enabled path=compose")
         }
     }
@@ -385,13 +390,13 @@ private fun restore(saved: Any?) {
     views?.let { shortcuts ->
         (carried?.get(CARRIED_BACKGROUNDS) as? Map<*, *>)?.let(shortcuts::restore)
         mainHandler.post {
-            resolving { shortcuts.registerAttached() }
-                .onFailure {
-                    Logger.error(
-                        "attached failed tweak=$TWEAK reason=${it.reason()}",
-                        it,
-                    )
-                }
+            try {
+                shortcuts.registerAttached()
+            } catch (e: Exception) {
+                Logger.error("attached failed tweak=$TWEAK reason=${e.reason()}", e)
+            } catch (e: LinkageError) {
+                Logger.error("attached failed tweak=$TWEAK reason=${e.reason()}", e)
+            }
         }
     }
     compose?.recompose?.adopt(carried?.get(CARRIED_RECOMPOSE))
@@ -446,9 +451,15 @@ private fun XposedModule.installComposePath(bindings: ComposeShortcuts) {
     compose = bindings
     hook(bindings.content).intercept { chain ->
         val color =
-            runCatching { bindings.iconColorFor(chain.thisObject) }
-                .onFailure { Logger.warn("compose failed tweak=$TWEAK reason=${it.reason()}") }
-                .getOrNull() ?: return@intercept chain.proceed()
+            try {
+                bindings.iconColorFor(chain.thisObject)
+            } catch (e: Exception) {
+                Logger.warn("compose failed tweak=$TWEAK reason=${e.reason()}")
+                null
+            } catch (e: LinkageError) {
+                Logger.warn("compose failed tweak=$TWEAK reason=${e.reason()}")
+                null
+            } ?: return@intercept chain.proceed()
         composingIconColor.set(color)
         try {
             chain.proceed()
