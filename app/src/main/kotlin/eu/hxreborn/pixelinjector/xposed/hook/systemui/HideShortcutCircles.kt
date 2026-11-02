@@ -238,7 +238,9 @@ private class ViewShortcuts(
             // LineageOS 21 and 22 SystemUI with keyguard_bottom_area_refactor off
             val legacyBinds = bindMethods(cl, LEGACY_BINDER, ViewGroup::class.java)
             if (binds.isEmpty() && legacyBinds.isEmpty()) {
-                throw NoSuchMethodException("KeyguardQuickAffordanceViewBinder.$BIND")
+                throw NoSuchMethodException(
+                    "KeyguardQuickAffordanceViewBinder.$BIND and KeyguardBottomAreaViewBinder.$BIND",
+                )
             }
             return ViewShortcuts(binds, legacyBinds)
         }
@@ -341,7 +343,9 @@ private class ComposeShortcuts(
                     .singleOrNull { type ->
                         function3.isAssignableFrom(type) &&
                             type.declaredFields.any { it.type.name == PAINTER }
-                    } ?: throw NoSuchMethodException("ShortcutElementProvider.KeyguardShortcut")
+                    } ?: throw NoSuchMethodException(
+                    "ShortcutElementProvider\$\$ExternalSyntheticLambda0-$MAX_LAMBDA_INDEX with a Painter field",
+                )
             val lambdaFields = lambda.declaredFields.map { it.accessible() }
             val longType = Long::class.javaPrimitiveType
             return ComposeShortcuts(
