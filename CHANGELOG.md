@@ -1,3 +1,10 @@
+## [1.24.1](https://github.com/hxreborn/PixelInjector/compare/v1.24.0...v1.24.1) (2026-11-02)
+
+### Bug Fixes
+
+* **tweak:** catch Exception and LinkageError in HideShortcutCircles ([d8d23e2](https://github.com/hxreborn/PixelInjector/commit/d8d23e2c4a914b81732df78f974584b4bca636cc))
+* **tweak:** name the searched members in HideShortcutCircles errors ([128ee02](https://github.com/hxreborn/PixelInjector/commit/128ee029bfe64865b394ebb84103559535c3722c))
+
 ## [1.24.0](https://github.com/hxreborn/PixelInjector/compare/v1.23.0...v1.24.0) (2026-11-02)
 
 ### Features
