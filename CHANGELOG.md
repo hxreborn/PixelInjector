@@ -1,3 +1,13 @@
+## [1.24.0](https://github.com/hxreborn/PixelInjector/compare/v1.23.0...v1.24.0) (2026-11-02)
+
+### Features
+
+* **tweak:** add HideShortcutCircles for lock screen shortcuts ([06cf694](https://github.com/hxreborn/PixelInjector/commit/06cf69443c9239cff850839f01e6e5de78844f8e)), closes [#50](https://github.com/hxreborn/PixelInjector/issues/50)
+
+### Refactor
+
+* **hook:** share RecomposeTrigger and proceedReplacing ([e3ba201](https://github.com/hxreborn/PixelInjector/commit/e3ba201fc5c9df712cbad8d336ab7af974b58842))
+
 ## [1.23.0](https://github.com/hxreborn/PixelInjector/compare/v1.22.1...v1.23.0) (2026-10-31)
 
 ### Features
