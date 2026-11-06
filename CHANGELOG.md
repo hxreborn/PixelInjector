@@ -1,3 +1,9 @@
+## [1.24.3](https://github.com/hxreborn/PixelInjector/compare/v1.24.2...v1.24.3) (2026-11-06)
+
+### Bug Fixes
+
+* **report:** link HeadsUpDuration and DownloadChip fixes ([1c28f66](https://github.com/hxreborn/PixelInjector/commit/1c28f66d21c6e6055baf09ffa7a65f8e51625e5b)), closes [#51](https://github.com/hxreborn/PixelInjector/issues/51) [#52](https://github.com/hxreborn/PixelInjector/issues/52)
+
 ## [1.24.2](https://github.com/hxreborn/PixelInjector/compare/v1.24.1...v1.24.2) (2026-11-06)
 
 ### Bug Fixes
