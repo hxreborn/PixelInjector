@@ -1,3 +1,10 @@
+## [1.24.2](https://github.com/hxreborn/PixelInjector/compare/v1.24.1...v1.24.2) (2026-11-06)
+
+### Bug Fixes
+
+* **tweak:** restore HeadsUpDuration on Android 15 ([0a79285](https://github.com/hxreborn/PixelInjector/commit/0a79285c9d2400d7915b08b59e75cbb14122e08d))
+* **tweak:** support DownloadChip on custom ROMs ([a6d6eac](https://github.com/hxreborn/PixelInjector/commit/a6d6eac80c0b77676b13f00e536dcd8e12a7bd69))
+
 ## [1.24.1](https://github.com/hxreborn/PixelInjector/compare/v1.24.0...v1.24.1) (2026-11-02)
 
 ### Bug Fixes
