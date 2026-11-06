@@ -17,6 +17,7 @@ import io.github.libxposed.api.XposedModule
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 private const val TWEAK = "HeadsUpDuration"
 private const val MANAGER = "com.android.systemui.statusbar.notification.headsup.HeadsUpManagerImpl"
@@ -28,9 +29,9 @@ private const val STATE_MINIMUM = "minimum"
 
 @Volatile private var current: HeadsUpBindings? = null
 
-private val switch = Switch(Prefs.HEADS_UP_DURATION) { current?.apply() }
+private val switch = Switch(Prefs.HEADS_UP_DURATION) { current?.applyDuration() }
 private val seconds =
-    Value(Prefs.HEADS_UP_SECONDS, onLoad = { current?.apply() }) {
+    Value(Prefs.HEADS_UP_SECONDS, onLoad = { current?.applyDuration() }) {
         it.coerceIn(Prefs.HEADS_UP_SECONDS_MIN, Prefs.HEADS_UP_SECONDS_MAX)
     }
 
@@ -47,29 +48,30 @@ internal val headsUpDuration =
 private class HeadsUpBindings(
     val autoDismiss: Field,
     val minimum: Field,
-    val createEntry: List<Method>,
+    val captureCallbacks: List<Method>,
 ) {
     @Volatile private var live: WeakReference<Any>? = null
 
-    @Volatile private var stockAuto = 0
+    @Volatile private var stockAutoDismissMs = 0
 
-    @Volatile private var stockMinimum = 0
+    @Volatile private var stockMinimumDisplayMs = 0
 
     fun capture(manager: Any) {
         if (live?.get() === manager) return
-        stockAuto = autoDismiss.getInt(manager)
-        stockMinimum = minimum.getInt(manager)
+        stockAutoDismissMs = autoDismiss.getInt(manager)
+        stockMinimumDisplayMs = minimum.getInt(manager)
         live = WeakReference(manager)
-        apply()
+        applyDuration()
     }
 
-    fun apply() {
+    fun applyDuration() {
         val manager = live?.get() ?: return
         runCatching {
-            val auto = if (switch.enabled) seconds.value * MS_PER_SECOND else stockAuto
-            autoDismiss.setInt(manager, auto)
-            minimum.setInt(manager, minOf(stockMinimum, auto))
-            Logger.info("applied tweak=$TWEAK autoDismissMs=$auto")
+            val autoDismissMs =
+                if (switch.enabled) seconds.value * MS_PER_SECOND else stockAutoDismissMs
+            autoDismiss.setInt(manager, autoDismissMs)
+            minimum.setInt(manager, minOf(stockMinimumDisplayMs, autoDismissMs))
+            Logger.info("applied tweak=$TWEAK autoDismissMs=$autoDismissMs")
         }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
     }
 
@@ -77,23 +79,23 @@ private class HeadsUpBindings(
         val manager = live?.get() ?: return null
         return hashMapOf(
             STATE_MANAGER to manager,
-            STATE_AUTO to stockAuto,
-            STATE_MINIMUM to stockMinimum,
+            STATE_AUTO to stockAutoDismissMs,
+            STATE_MINIMUM to stockMinimumDisplayMs,
         )
     }
 
     fun restore(saved: Map<*, *>) {
         val manager = saved[STATE_MANAGER]
-        val auto = saved[STATE_AUTO] as? Int
-        val minimum = saved[STATE_MINIMUM] as? Int
-        if (manager == null || auto == null || minimum == null) {
+        val autoDismissMs = saved[STATE_AUTO] as? Int
+        val minimumDisplayMs = saved[STATE_MINIMUM] as? Int
+        if (manager == null || autoDismissMs == null || minimumDisplayMs == null) {
             return Logger.info("restore skipped tweak=$TWEAK reason=no-live")
         }
-        stockAuto = auto
-        stockMinimum = minimum
+        stockAutoDismissMs = autoDismissMs
+        stockMinimumDisplayMs = minimumDisplayMs
         live = WeakReference(manager)
-        Logger.info("carried tweak=$TWEAK autoDismissMs=$stockAuto")
-        apply()
+        Logger.info("carried tweak=$TWEAK autoDismissMs=$stockAutoDismissMs")
+        applyDuration()
     }
 
     companion object {
@@ -111,9 +113,11 @@ private class HeadsUpBindings(
                         "mMinimumDisplayTimeDefault",
                         "mMinimumDisplayTime",
                     ),
-                createEntry =
+                captureCallbacks =
                     resolving { manager.requiredMethods("createHeadsUpEntry") }
-                        .getOrElse { manager.requiredMethods("showNotification") },
+                        .getOrDefault(emptyList())
+                        .filterNot { Modifier.isAbstract(it.modifiers) }
+                        .ifEmpty { manager.requiredMethods("showNotification") },
             )
         }
     }
@@ -139,7 +143,7 @@ private fun XposedModule.installHeadsUpDuration(cl: ClassLoader): Boolean {
             result
         }
     }
-    for (method in bindings.createEntry) {
+    for (method in bindings.captureCallbacks) {
         hook(method).intercept { chain ->
             runCatching { chain.thisObject?.let(bindings::capture) }
                 .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
