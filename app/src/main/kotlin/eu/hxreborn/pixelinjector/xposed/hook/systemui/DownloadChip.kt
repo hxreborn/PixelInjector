@@ -33,14 +33,15 @@ import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
 import eu.hxreborn.pixelinjector.xposed.Value
+import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedModule
 import java.lang.ref.WeakReference
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 private const val TWEAK = "DownloadChip"
 private const val STATUS_BAR_VIEW = "com.android.systemui.statusbar.phone.PhoneStatusBarView"
-private const val LISTENER = "com.android.systemui.statusbar.NotificationListener"
 private const val CLOCK = "com.android.systemui.statusbar.policy.Clock"
 private const val ICON_AREA_ID = "notification_icon_area"
 private const val START_SIDE_ID = "status_bar_start_side_except_heads_up"
@@ -72,7 +73,7 @@ private const val ALPHA_MASK = 0x00FFFFFF
 
 @Volatile private var tint = Color.WHITE
 
-@Volatile private var trackedSbn: StatusBarNotification? = null
+@Volatile private var trackedNotification: StatusBarNotification? = null
 
 @Volatile private var chipShown = false
 
@@ -84,7 +85,7 @@ private const val ALPHA_MASK = 0x00FFFFFF
 
 private var statusBar: WeakReference<ViewGroup>? = null
 
-private val tracked: String? get() = trackedSbn?.key
+private val trackedNotificationKey: String? get() = trackedNotification?.key
 
 private val switch =
     Switch(Prefs.DOWNLOAD_CHIP) { resync() }
@@ -122,11 +123,84 @@ internal val downloadChip =
         },
     )
 
+private class NotificationListenerBindings(
+    val posted: List<Method>,
+    val removed: List<Method>,
+    val connected: List<Method>,
+) {
+    fun isListenerInstance(service: Any?): Boolean =
+        posted.any { it.declaringClass.isInstance(service) }
+
+    companion object {
+        fun resolve(cl: ClassLoader): NotificationListenerBindings {
+            val rejectedListeners = mutableListOf<String>()
+            val postedCandidates = findPostedCallbacks(cl)
+            val listeners =
+                postedCandidates.filter(::isListenerCallback).mapNotNull { posted ->
+                    resolving { resolveListenerCallbacks(posted) }.getOrElse {
+                        rejectedListeners += "${posted.declaringClass.name}:${it.member()}"
+                        null
+                    }
+                }
+            if (listeners.isEmpty()) {
+                throw NoSuchMethodException(
+                    "NotificationListenerService.onNotificationPosted(" +
+                        "StatusBarNotification,RankingMap) candidates=${postedCandidates.size} " +
+                        "rejected=${rejectedListeners.joinToString()}",
+                )
+            }
+            return NotificationListenerBindings(
+                posted = listeners.flatMap { it.posted }.distinct(),
+                removed = listeners.flatMap { it.removed }.distinct(),
+                connected = listeners.flatMap { it.connected }.distinct(),
+            )
+        }
+
+        private fun findPostedCallbacks(cl: ClassLoader): List<Method> =
+            DexKit.methods(TWEAK, cl) { bridge ->
+                bridge.findMethod {
+                    matcher {
+                        name("onNotificationPosted")
+                        returnType("void")
+                        paramTypes(
+                            StatusBarNotification::class.java.name,
+                            NotificationListenerService.RankingMap::class.java.name,
+                        )
+                    }
+                }
+            }
+
+        private fun resolveListenerCallbacks(posted: Method): NotificationListenerBindings {
+            val service = posted.declaringClass
+            val removed =
+                service.methods.filter {
+                    it.name == "onNotificationRemoved" &&
+                        it.parameterTypes.firstOrNull() == StatusBarNotification::class.java &&
+                        isListenerCallback(it)
+                }
+            if (removed.isEmpty()) {
+                throw NoSuchMethodException("${service.name}.onNotificationRemoved")
+            }
+            val connected = service.getMethod("onListenerConnected")
+            if (!isListenerCallback(connected)) {
+                throw NoSuchMethodException("${service.name}.onListenerConnected")
+            }
+            return NotificationListenerBindings(listOf(posted), removed, listOf(connected))
+        }
+
+        private fun isListenerCallback(method: Method): Boolean =
+            method.declaringClass != NotificationListenerService::class.java &&
+                NotificationListenerService::class.java.isAssignableFrom(method.declaringClass) &&
+                method.returnType == Void.TYPE &&
+                Modifier.isPublic(method.modifiers) &&
+                !Modifier.isAbstract(method.modifiers) &&
+                !Modifier.isStatic(method.modifiers)
+    }
+}
+
 private class ChipBindings(
     val onFinishInflate: Method,
-    val posted: Method,
-    val removed: List<Method>,
-    val connected: Method,
+    val listenerCallbacks: NotificationListenerBindings,
     val onDarkChanged: Method?,
     val keyguardState: Method?,
     val headsUpChanges: List<Method>,
@@ -135,20 +209,13 @@ private class ChipBindings(
 ) {
     companion object {
         fun resolve(cl: ClassLoader): ChipBindings {
-            val listenerClass = cl.loadClass(LISTENER)
+            val listenerCallbacks = NotificationListenerBindings.resolve(cl)
             val headsUpManager =
                 resolving { cl.loadClass(HEADS_UP_MANAGER) }.getOrNull()
                     ?: resolving { cl.loadClass(HEADS_UP_BASE_MANAGER) }.getOrNull()
             return ChipBindings(
                 onFinishInflate = cl.loadClass(STATUS_BAR_VIEW).requiredMethod("onFinishInflate"),
-                posted =
-                    listenerClass.requiredMethod(
-                        "onNotificationPosted",
-                        StatusBarNotification::class.java,
-                        NotificationListenerService.RankingMap::class.java,
-                    ),
-                removed = listenerClass.requiredMethods("onNotificationRemoved"),
-                connected = listenerClass.requiredMethod("onListenerConnected"),
+                listenerCallbacks = listenerCallbacks,
                 onDarkChanged =
                     resolving {
                         cl.loadClass(CLOCK).requiredMethod(
@@ -225,7 +292,7 @@ private class IconHider(
     }
 }
 
-private fun inherited(
+private fun findInheritedMethod(
     type: Class<*>,
     name: String,
 ): Method? =
@@ -238,7 +305,7 @@ private fun headsUpChangeMethods(manager: Class<*>): List<Method> =
         "onEntryAdded",
         "onEntryRemoved",
         "showNotification",
-    ).mapNotNull { inherited(manager, it) }
+    ).mapNotNull { findInheritedMethod(manager, it) }
 
 private fun headsUpQueryMethod(manager: Class<*>): Method? =
     generateSequence(manager) { it.superclass }.firstNotNullOfOrNull {
@@ -298,7 +365,7 @@ private fun hasProgress(notification: Notification): Boolean {
 
 private fun resync() {
     chip?.post {
-        trackedSbn = null
+        trackedNotification = null
         render()
         if (switch.enabled) replay()
     }
@@ -307,7 +374,7 @@ private fun resync() {
 private fun render() {
     val shown =
         switch.enabled &&
-            tracked != null &&
+            trackedNotificationKey != null &&
             !(hideLocked.enabled && locked) &&
             !(hideHeadsUp.enabled && headsUp)
     chip?.visibility = if (shown) View.VISIBLE else View.GONE
@@ -334,7 +401,7 @@ private fun resolveIcon(
 
 private fun refreshIcon() {
     val view = chip ?: return
-    val sbn = trackedSbn ?: return applyTint(view)
+    val sbn = trackedNotification ?: return applyTint(view)
     (view.getChildAt(0) as ImageView).setImageDrawable(resolveIcon(view.context, sbn))
     applyTint(view)
 }
@@ -358,18 +425,42 @@ private fun replay() {
         .onFailure { Logger.error("replay failed tweak=$TWEAK reason=${it.message}", it) }
 }
 
+private fun postNotificationUpdate(
+    callback: String,
+    sbn: StatusBarNotification,
+    update: (StatusBarNotification) -> Unit,
+) {
+    chip?.post {
+        try {
+            update(sbn)
+        } catch (e: Exception) {
+            Logger.error(
+                "notification callback failed tweak=$TWEAK callback=$callback " +
+                    "key=${sbn.key} reason=${e.message}",
+                e,
+            )
+        } catch (e: LinkageError) {
+            Logger.error(
+                "notification callback failed tweak=$TWEAK callback=$callback " +
+                    "key=${sbn.key} reason=${e.message}",
+                e,
+            )
+        }
+    }
+}
+
 private fun onPosted(sbn: StatusBarNotification) {
     val view = chip ?: return
     if (!switch.enabled) return
     val notification = sbn.notification
     if (!hasProgress(notification)) {
-        if (sbn.key == tracked) release()
+        if (sbn.key == trackedNotificationKey) release()
         return
     }
-    if (tracked != null && tracked != sbn.key) return
+    if (trackedNotificationKey != null && trackedNotificationKey != sbn.key) return
     val extras = notification.extras
-    if (tracked == null) {
-        trackedSbn = sbn
+    if (trackedNotificationKey == null) {
+        trackedNotification = sbn
         refreshIcon()
     }
     (view.getChildAt(1) as ProgressBar).apply {
@@ -380,11 +471,11 @@ private fun onPosted(sbn: StatusBarNotification) {
 }
 
 private fun onRemoved(sbn: StatusBarNotification) {
-    if (sbn.key == tracked) release()
+    if (sbn.key == trackedNotificationKey) release()
 }
 
 private fun release() {
-    trackedSbn = null
+    trackedNotification = null
     render()
     if (switch.enabled) replay()
 }
@@ -484,11 +575,13 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
             )
             return false
         }
+    val listenerCallbacks = bindings.listenerCallbacks
     val headsUpResolved = bindings.headsUpChanges.isNotEmpty() && bindings.headsUpQuery != null
     Logger.info(
         "resolved tweak=$TWEAK members=${bindings.onFinishInflate.signature()}," +
-            "${bindings.posted.signature()},${bindings.removed.size}xonNotificationRemoved," +
-            "${bindings.connected.signature()}," +
+            "${listenerCallbacks.posted.joinToString { it.signature() }}," +
+            "${listenerCallbacks.removed.size}xonNotificationRemoved," +
+            "${listenerCallbacks.connected.joinToString { it.signature() }}," +
             "${bindings.onDarkChanged?.signature() ?: "no-tint"}," +
             "${bindings.keyguardState?.signature() ?: "no-lock"}," +
             "${if (headsUpResolved) "heads-up" else "no-heads-up"}," +
@@ -500,27 +593,33 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
             .onFailure { Logger.error("attach failed tweak=$TWEAK reason=${it.message}", it) }
         result
     }
-    hook(bindings.posted).intercept { chain ->
-        val result = chain.proceed()
-        val service = chain.thisObject as NotificationListenerService
-        listener = WeakReference(service)
-        val sbn = chain.getArg(0) as StatusBarNotification
-        chip?.post { runCatching { onPosted(sbn) } }
-        result
-    }
-    for (method in bindings.removed) {
+    for (method in listenerCallbacks.posted) {
         hook(method).intercept { chain ->
             val result = chain.proceed()
+            if (!listenerCallbacks.isListenerInstance(chain.thisObject)) return@intercept result
+            listener = WeakReference(chain.thisObject as NotificationListenerService)
             val sbn = chain.getArg(0) as StatusBarNotification
-            chip?.post { runCatching { onRemoved(sbn) } }
+            postNotificationUpdate("onNotificationPosted", sbn, ::onPosted)
             result
         }
     }
-    hook(bindings.connected).intercept { chain ->
-        val result = chain.proceed()
-        listener = WeakReference(chain.thisObject as NotificationListenerService)
-        resync()
-        result
+    for (method in listenerCallbacks.removed) {
+        hook(method).intercept { chain ->
+            val result = chain.proceed()
+            if (!listenerCallbacks.isListenerInstance(chain.thisObject)) return@intercept result
+            val sbn = chain.getArg(0) as StatusBarNotification
+            postNotificationUpdate("onNotificationRemoved", sbn, ::onRemoved)
+            result
+        }
+    }
+    for (method in listenerCallbacks.connected) {
+        hook(method).intercept { chain ->
+            val result = chain.proceed()
+            if (!listenerCallbacks.isListenerInstance(chain.thisObject)) return@intercept result
+            listener = WeakReference(chain.thisObject as NotificationListenerService)
+            resync()
+            result
+        }
     }
     bindings.onDarkChanged?.let { method ->
         hook(method).intercept { chain ->
@@ -555,7 +654,7 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
     }
     bindings.iconHider?.let { hider ->
         hook(hider.calculate).intercept { chain ->
-            val key = if (hideStatusIcon.enabled && chipShown) tracked else null
+            val key = if (hideStatusIcon.enabled && chipShown) trackedNotificationKey else null
             val saved =
                 key
                     ?.let {
