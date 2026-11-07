@@ -19,6 +19,7 @@ private const val TWEAK = "ScreenshotSound"
 private const val PLAY_LAMBDA =
     "com.android.systemui.screenshot.ScreenshotSoundControllerImpl\$playScreenshotSound\$2"
 private const val CONTROLLER = "com.android.systemui.screenshot.ScreenshotController"
+private const val SAMSUNG_SOUND = "com.android.systemui.screenshot.sep.ScreenshotCaptureSound"
 private const val UNIT = "kotlin.Unit"
 private const val PLAY_FAILED_MESSAGE = "Screenshot sound failed to play"
 private const val INVOKE_SUSPEND = "invokeSuspend"
@@ -41,7 +42,21 @@ private class SoundBindings(
         get() = "${play.declaringClass.name.substringAfterLast('.')}#${play.name}"
 
     companion object {
-        fun resolve(cl: ClassLoader): SoundBindings {
+        fun resolve(cl: ClassLoader): List<SoundBindings> {
+            val samsung =
+                orNullIfMissing {
+                    cl
+                        .loadClass(
+                            SAMSUNG_SOUND,
+                        ).requiredMethod("play", Boolean::class.javaPrimitiveType)
+                }?.let { SoundBindings(play = it, skipped = null) }
+            val standard = resolving { resolveStandard(cl) }
+            return listOfNotNull(samsung, standard.getOrNull()).ifEmpty {
+                throw checkNotNull(standard.exceptionOrNull())
+            }
+        }
+
+        private fun resolveStandard(cl: ClassLoader): SoundBindings {
             val unit = { cl.loadClass(UNIT).getField("INSTANCE").get(null) }
             orNullIfMissing {
                 cl
@@ -72,11 +87,13 @@ private fun XposedModule.installScreenshotSound(cl: ClassLoader): Boolean {
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${bindings.member}")
-    hook(bindings.play).intercept { chain ->
-        if (!switch.enabled) return@intercept chain.proceed()
-        Logger.info("sound skipped tweak=$TWEAK")
-        bindings.skipped
+    Logger.info("resolved tweak=$TWEAK members=${bindings.joinToString(",") { it.member }}")
+    for (binding in bindings) {
+        hook(binding.play).intercept { chain ->
+            if (!switch.enabled) return@intercept chain.proceed()
+            Logger.info("sound skipped tweak=$TWEAK")
+            binding.skipped
+        }
     }
     return true
 }

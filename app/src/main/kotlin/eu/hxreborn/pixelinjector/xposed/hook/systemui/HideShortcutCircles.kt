@@ -3,6 +3,7 @@ package eu.hxreborn.pixelinjector.xposed.hook.systemui
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Drawable
@@ -40,6 +41,7 @@ private const val TWEAK = "HideShortcutCircles"
 private const val BINDER = "com.android.systemui.keyguard.ui.binder"
 private const val VIEW_BINDER = "$BINDER.KeyguardQuickAffordanceViewBinder"
 private const val LEGACY_BINDER = "$BINDER.KeyguardBottomAreaViewBinder"
+private const val PAINTED_VIEW = "com.android.systemui.statusbar.KeyguardSecAffordanceView"
 private const val SHORTCUT_PROVIDER =
     "com.android.systemui.keyguard.ui.composable.elements.ShortcutElementProvider"
 private const val SHORTCUT_LAMBDA = "$SHORTCUT_PROVIDER\$\$ExternalSyntheticLambda"
@@ -66,6 +68,8 @@ private const val CARRIED_RECOMPOSE = "recompose"
 
 @Volatile private var compose: ComposeShortcuts? = null
 
+@Volatile private var painted: PaintedShortcuts? = null
+
 private val composingIconColor = ThreadLocal<Long>()
 
 private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
@@ -73,6 +77,10 @@ private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 private val switch =
     Switch(Prefs.HIDE_SHORTCUT_CIRCLES) { enabled ->
         views?.updateAll()
+        painted?.let { shortcuts ->
+            if (enabled) shortcuts.hookOnce()
+            shortcuts.invalidateAll()
+        }
         compose?.let { shortcuts ->
             if (enabled) shortcuts.hookOnce()
             try {
@@ -382,6 +390,91 @@ private class ComposeShortcuts(
 
 private fun Field.accessible(): Field = apply { isAccessible = true }
 
+private class PaintedShortcuts(
+    val onDraw: Method,
+    private val backgroundPaint: Field,
+    private val foregroundPaint: Field,
+    private val taskShortcutEnabled: Field,
+    private val targetView: Field,
+) {
+    private val hooked = AtomicBoolean(false)
+    private val paints = WeakHashMap<ImageView, Pair<Paint, Paint>>()
+
+    fun hookOnce() {
+        if (!hooked.compareAndSet(false, true)) return
+        module.hook(onDraw).intercept { chain ->
+            if (!switch.enabled) return@intercept chain.proceed()
+            val view = chain.thisObject as ImageView
+            val circlePaints =
+                try {
+                    if (view.isPressed || view.isActivated || view.isSelected ||
+                        taskShortcutEnabled.getBoolean(view) || targetView.getBoolean(view)
+                    ) {
+                        null
+                    } else {
+                        paints.getOrPut(view) {
+                            backgroundPaint.get(view) as Paint to foregroundPaint.get(view) as Paint
+                        }
+                    }
+                } catch (e: Exception) {
+                    Logger.error("draw failed tweak=$TWEAK reason=${e.reason()}", e)
+                    null
+                } catch (e: LinkageError) {
+                    Logger.error("draw failed tweak=$TWEAK reason=${e.reason()}", e)
+                    null
+                } ?: return@intercept chain.proceed()
+            val (background, foreground) = circlePaints
+            val backgroundAlpha = background.alpha
+            val foregroundAlpha = foreground.alpha
+            try {
+                background.alpha = 0
+                foreground.alpha = 0
+                chain.proceed()
+            } finally {
+                background.alpha = backgroundAlpha
+                foreground.alpha = foregroundAlpha
+            }
+        }
+    }
+
+    fun invalidateAll() {
+        mainHandler.post {
+            try {
+                val global = Class.forName("android.view.WindowManagerGlobal")
+                val roots =
+                    global.requiredField("mViews").get(global.getMethod("getInstance").invoke(null))
+                        as List<*>
+                roots.filterIsInstance<View>().forEach(::invalidateIn)
+                Logger.info("applied tweak=$TWEAK on=${switch.enabled} path=paint")
+            } catch (e: Exception) {
+                Logger.error("invalidate failed tweak=$TWEAK reason=${e.reason()}", e)
+            } catch (e: LinkageError) {
+                Logger.error("invalidate failed tweak=$TWEAK reason=${e.reason()}", e)
+            }
+        }
+    }
+
+    private fun invalidateIn(view: View) {
+        if (onDraw.declaringClass.isInstance(view)) view.invalidate()
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) invalidateIn(view.getChildAt(index))
+        }
+    }
+
+    companion object {
+        fun resolve(cl: ClassLoader): PaintedShortcuts {
+            val view = cl.loadClass(PAINTED_VIEW)
+            return PaintedShortcuts(
+                onDraw = view.requiredMethod("onDraw", Canvas::class.java),
+                backgroundPaint = view.requiredField("mBackgroundCirclePaint"),
+                foregroundPaint = view.requiredField("mForegroundCirclePaint"),
+                taskShortcutEnabled = view.requiredField("mIsTaskTypeShortcutEnabled"),
+                targetView = view.requiredField("mIsTargetView"),
+            )
+        }
+    }
+}
+
 private fun carry(): HashMap<String, Any> {
     val carried = HashMap<String, Any>()
     views?.carry()?.takeIf { it.isNotEmpty() }?.let { carried[CARRIED_BACKGROUNDS] = it }
@@ -404,16 +497,23 @@ private fun restore(saved: Any?) {
         }
     }
     compose?.recompose?.adopt(carried?.get(CARRIED_RECOMPOSE))
+    painted?.invalidateAll()
 }
 
 private fun XposedModule.installHideShortcutCircles(cl: ClassLoader): Boolean {
     val viewPath = resolving { ViewShortcuts.resolve(cl) }
     // SystemUIGoogle CP3A.261005.005 and CP41.260831.019
     val composePath = resolving { ComposeShortcuts.resolve(cl) }
+    val paintedPath = resolving { PaintedShortcuts.resolve(cl) }
     val viewBindings = viewPath.getOrNull()
     val composeBindings = composePath.getOrNull()
-    if (viewBindings == null && composeBindings == null) {
-        listOfNotNull(viewPath.exceptionOrNull(), composePath.exceptionOrNull()).forEach {
+    val paintedBindings = paintedPath.getOrNull()
+    if (viewBindings == null && composeBindings == null && paintedBindings == null) {
+        listOfNotNull(
+            viewPath.exceptionOrNull(),
+            composePath.exceptionOrNull(),
+            paintedPath.exceptionOrNull(),
+        ).forEach {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
             )
@@ -423,11 +523,13 @@ private fun XposedModule.installHideShortcutCircles(cl: ClassLoader): Boolean {
     val members =
         (
             viewBindings?.binds.orEmpty() + viewBindings?.legacyBinds.orEmpty() +
-                listOfNotNull(composeBindings?.content)
+                listOfNotNull(composeBindings?.content, paintedBindings?.onDraw)
         ).joinToString(",") { it.signature() }
     Logger.info("resolved tweak=$TWEAK members=$members")
     viewBindings?.let { installViewPath(it) }
     composeBindings?.let { installComposePath(it) }
+    painted = paintedBindings
+    if (switch.enabled) paintedBindings?.hookOnce()
     return true
 }
 
