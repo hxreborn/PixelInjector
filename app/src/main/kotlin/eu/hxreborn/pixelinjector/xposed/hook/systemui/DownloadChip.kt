@@ -18,6 +18,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.TextView
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.findFieldUpward
@@ -43,6 +44,7 @@ import java.lang.reflect.Modifier
 private const val TWEAK = "DownloadChip"
 private const val STATUS_BAR_VIEW = "com.android.systemui.statusbar.phone.PhoneStatusBarView"
 private const val CLOCK = "com.android.systemui.statusbar.policy.Clock"
+private const val SAMSUNG_CLOCK = "com.android.systemui.statusbar.policy.QSClockIndicatorView"
 private const val ICON_AREA_ID = "notification_icon_area"
 private const val START_SIDE_ID = "status_bar_start_side_except_heads_up"
 private const val END_SIDE_ID = "status_bar_end_side_content"
@@ -201,7 +203,7 @@ private class NotificationListenerBindings(
 private class ChipBindings(
     val onFinishInflate: Method,
     val listenerCallbacks: NotificationListenerBindings,
-    val onDarkChanged: Method?,
+    val darkChangedCallbacks: List<Method>,
     val keyguardState: Method?,
     val headsUpChanges: List<Method>,
     val headsUpQuery: Method?,
@@ -216,15 +218,17 @@ private class ChipBindings(
             return ChipBindings(
                 onFinishInflate = cl.loadClass(STATUS_BAR_VIEW).requiredMethod("onFinishInflate"),
                 listenerCallbacks = listenerCallbacks,
-                onDarkChanged =
-                    resolving {
-                        cl.loadClass(CLOCK).requiredMethod(
-                            "onDarkChanged",
-                            java.util.ArrayList::class.java,
-                            Float::class.javaPrimitiveType,
-                            Int::class.javaPrimitiveType,
-                        )
-                    }.getOrNull(),
+                darkChangedCallbacks =
+                    listOf(CLOCK, SAMSUNG_CLOCK).mapNotNull { name ->
+                        resolving {
+                            cl.loadClass(name).requiredMethod(
+                                "onDarkChanged",
+                                java.util.ArrayList::class.java,
+                                Float::class.javaPrimitiveType,
+                                Int::class.javaPrimitiveType,
+                            )
+                        }.getOrNull()
+                    },
                 keyguardState =
                     resolving {
                         cl.loadClass(KEYGUARD_STATE).requiredMethod(
@@ -577,12 +581,14 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
         }
     val listenerCallbacks = bindings.listenerCallbacks
     val headsUpResolved = bindings.headsUpChanges.isNotEmpty() && bindings.headsUpQuery != null
+    val tintMembers =
+        bindings.darkChangedCallbacks.joinToString { it.signature() }.ifEmpty { "no-tint" }
     Logger.info(
         "resolved tweak=$TWEAK members=${bindings.onFinishInflate.signature()}," +
             "${listenerCallbacks.posted.joinToString { it.signature() }}," +
             "${listenerCallbacks.removed.size}xonNotificationRemoved," +
             "${listenerCallbacks.connected.joinToString { it.signature() }}," +
-            "${bindings.onDarkChanged?.signature() ?: "no-tint"}," +
+            "$tintMembers," +
             "${bindings.keyguardState?.signature() ?: "no-lock"}," +
             "${if (headsUpResolved) "heads-up" else "no-heads-up"}," +
             if (bindings.iconHider != null) "hide-icon" else "no-hide-icon",
@@ -621,10 +627,10 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
             result
         }
     }
-    bindings.onDarkChanged?.let { method ->
+    for (method in bindings.darkChangedCallbacks) {
         hook(method).intercept { chain ->
             val result = chain.proceed()
-            tint = chain.getArg(2) as Int
+            tint = (chain.thisObject as? TextView)?.currentTextColor ?: chain.getArg(2) as Int
             chip?.let { view -> view.post { applyTint(view) } }
             result
         }
