@@ -14,6 +14,7 @@ import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalMethod
+import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethods
@@ -24,6 +25,7 @@ import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
 import eu.hxreborn.pixelinjector.xposed.Value
 import io.github.libxposed.api.XposedModule
+import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
@@ -31,8 +33,18 @@ private const val TWEAK = "PillShot"
 private const val CONTROLLER = "com.android.systemui.screenshot.ScreenshotController"
 private const val DATA = "com.android.systemui.screenshot.ScreenshotData"
 private const val CAPTURE = "com.android.systemui.screenshot.ImageCaptureImpl"
+private const val SAMSUNG_RESULT = "com.android.systemui.screenshot.sep.SemScreenshotResult"
 private const val TAKE_SCREENSHOT_FULLSCREEN = 1
 private const val LAST_INLINE_CAPTURE_SDK = 35
+private const val PORTRAIT_TOP_DP = 12
+private const val LANDSCAPE_TOP_DP = 2
+private const val HORIZONTAL_PADDING_DP = 12
+private const val PORTRAIT_VERTICAL_PADDING_DP = 8
+private const val LANDSCAPE_VERTICAL_PADDING_DP = 6
+private const val CORNER_RADIUS_DP = 18
+private const val TEXT_SIZE_DP = 16
+private const val MIN_WIDTH_DP = 80
+private val PILL_BACKGROUND_COLOR = 0xFF1C1C1E.toInt()
 
 private val switch = Switch(Prefs.PILL_SHOT)
 private val onlySelected = Switch(Prefs.PILL_SHOT_ONLY_SELECTED)
@@ -51,6 +63,7 @@ internal val pillShot =
 private class ScreenshotBindings(
     val handleScreenshot: List<Method>,
     val captureDisplay: Method?,
+    val captureResultConstructor: Constructor<*>?,
     val context: Field,
     val type: Field,
     val bitmap: Field,
@@ -61,14 +74,30 @@ private class ScreenshotBindings(
             val controller = cl.loadClass(CONTROLLER)
             val data = cl.loadClass(DATA)
             val handleScreenshot = controller.requiredMethods("handleScreenshot")
-            val capture = resolving { cl.loadClass(CAPTURE) }.getOrNull()
+            val captureResultConstructor =
+                orNullIfMissing { cl.loadClass(SAMSUNG_RESULT) }
+                    ?.getDeclaredConstructor(
+                        Bitmap::class.java,
+                        Int::class.javaPrimitiveType,
+                        String::class.java,
+                        String::class.java,
+                    )?.apply { isAccessible = true }
+            val capture =
+                if (captureResultConstructor == null) {
+                    resolving { cl.loadClass(CAPTURE) }.getOrNull()
+                } else {
+                    null
+                }
             val captureDisplay = capture?.optionalMethod("captureDisplay")
-            if (captureDisplay == null && Build.VERSION.SDK_INT <= LAST_INLINE_CAPTURE_SDK) {
+            if (captureResultConstructor == null && captureDisplay == null &&
+                Build.VERSION.SDK_INT <= LAST_INLINE_CAPTURE_SDK
+            ) {
                 throw NoSuchMethodException("ImageCaptureImpl.captureDisplay")
             }
             return ScreenshotBindings(
                 handleScreenshot = handleScreenshot,
                 captureDisplay = captureDisplay,
+                captureResultConstructor = captureResultConstructor,
                 context = controller.requiredField("context", "mContext"),
                 type = data.requiredField("type", "mType"),
                 bitmap = data.requiredField("bitmap", "mBitmap"),
@@ -78,8 +107,10 @@ private class ScreenshotBindings(
     }
 
     fun members(): String =
-        (handleScreenshot.map { it.signature() } + listOfNotNull(captureDisplay?.signature()))
-            .joinToString(",")
+        (
+            handleScreenshot.map { it.signature() } +
+                listOfNotNull(captureDisplay?.signature(), captureResultConstructor?.toString())
+        ).joinToString(",")
 
     fun contextOf(controller: Any): Context? = context.get(controller) as? Context
 
@@ -108,6 +139,22 @@ private class ScreenshotBindings(
         }
         return drawPill(context, label(context, pkg), src)
     }
+
+    fun stampCapturedBitmap(
+        context: Context,
+        shot: Any,
+        captured: Bitmap,
+        path: String,
+    ): Bitmap =
+        try {
+            stampBitmap(context, shot, captured) ?: captured
+        } catch (e: Exception) {
+            Logger.error("stamp failed tweak=$TWEAK path=$path reason=${e.message}", e)
+            captured
+        } catch (e: LinkageError) {
+            Logger.error("stamp failed tweak=$TWEAK path=$path reason=${e.message}", e)
+            captured
+        }
 }
 
 private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
@@ -132,11 +179,16 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
                 .onFailure {
                     Logger.error("stamp failed tweak=$TWEAK path=entry reason=${it.message}", it)
                 }
+            val previousScreenshot = pendingScreenshot.get()
             pendingScreenshot.set(context to shot)
             try {
                 chain.proceed()
             } finally {
-                pendingScreenshot.remove()
+                if (previousScreenshot == null) {
+                    pendingScreenshot.remove()
+                } else {
+                    pendingScreenshot.set(previousScreenshot)
+                }
             }
         }
     }
@@ -145,10 +197,18 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
             val (context, shot) = pendingScreenshot.get() ?: return@intercept chain.proceed()
             if (!switch.enabled || !bindings.awaitingCapture(shot)) return@intercept chain.proceed()
             val captured = chain.proceed() as Bitmap? ?: return@intercept null
-            runCatching { bindings.stampBitmap(context, shot, captured) }
-                .onFailure {
-                    Logger.error("stamp failed tweak=$TWEAK path=capture reason=${it.message}", it)
-                }.getOrNull() ?: captured
+            bindings.stampCapturedBitmap(context, shot, captured, "capture")
+        }
+    }
+    bindings.captureResultConstructor?.let { constructor ->
+        hook(constructor).intercept { chain ->
+            if (!switch.enabled) return@intercept chain.proceed()
+            val (context, shot) = pendingScreenshot.get() ?: return@intercept chain.proceed()
+            val captured = chain.getArg(0) as? Bitmap ?: return@intercept chain.proceed()
+            if (!bindings.awaitingCapture(shot)) return@intercept chain.proceed()
+            val args = chain.args.toTypedArray<Any?>()
+            args[0] = bindings.stampCapturedBitmap(context, shot, captured, "result")
+            chain.proceed(args)
         }
     }
     return true
@@ -177,20 +237,21 @@ private fun drawPill(
     val bitmap = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true)
     val density = context.resources.displayMetrics.density
     val portrait = bitmap.height > bitmap.width
-    val top = (if (portrait) 12 else 2) * density
-    val hPad = 12 * density
-    val vPad = (if (portrait) 8 else 6) * density
-    val radius = 18 * density
-    val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(28, 28, 30) }
+    val top = (if (portrait) PORTRAIT_TOP_DP else LANDSCAPE_TOP_DP) * density
+    val hPad = HORIZONTAL_PADDING_DP * density
+    val vPad =
+        (if (portrait) PORTRAIT_VERTICAL_PADDING_DP else LANDSCAPE_VERTICAL_PADDING_DP) * density
+    val radius = CORNER_RADIUS_DP * density
+    val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = PILL_BACKGROUND_COLOR }
     val text =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 16 * density
+            textSize = TEXT_SIZE_DP * density
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             textAlign = Paint.Align.CENTER
         }
     val bounds = Rect().also { text.getTextBounds(label, 0, label.length, it) }
-    val width = maxOf(bounds.width() + 2 * hPad, 80 * density)
+    val width = maxOf(bounds.width() + 2 * hPad, MIN_WIDTH_DP * density)
     val height = bounds.height() + 2 * vPad
     val left = (bitmap.width - width) / 2
     val canvas = Canvas(bitmap)
