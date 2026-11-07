@@ -56,7 +56,7 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 - **Charging details**: adds watts, volts, amps and battery temperature under the lock screen charging text.
 - **Download chip**: shows a download's progress as a chip in the status bar. Ported from [Iconify](https://github.com/Mahmud0808/Iconify)'s ongoing action chip.
 - **Fingerprint icon**: replaces the lock screen fingerprint icon with one of 34 icons from custom ROMs or your own image and can hide the circle behind it. Phones with an under-display fingerprint sensor.
-- **Hide shortcut circles**: removes the circle behind the lock screen shortcuts and keeps it while a shortcut is on, like the flashlight. The icons take the lock icon color.
+- **Hide shortcut circles**: removes the circle behind the lock screen shortcuts and keeps it while a shortcut is on, like the flashlight. The icons take the lock icon color on AOSP and keep their stock colors on One UI.
 - **Heads-up duration**: sets how long a heads-up notification shows, from 1 to 15 seconds.
 - **Double tap status bar to sleep**: double tap empty status bar space and the phone sleeps.
 - **Biometric Bypass**: taps confirm on the biometric prompt after a face unlock and plays a system sound of your choice. Same hook as <img src="assets/modules/biometric-bypass.png" width="16" alt=""> [biometric-bypass](https://github.com/hxreborn/biometric-bypass).
