@@ -137,7 +137,7 @@ androidComponents {
     }
 }
 
-val ktlintCli: Configuration by configurations.creating
+val ktlintCli: Configuration = configurations.create("ktlintCli")
 
 dependencies {
     ktlintCli(libs.ktlint.cli)
@@ -176,7 +176,7 @@ tasks.register<JavaExec>("ktlintFormat") {
     args("-F", "src/**/*.kt")
 }
 
-val checkHookImports by tasks.registering {
+val checkHookImports = tasks.register("checkHookImports") {
     group = "verification"
     description = "Fail when hook code imports the app UI or Compose or the app imports hook code"
     val sourceDir = layout.projectDirectory.dir("src/main/kotlin/eu/hxreborn/pixelinjector")
