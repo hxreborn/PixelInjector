@@ -290,7 +290,20 @@ class AndroidSurface:
         return len(name) < 128 and any(needle in dex for dex in self.dex)
 
 
+def security_skip_reason(pref):
+    if pref.startswith("browser.safebrowsing."):
+        return "preserve Safe Browsing protections"
+    if pref == "security.OCSP.enabled":
+        return "preserve certificate revocation checks"
+    if pref == "security.csp.reporting.enabled":
+        return "preserve Content Security Policy violation reporting"
+    return None
+
+
 def skip_reason(pref, rules):
+    security_reason = security_skip_reason(pref)
+    if security_reason:
+        return security_reason
     if pref in rules["prefs"]:
         return rules["prefs"][pref]
     for prefix, reason in rules["prefixes"].items():

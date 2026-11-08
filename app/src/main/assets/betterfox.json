@@ -1,6 +1,6 @@
 {
  "schema": 2,
- "revision": 4,
+ "revision": 5,
  "betterfox": "154.0",
  "commit": "067172a4b0dc90e78e5b8b94d9abfe6430c6a7be",
  "source": "iceraven-2.52.0-arm64-v8a",
@@ -218,32 +218,6 @@
    "stock": 60
   },
   {
-   "pref": "security.OCSP.enabled",
-   "value": 0,
-   "group": "Securefox",
-   "note": "Disable OCSP fetching to confirm current validity of certificates",
-   "file": "Securefox.js",
-   "line": 259,
-   "about": {
-    "text": "OCSP (non-stapled) leaks information about the sites you visit to the CA (cert authority). It's a trade-off between security (checking) and privacy (leaking info to the CA). Unlike Chrome, Firefox's default settings also query OCSP responders to confirm the validity of SSL/TLS certificates. However, because OCSP query failures are so common, Firefox (like other browsers) implements a \"soft-fail\" policy. 0=disabled, 1=enabled (default), 2=enabled for EV certificates only",
-    "tags": [
-     {
-      "tag": "NOTE",
-      "text": "This pref only controls OCSP fetching and does not affect OCSP stapling"
-     },
-     {
-      "tag": "SETTING",
-      "text": "Privacy & Security>Security>Certificates>Query OCSP responder servers..."
-     }
-    ],
-    "links": [
-     "https://en.wikipedia.org/wiki/Ocsp",
-     "https://www.ssl.com/blogs/how-do-browsers-handle-revoked-ssl-tls-certificates/#ftoc-heading-3"
-    ]
-   },
-   "stock": 2
-  },
-  {
    "pref": "privacy.antitracking.isolateContentScriptResources",
    "value": true,
    "group": "Securefox",
@@ -252,20 +226,6 @@
    "line": 325,
    "about": {},
    "stock": false
-  },
-  {
-   "pref": "security.csp.reporting.enabled",
-   "value": false,
-   "group": "Securefox",
-   "note": "Disable CSP Level 2 Reporting",
-   "file": "Securefox.js",
-   "line": 329,
-   "about": {
-    "links": [
-     "https://github.com/yokoffing/Betterfox/issues/415"
-    ]
-   },
-   "stock": true
   },
   {
    "pref": "security.ssl.treat_unsafe_negotiation_as_broken",
@@ -630,24 +590,6 @@
     "links": [
      "https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=pdf.js+firefox",
      "https://www.reddit.com/r/uBlockOrigin/comments/mulc86/firefox_88_now_supports_javascript_in_pdf_files/"
-    ]
-   },
-   "stock": true
-  },
-  {
-   "pref": "browser.safebrowsing.downloads.remote.enabled",
-   "value": false,
-   "group": "Securefox",
-   "note": "Disable SB checks for downloads",
-   "file": "Securefox.js",
-   "line": 1435,
-   "about": {
-    "text": "To verify the safety of certain executable files, Firefox may submit some information about the file, including the name, origin, size and a cryptographic hash of the contents, to the Google Safe Browsing service which helps Firefox determine whether or not the file should be blocked.",
-    "tags": [
-     {
-      "tag": "NOTE",
-      "text": "If you do not understand the consequences, override this."
-     }
     ]
    },
    "stock": true

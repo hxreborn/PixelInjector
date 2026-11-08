@@ -80,7 +80,9 @@ class BetterfoxList(
                             require(seen.add(it.pref)) { "duplicate pref ${it.pref}" }
                         }
                     }
-                return BetterfoxList(revision, requiredText(root, "betterfox"), gecko, prefs)
+                val allowedPrefs = prefs.filterNot { isExcludedSecurityPref(it.pref) }
+                require(allowedPrefs.isNotEmpty()) { "pref count after security exclusions" }
+                return BetterfoxList(revision, requiredText(root, "betterfox"), gecko, allowedPrefs)
             } catch (e: JSONException) {
                 throw IllegalArgumentException("list shape", e)
             }
@@ -165,6 +167,11 @@ class BetterfoxList(
         }
     }
 }
+
+private fun isExcludedSecurityPref(pref: String): Boolean =
+    pref.startsWith("browser.safebrowsing.") ||
+        pref == "security.OCSP.enabled" ||
+        pref == "security.csp.reporting.enabled"
 
 fun isPrefValue(value: Any?): Boolean =
     value is Boolean || value is Int || (value is String && value.length <= MAX_STRING_VALUE)
