@@ -323,10 +323,6 @@ private fun messageText(
             context.getString(R.string.betterfox_reset_done)
         }
 
-        is BetterfoxMessage.Failed -> {
-            message.text
-        }
-
         is BetterfoxMessage.Update -> {
             when (val update = message.state) {
                 BetterfoxUpdateState.Checking -> context.getString(R.string.betterfox_update_checking)
@@ -442,21 +438,6 @@ private fun LazyListScope.notices(
                             contentColor = MaterialTheme.colorScheme.onError,
                         ),
                 ) { Text(stringResource(R.string.betterfox_check)) }
-            }
-            Spacer(Modifier.height(SectionGap))
-        }
-    }
-    val browser = state.browser
-    val ownCount = list.prefs.count { state.browserPrefs?.file?.containsKey(it.pref) == true }
-    if (browser != null && ownCount > 0) {
-        item(key = "own") {
-            Tile(shape = CardRadius, color = MaterialTheme.colorScheme.secondaryContainer) {
-                Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                TileText(
-                    pluralStringResource(R.plurals.betterfox_browser_sets, ownCount, browser.label, ownCount),
-                    stringResource(R.string.betterfox_browser_sets_desc),
-                    supportingColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
             }
             Spacer(Modifier.height(SectionGap))
         }
@@ -630,19 +611,15 @@ private fun OverrideRow(
     }
 }
 
-enum class Source { BROWSER, ABOUT_CONFIG, DEFAULT, CUSTOM, UNUSED, BETTERFOX }
+enum class Source { DEFAULT, CUSTOM, UNUSED, BETTERFOX }
 
-fun appliedValue(
+fun configuredValue(
     entry: BetterfoxPref,
     override: BetterfoxOverride?,
     state: BetterfoxState,
 ): Pair<Source, Any?> {
-    val fileValue = state.browserPrefs?.file?.get(entry.pref)
-    val configValue = state.browserPrefs?.config?.get(entry.pref)
     val custom = (override as? BetterfoxOverride.Custom)?.value
     return when {
-        fileValue != null -> Source.BROWSER to fileValue
-        configValue != null -> Source.ABOUT_CONFIG to configValue
         !state.enabled || entry.group in state.offGroups || override == BetterfoxOverride.Stock -> Source.DEFAULT to entry.stock
         override != null && !isUsable(entry, override) -> Source.UNUSED to entry.value
         custom != null -> Source.CUSTOM to custom
@@ -657,7 +634,7 @@ private fun ValueLine(
     state: BetterfoxState,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val (source, shown) = appliedValue(entry, override, state)
+    val (source, shown) = configuredValue(entry, override, state)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(ValueGap), itemVerticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -667,7 +644,7 @@ private fun ValueLine(
                 modifier = Modifier.width(LineLabelWidth),
             )
             Text(formatPrefValue(shown), style = AppText.meta.copy(fontWeight = FontWeight.Bold), color = scheme.onSurface)
-            SourceChip(source, state)
+            SourceChip(source)
         }
         if (source != Source.BETTERFOX && entry.value != shown) {
             Row(horizontalArrangement = Arrangement.spacedBy(ValueGap), verticalAlignment = Alignment.CenterVertically) {
@@ -688,20 +665,9 @@ private fun ValueLine(
 }
 
 @Composable
-fun SourceChip(
-    source: Source,
-    state: BetterfoxState,
-) {
+fun SourceChip(source: Source) {
     val scheme = MaterialTheme.colorScheme
     when (source) {
-        Source.BROWSER -> {
-            StateChip(state.browser?.label.orEmpty(), scheme.secondaryContainer, scheme.onSecondaryContainer)
-        }
-
-        Source.ABOUT_CONFIG -> {
-            StateChip(stringResource(R.string.betterfox_chip_about_config), scheme.secondaryContainer, scheme.onSecondaryContainer)
-        }
-
         Source.DEFAULT -> {
             StateChip(stringResource(R.string.betterfox_chip_gecko), scheme.tertiaryContainer, scheme.onTertiaryContainer)
         }
@@ -740,8 +706,7 @@ private fun itemIndex(
     list: BetterfoxList,
     pref: String,
 ): Int? {
-    val ownCard = state.browser != null && list.prefs.any { state.browserPrefs?.file?.containsKey(it.pref) == true }
-    var index = 1 + listOf(state.newerGecko != null, ownCard).count { it }
+    var index = 1 + if (state.newerGecko != null) 1 else 0
     for (group in list.groups) {
         val prefs = list.prefs.filter { it.group == group }
         val position = prefs.indexOfFirst { it.pref == pref }

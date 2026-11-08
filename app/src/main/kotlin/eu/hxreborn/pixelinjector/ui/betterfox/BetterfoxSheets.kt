@@ -135,11 +135,8 @@ fun BetterfoxPrefSheet(
             Text(entry.pref, style = AppText.tileTitle.copy(fontFamily = AppText.meta.fontFamily))
             Text(entry.note, style = AppText.sheetSubtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        val fileValue = state.browserPrefs?.file?.get(entry.pref)
-        val ownedValue = fileValue ?: state.browserPrefs?.config?.get(entry.pref)
-        val ownerLabel = if (fileValue != null) state.browser?.label.orEmpty() else stringResource(R.string.betterfox_chip_about_config)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
-            val options = if (ownedValue == null) ValueSource.entries else ValueSource.entries - ValueSource.CUSTOM
+            val options = ValueSource.entries
             options.forEachIndexed { index, option ->
                 val value =
                     when (option) {
@@ -148,8 +145,7 @@ fun BetterfoxPrefSheet(
                         ValueSource.CUSTOM -> custom?.let(::formatPrefValue)
                     }
                 ToggleButton(
-                    checked = ownedValue == null && pick == option,
-                    enabled = ownedValue == null,
+                    checked = pick == option,
                     onCheckedChange = {
                         if (pick == option) return@ToggleButton
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -167,7 +163,7 @@ fun BetterfoxPrefSheet(
                                 ButtonGroupDefaults.connectedLeadingButtonShapes()
                             }
 
-                            index == options.lastIndex && ownedValue == null -> {
+                            index == options.lastIndex -> {
                                 ButtonGroupDefaults
                                     .connectedTrailingButtonShapes()
                             }
@@ -184,39 +180,14 @@ fun BetterfoxPrefSheet(
                     }
                 }
             }
-            if (ownedValue != null) {
-                ToggleButton(
-                    checked = true,
-                    onCheckedChange = {},
-                    shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                    modifier = Modifier.weight(1f).heightIn(min = ToggleHeight).then(radioRole),
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FittedText(ownerLabel, AppText.button)
-                        FittedText(formatPrefValue(ownedValue), AppText.meta)
-                    }
-                }
-            }
         }
-        if (ownedValue != null) {
-            Text(
-                if (fileValue != null) {
-                    stringResource(R.string.betterfox_owned_file, ownerLabel)
-                } else {
-                    stringResource(R.string.betterfox_owned_config)
-                },
-                style = AppText.tileSupporting,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-        }
-        if (ownedValue == null && pick == ValueSource.CUSTOM && custom != null) {
+        if (pick == ValueSource.CUSTOM && custom != null) {
             CustomValue(entry, custom) { onOverrideChange(BetterfoxOverride.Custom(it)) }
         }
-        val (source, current) = appliedValue(entry, override, state)
+        val (source, current) = configuredValue(entry, override, state)
         Tile(shape = LinkShape) {
             TileText(stringResource(R.string.betterfox_current_value), formatPrefValue(current), supportingStyle = AppText.meta)
-            SourceChip(source, state)
+            SourceChip(source)
         }
         if (!entry.about.isEmpty) BetterfoxExplanation(entry.about, onOpenUrl)
         val url = list.sourceUrl(entry)

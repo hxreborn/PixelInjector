@@ -95,5 +95,6 @@ object Prefs {
     val FIREFOX_BETTERFOX_OFF_GROUPS =
         browser("firefox.betterfox.offGroups") { StringSetPref(it, emptySet()) }
     val FIREFOX_BETTERFOX_OVERRIDES = browser("firefox.betterfox.overrides") { StringPref(it, "") }
+    val FIREFOX_BETTERFOX_RESET = browser("firefox.betterfox.reset") { StringPref(it, "") }
     val FIREFOX_BETTERFOX_LIST = StringPref("firefox.betterfox.list", "").register()
 }

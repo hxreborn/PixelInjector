@@ -4,7 +4,6 @@ import android.net.Uri
 import eu.hxreborn.pixelinjector.betterfox.BetterfoxBackup
 import eu.hxreborn.pixelinjector.betterfox.BetterfoxList
 import eu.hxreborn.pixelinjector.betterfox.BetterfoxOverride
-import eu.hxreborn.pixelinjector.betterfox.BrowserPrefs
 import eu.hxreborn.pixelinjector.support.BetterfoxUpdateState
 import eu.hxreborn.pixelinjector.support.Browser
 import eu.hxreborn.pixelinjector.ui.reload.LogLine
@@ -60,10 +59,6 @@ sealed interface BetterfoxMessage {
     ) : BetterfoxMessage
 
     data object Reset : BetterfoxMessage
-
-    data class Failed(
-        val text: String,
-    ) : BetterfoxMessage
 }
 
 data class BetterfoxState(
@@ -74,7 +69,6 @@ data class BetterfoxState(
     val browser: Browser? = null,
     val browsers: List<Browser> = emptyList(),
     val newerGecko: Browser? = null,
-    val browserPrefs: BrowserPrefs? = null,
     val update: BetterfoxUpdateState = BetterfoxUpdateState.Idle,
     val folder: String = "",
     val backups: List<BackupEntry> = emptyList(),

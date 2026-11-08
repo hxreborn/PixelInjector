@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.xposed.hook.firefox
 
+import android.content.Context
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.betterfox.BETTERFOX_ASSET
@@ -25,6 +26,7 @@ import java.util.zip.ZipFile
 
 private const val TWEAK = "FirefoxBetterfox"
 private const val RUNTIME_SETTINGS = "org.mozilla.geckoview.RuntimeSettings"
+private const val GECKO_RUNTIME = "org.mozilla.geckoview.GeckoRuntime"
 private const val GECKO_RUNTIME_SETTINGS = "org.mozilla.geckoview.GeckoRuntimeSettings"
 
 private val bundled: BetterfoxList? by lazy { loadBundled() }
@@ -36,25 +38,36 @@ private val overrides =
 private val fetchedList =
     Value(Prefs.FIREFOX_BETTERFOX_LIST, { refresh() }) { BetterfoxList.parseOrNull(it) }
 
+private val reset = Value(Prefs.FIREFOX_BETTERFOX_RESET) { it }
+
+@Volatile private var startupPrefs: Map<String, Any> = emptyMap()
+
 @Volatile private var appliedPrefs: Map<String, Any> = emptyMap()
 
 internal val firefoxBetterfox =
     Tweak(
         key = TWEAK,
         targets = setOf(Target.FIREFOX),
-        prefs = listOf(switch, offGroups, overrides, fetchedList),
+        prefs = listOf(switch, offGroups, overrides, fetchedList, reset),
         install = XposedModule::installFirefoxBetterfox,
     )
 
 private class BetterfoxBindings(
     val getPrefsMap: Method,
     val settings: Class<*>,
+    val init: Method,
 ) {
     companion object {
         fun resolve(cl: ClassLoader) =
             BetterfoxBindings(
                 getPrefsMap = cl.loadClass(RUNTIME_SETTINGS).requiredMethod("getPrefsMap"),
                 settings = cl.loadClass(GECKO_RUNTIME_SETTINGS),
+                init =
+                    cl.loadClass(GECKO_RUNTIME).requiredMethod(
+                        "init",
+                        Context::class.java,
+                        cl.loadClass(GECKO_RUNTIME_SETTINGS),
+                    ),
             )
     }
 }
@@ -88,12 +101,38 @@ private fun XposedModule.installFirefoxBetterfox(cl: ClassLoader): Boolean {
             )
             return false
         }
-    Logger.info("resolved tweak=$TWEAK members=${bindings.getPrefsMap.signature()}")
+    Logger.info(
+        "resolved tweak=$TWEAK members=${bindings.getPrefsMap.signature()},${bindings.init.signature()}",
+    )
+    hook(bindings.init).intercept { chain ->
+        val enabled = switch.enabled
+        val extra = if (enabled) appliedPrefs else emptyMap()
+        val resetRequest = reset.value
+        startupPrefs = emptyMap()
+        try {
+            val context = chain.getArg(0) as Context
+            val profileBackedUp =
+                prepareBetterfoxProfiles(context.filesDir, extra.keys, resetRequest)
+            startupPrefs = if (profileBackedUp) extra else emptyMap()
+            Logger.info(
+                "profiles prepared tweak=$TWEAK enabled=$enabled reset=$resetRequest profileBackedUp=$profileBackedUp",
+            )
+        } catch (e: Exception) {
+            Logger.error("profiles failed tweak=$TWEAK reason=${e.message}", e)
+        } catch (e: LinkageError) {
+            Logger.error("profiles failed tweak=$TWEAK reason=${e.message}", e)
+        }
+        chain.proceed()
+    }
     hook(bindings.getPrefsMap).intercept { chain ->
+        val enabled = switch.enabled
+
         @Suppress("UNCHECKED_CAST")
         val stock = chain.proceed() as Map<String, Any?>
-        val extra = appliedPrefs
-        if (extra.isEmpty() || !bindings.settings.isInstance(chain.thisObject)) {
+        val extra = startupPrefs
+        if (!enabled || extra.isEmpty() ||
+            !bindings.settings.isInstance(chain.thisObject)
+        ) {
             stock
         } else {
             val replaced = extra.keys.filter { it in stock }.joinToString(",")

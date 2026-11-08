@@ -16,7 +16,6 @@ import eu.hxreborn.pixelinjector.betterfox.BETTERFOX_ASSET
 import eu.hxreborn.pixelinjector.betterfox.BetterfoxBackup
 import eu.hxreborn.pixelinjector.betterfox.BetterfoxList
 import eu.hxreborn.pixelinjector.betterfox.BetterfoxOverride
-import eu.hxreborn.pixelinjector.betterfox.BrowserPrefs
 import eu.hxreborn.pixelinjector.betterfox.chooseList
 import eu.hxreborn.pixelinjector.betterfox.decodeOverrides
 import eu.hxreborn.pixelinjector.betterfox.encodeOverrides
@@ -36,7 +35,6 @@ import eu.hxreborn.pixelinjector.ui.reload.ReloadStatus
 import eu.hxreborn.pixelinjector.ui.reload.Tone
 import eu.hxreborn.pixelinjector.ui.util.BackupDocument
 import eu.hxreborn.pixelinjector.ui.util.BackupFolder
-import eu.hxreborn.pixelinjector.ui.util.ProfileBackup
 import eu.hxreborn.pixelinjector.ui.util.Root
 import eu.hxreborn.pixelinjector.ui.util.documentName
 import eu.hxreborn.pixelinjector.ui.util.readDocument
@@ -52,17 +50,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
-import java.io.File
 import java.io.IOException
 import java.time.LocalDateTime
+import java.util.UUID
 import kotlin.time.Duration.Companion.days
 
 private const val STATE_PREFS = "betterfox"
@@ -78,16 +74,12 @@ class BetterfoxController(
 ) {
     private val app = App.from(application)
     private val state = application.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE)
-    private val backupStore = File(application.filesDir, "betterfox-backup")
-    private val backupScratch = File(application.cacheDir, "betterfox-stage")
-    private val profileLock = Mutex()
     private val runLock = Mutex()
     private var runJob: Job? = null
 
     private val bundled = MutableStateFlow<BetterfoxList?>(null)
     private val update = MutableStateFlow<BetterfoxUpdateState>(BetterfoxUpdateState.Idle)
     private val browsers = MutableStateFlow<List<Browser>>(emptyList())
-    private val browserPrefs = MutableStateFlow<BrowserPrefs?>(null)
     private val selected = MutableStateFlow<String?>(null)
     private val folder = MutableStateFlow(state.getString(FOLDER, null)?.toUri())
     private val backups = MutableStateFlow<List<BackupEntry>>(emptyList())
@@ -112,9 +104,9 @@ class BetterfoxController(
     val screen: StateFlow<BetterfoxState> =
         combine(
             combine(list, app.prefs.state, update) { list, prefs, update -> Triple(list, prefs, update) },
-            combine(browsers, browserPrefs, selected) { browsers, prefs, selected -> Triple(browsers, prefs, selected) },
+            combine(browsers, selected) { browsers, selected -> browsers to selected },
             combine(folder, backups, flash) { folder, backups, flash -> Triple(folder, backups, flash) },
-        ) { (list, prefs, update), (browsers, browserPrefs, selected), (folder, backups, flash) ->
+        ) { (list, prefs, update), (browsers, selected), (folder, backups, flash) ->
             val primary = browsers.firstOrNull { it.packageName == selected }
             val pkg = primary?.packageName ?: selected
             val listMajor = list?.gecko?.let(::geckoMajor)
@@ -130,7 +122,6 @@ class BetterfoxController(
                         val major = browser.gecko?.let(::geckoMajor)
                         major != null && listMajor != null && major > listMajor
                     },
-                browserPrefs = browserPrefs,
                 update = update,
                 folder = BackupFolder(application.contentResolver, folder).label,
                 backups = backups,
@@ -175,16 +166,8 @@ class BetterfoxController(
     private fun currentPackage(): String = checkNotNull(selected.value) { "no browser selected" }
 
     fun onOpen(packageName: String) {
-        if (selected.value != packageName) browserPrefs.value = null
         selected.value = packageName
         refreshBackups()
-        scope.launch(Dispatchers.IO) {
-            browserPrefs.value = ProfileBackup.browserPrefs(packageName, backupScratch)
-            Log.i(
-                ModuleConstants.LOG_TAG,
-                "betterfox browser prefs pkg=$packageName file=${browserPrefs.value?.file?.size} config=${browserPrefs.value?.config?.size}",
-            )
-        }
     }
 
     fun onResume(autoCheck: Boolean) {
@@ -277,49 +260,14 @@ class BetterfoxController(
         }
 
     fun enable(packageName: String) {
-        scope.launch(Dispatchers.IO) {
-            when (val outcome = profileLock.withLock { safetyCopy(packageName) }) {
-                is ProfileBackup.Outcome.Done -> commit(Prefs.FIREFOX_BETTERFOX[packageName], true)
-                else -> announceProfileFailure(outcome, R.string.betterfox_backup_failed)
-            }
-        }
-    }
-
-    private suspend fun safetyCopy(packageName: String): ProfileBackup.Outcome {
-        val list = list.filterNotNull().first()
-        backupScratch.mkdirs()
-        return ProfileBackup.backUp(backupStore, backupScratch, setOf(packageName), list.prefs.map { it.pref }.toSet())
+        commit(Prefs.FIREFOX_BETTERFOX[packageName], true)
     }
 
     fun resetAll() {
         val pkg = currentPackage()
-        scope.launch(Dispatchers.IO) {
-            commit(Prefs.FIREFOX_BETTERFOX[pkg], false)
-            val outcome =
-                profileLock.withLock {
-                    backupScratch.mkdirs()
-                    ProfileBackup.restore(backupStore, backupScratch, pkg)
-                }
-            Log.i(ModuleConstants.LOG_TAG, "betterfox reset outcome=$outcome")
-            when (outcome) {
-                is ProfileBackup.Outcome.Done -> _messages.tryEmit(BetterfoxMessage.Reset)
-                else -> announceProfileFailure(outcome, R.string.betterfox_reset_failed)
-            }
-        }
-    }
-
-    private fun announceProfileFailure(
-        outcome: ProfileBackup.Outcome,
-        failure: Int,
-    ) {
-        val text =
-            when (outcome) {
-                ProfileBackup.Outcome.Denied -> application.getString(R.string.root_denied)
-                is ProfileBackup.Outcome.Failed -> application.getString(failure, outcome.message)
-                is ProfileBackup.Outcome.Done -> return
-            }
-        Log.w(ModuleConstants.LOG_TAG, "betterfox profile outcome=$outcome")
-        _messages.tryEmit(BetterfoxMessage.Failed(text))
+        app.prefs.save(Prefs.FIREFOX_BETTERFOX[pkg], false)
+        commit(Prefs.FIREFOX_BETTERFOX_RESET[pkg], UUID.randomUUID().toString())
+        _messages.tryEmit(BetterfoxMessage.Reset)
     }
 
     fun checkForUpdate(

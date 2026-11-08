@@ -5,20 +5,6 @@ import org.json.JSONObject
 
 private val PREF_LINE = Regex("^user_pref\\(\"([^\"]+)\",")
 private val LINES = Charsets.ISO_8859_1
-private val VALUE_LINE = Regex("^\\s*user_pref\\(\"([^\"]+)\",\\s*(.+?)\\);")
-
-class BrowserPrefs(
-    val file: Map<String, Any>,
-    val config: Map<String, Any>,
-)
-
-fun userPrefValues(text: String): Map<String, Any> =
-    buildMap {
-        for (line in text.lines()) {
-            val match = VALUE_LINE.find(line) ?: continue
-            parsePrefValue(match.groupValues[2])?.let { put(match.groupValues[1], it) }
-        }
-    }
 
 class ProfileBackupMeta(
     val taken: Long,
@@ -74,7 +60,7 @@ fun touchedPrefLines(
     val found = HashMap<String, String>()
     for (line in String(prefsJs, LINES).split("\n")) {
         val name = PREF_LINE.find(line)?.groupValues?.get(1) ?: continue
-        if (name in names) found.putIfAbsent(name, line)
+        if (name in names) found[name] = line
     }
     return names.associateWith { found[it] }
 }

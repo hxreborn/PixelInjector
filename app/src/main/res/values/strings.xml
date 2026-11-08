@@ -111,8 +111,7 @@
     <string name="betterfox_about_pref">About %1$s</string>
     <string name="betterfox_edit_pref">Edit %1$s</string>
     <string name="betterfox_chip_gecko">Gecko</string>
-    <string name="betterfox_chip_about_config">about:config</string>
-    <string name="betterfox_current_value">Current value</string>
+    <string name="betterfox_current_value">Configured value</string>
     <string name="betterfox_sources">Sources</string>
     <string name="betterfox_tag_note">Note</string>
     <string name="betterfox_tag_warning">Warning</string>
@@ -120,13 +119,10 @@
     <string name="betterfox_tag_test">Test</string>
     <string name="betterfox_tag_alternative">Alternative</string>
     <string name="betterfox_tag_tip">Tip</string>
-    <string name="betterfox_owned_file">%1$s sets this value in its own file</string>
-    <string name="betterfox_owned_config">Set in about:config</string>
-    <string name="betterfox_not_applied">%1$s not applied</string>
-    <string name="betterfox_in_use">In use</string>
+    <string name="betterfox_not_applied">%1$s not configured</string>
+    <string name="betterfox_in_use">Configured</string>
     <string name="betterfox_about_body">Betterfox is a Firefox preference list by yokoffing. PixelInjector applies the %2$d of its preferences that %1$s reads on Android each time it starts. List from Betterfox %3$s with defaults from Gecko %4$s.</string>
     <string name="betterfox_open_github">Open on GitHub</string>
-    <string name="betterfox_browser_sets_desc">Its values apply instead of Betterfox</string>
     <string name="betterfox_use">Use Betterfox</string>
     <string name="betterfox_use_group">Use %1$s</string>
     <string name="betterfox_your_overrides">Your overrides</string>
@@ -188,11 +184,9 @@
     <string name="betterfox_group_off">Off</string>
     <string name="betterfox_not_running">Not running</string>
     <string name="betterfox_reset_title">Reset all to default?</string>
-    <string name="betterfox_reset_text">Turns Betterfox off and puts back the values %1$s had before</string>
+    <string name="betterfox_reset_text">Turns Betterfox off and restores saved values when %1$s next starts</string>
     <string name="betterfox_reset_confirm">Reset</string>
-    <string name="betterfox_reset_done">Reset to default</string>
-    <string name="betterfox_reset_failed">Could not reset: %1$s</string>
-    <string name="betterfox_backup_failed">Could not back up the browser: %1$s</string>
+    <string name="betterfox_reset_done">Reset requested for the next browser start</string>
     <string name="betterfox_gecko_channel">Browser engine updates</string>
     <string name="target_not_found">Target not found on %1$s. Open the module log</string>
     <string name="tweak_failed">Failed when last used. Open the module log</string>
@@ -211,10 +205,6 @@
     <plurals name="betterfox_preferences">
         <item quantity="one">%d preference</item>
         <item quantity="other">%d preferences</item>
-    </plurals>
-    <plurals name="betterfox_browser_sets">
-        <item quantity="one">%1$s sets %2$d of these itself</item>
-        <item quantity="other">%1$s sets %2$d of these itself</item>
     </plurals>
     <plurals name="betterfox_overrides">
         <item quantity="one">%d override</item>
