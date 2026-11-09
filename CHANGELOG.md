@@ -1,3 +1,24 @@
+## [1.24.4](https://github.com/hxreborn/PixelInjector/compare/v1.24.3...v1.24.4) (2026-11-09)
+
+### Bug Fixes
+
+* **tweak:** add ChargingDetails support for One UI 8 ([54d7eb9](https://github.com/hxreborn/PixelInjector/commit/54d7eb9e403a3d4bb313269292b3d39e44e8cbc3))
+* **tweak:** add DownloadChip tint support for One UI 8 ([d0a2426](https://github.com/hxreborn/PixelInjector/commit/d0a2426c3aa089792014b6e1c99d32e9bcab634d))
+* **tweak:** add HideShortcutCircles support for One UI 8 ([fa83025](https://github.com/hxreborn/PixelInjector/commit/fa830257b82a10dcac33d9382dc13cf0567c34a9))
+* **tweak:** add PillShot support for One UI 8 ([e02f70d](https://github.com/hxreborn/PixelInjector/commit/e02f70ddd9056cdd41f07c94b2201ad893555189))
+* **tweak:** add ScreenshotSound support for One UI 8 ([7114b77](https://github.com/hxreborn/PixelInjector/commit/7114b7728d4b61b298a1b231b06c7713ddd71e5b))
+* **tweak:** back up FirefoxBetterfox profiles inside the browser ([e11c9c3](https://github.com/hxreborn/PixelInjector/commit/e11c9c31ed356d66415a005d4adef02fbedca754))
+* **tweak:** exclude security prefs from the FirefoxBetterfox list ([349fe7e](https://github.com/hxreborn/PixelInjector/commit/349fe7e0414e388e9a13bc2401162f1f1cbb3c6c))
+* **tweak:** report FingerprintIcon unavailable on One UI ([8d5ae55](https://github.com/hxreborn/PixelInjector/commit/8d5ae559c059219556e9c44e7fa0e5d0a65d4b20))
+* **ui:** run test intent commands against the opened browser ([894b1f9](https://github.com/hxreborn/PixelInjector/commit/894b1f903a414fc8fe0c8888391b4425f9c112bf))
+
+### Dependencies
+
+* **deps:** bump androidx.compose.material3:material3 ([ce986d7](https://github.com/hxreborn/PixelInjector/commit/ce986d7e06092dca22d6283f457f04c1066339eb))
+* **deps:** bump com.android.application from 9.4.1 to 9.5.0 ([3f49541](https://github.com/hxreborn/PixelInjector/commit/3f49541f22a538a1b6788e6d434b2144e3964608))
+* **deps:** bump com.android.application from 9.5.0 to 9.5.1 ([449a8df](https://github.com/hxreborn/PixelInjector/commit/449a8df9d814768135c57cae550f9d4041c537a4))
+* **deps:** update Android libraries and Gradle ([8b0f2d7](https://github.com/hxreborn/PixelInjector/commit/8b0f2d71142e0ef56403de2432e7bd2dd32672a3))
+
 ## [1.24.3](https://github.com/hxreborn/PixelInjector/compare/v1.24.2...v1.24.3) (2026-11-06)
 
 ### Bug Fixes
