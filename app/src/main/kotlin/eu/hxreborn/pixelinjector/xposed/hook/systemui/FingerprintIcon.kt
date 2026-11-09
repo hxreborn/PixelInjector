@@ -39,6 +39,7 @@ import java.util.zip.ZipFile
 private const val TWEAK = "FingerprintIcon"
 private const val ICON_VIEW = "com.android.systemui.keyguard.ui.view.DeviceEntryIconView"
 private const val UDFPS_VIEW = "com.android.systemui.biometrics.UdfpsKeyguardView"
+private const val SAMSUNG_LOCK_ICON_VIEW = "com.android.keyguard.SecLockIconView"
 private const val OPAQUE = 255
 
 @Volatile private var current: FingerprintBindings? = null
@@ -366,6 +367,27 @@ private class FingerprintBindings(
 }
 
 private fun XposedModule.installFingerprintIcon(cl: ClassLoader): Boolean {
+    val samsungLockIcon =
+        resolving {
+            try {
+                cl.loadClass(SAMSUNG_LOCK_ICON_VIEW)
+            } catch (_: ClassNotFoundException) {
+                null
+            }
+        }.getOrElse {
+            Logger.error(
+                "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
+            )
+            return false
+        }
+    if (samsungLockIcon != null) {
+        Logger.error(
+            "target not found tweak=$TWEAK member=${samsungLockIcon.simpleName} " +
+                "build=${Build.ID} " +
+                "reason=Samsung-draws-fingerprint-icon-outside-SystemUI",
+        )
+        return false
+    }
     val bindings =
         resolving { FingerprintBindings.resolve(cl) }.getOrElse {
             Logger.error(
