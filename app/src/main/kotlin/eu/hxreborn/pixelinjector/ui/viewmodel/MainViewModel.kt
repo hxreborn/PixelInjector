@@ -46,6 +46,7 @@ import eu.hxreborn.pixelinjector.ui.log.ModuleLogState
 import eu.hxreborn.pixelinjector.ui.log.deriveErrorLines
 import eu.hxreborn.pixelinjector.ui.log.deriveErrors
 import eu.hxreborn.pixelinjector.ui.log.parseModuleLog
+import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.navigation.TestNavigation
 import eu.hxreborn.pixelinjector.ui.navigation.testBetterfoxCommand
 import eu.hxreborn.pixelinjector.ui.navigation.testNavigation
@@ -228,7 +229,12 @@ class MainViewModel(
     val testNavigation: StateFlow<TestNavigation?> = _testNavigation.asStateFlow()
 
     fun handleTestIntent(intent: Intent?) {
-        testNavigation(intent)?.let { _testNavigation.value = it }
+        testNavigation(intent)?.let { navigation ->
+            navigation.destinations.filterIsInstance<Destination.BetterfoxEditor>().lastOrNull()?.let {
+                betterfox.onOpen(it.packageName)
+            }
+            _testNavigation.value = navigation
+        }
         testBetterfoxCommand(intent)?.let(betterfox::runCommand)
     }
 
