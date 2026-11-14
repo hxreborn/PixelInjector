@@ -6,8 +6,10 @@ import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Looper
 import android.text.SpannableStringBuilder
 import android.view.View
+import android.widget.TextView
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.findFieldUpward
@@ -27,6 +29,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.Locale
+import java.util.WeakHashMap
 import kotlin.math.abs
 
 private const val TWEAK = "ChargingDetails"
@@ -47,7 +50,8 @@ private const val MICRO = 1_000_000f
 private const val MILLI = 1_000f
 private const val TENTHS = 10f
 
-private val switch = Switch(Prefs.CHARGING_DETAILS)
+private val indicationMaxLines = WeakHashMap<TextView, Int>()
+private val switch = Switch(Prefs.CHARGING_DETAILS) { updateIndicationViews() }
 
 internal val chargingDetails =
     Tweak(
@@ -55,13 +59,51 @@ internal val chargingDetails =
         targets = setOf(Target.SYSTEMUI),
         prefs = listOf(switch),
         install = XposedModule::installChargingDetails,
+        saveState = { synchronized(indicationMaxLines) { HashMap(indicationMaxLines) } },
+        restoreState = { saved ->
+            synchronized(indicationMaxLines) {
+                (saved as? Map<*, *>)?.forEach { (view, maxLines) ->
+                    if (view is TextView && maxLines is Int) indicationMaxLines[view] = maxLines
+                }
+            }
+            updateIndicationViews()
+        },
     )
+
+private fun updateIndicationViews() {
+    val views = synchronized(indicationMaxLines) { indicationMaxLines.keys.toList() }
+    views.forEach(::updateIndicationView)
+}
+
+private fun updateIndicationView(view: TextView) {
+    val update =
+        Runnable {
+            try {
+                val stockMaxLines =
+                    synchronized(indicationMaxLines) {
+                        indicationMaxLines.getOrPut(view) { view.maxLines }
+                    }
+                val maxLines = if (switch.enabled) Int.MAX_VALUE else stockMaxLines
+                if (view.maxLines != maxLines) view.maxLines = maxLines
+            } catch (e: Exception) {
+                Logger.error("line limit failed tweak=$TWEAK reason=${e.message}", e)
+            } catch (e: LinkageError) {
+                Logger.error("line limit failed tweak=$TWEAK reason=${e.message}", e)
+            }
+        }
+    if (view.handler?.looper == Looper.myLooper() && Looper.myLooper() != null) {
+        update.run()
+    } else {
+        view.post(update)
+    }
+}
 
 private class IndicationBindings(
     val methods: List<Method>,
     val context: Field,
     val message: Field?,
     val batteryEvents: Set<Any> = emptySet(),
+    val indicationView: Field? = null,
 ) {
     fun detailed(
         owner: Any?,
@@ -125,6 +167,12 @@ private class IndicationBindings(
                         controller.findFieldUpward("mContext")
                             ?: throw NoSuchFieldException("${controller.simpleName}.mContext"),
                     message = null,
+                    indicationView =
+                        if (controller.name == GOOGLE_CONTROLLER) {
+                            controller.findFieldUpward("mLockScreenIndicationView")
+                        } else {
+                            null
+                        },
                 )
             }
             // HyperOS 3 SystemUI OS3.0.303 BP2A.250605.031.A3
@@ -206,16 +254,20 @@ private fun XposedModule.installChargingDetails(cl: ClassLoader): Boolean {
         val message = bindings.message
         if (message == null) {
             hook(method).intercept { chain ->
+                val enabled = switch.enabled
                 val result = chain.proceed()
-                if (!switch.enabled || result !is String) return@intercept result
-                runCatching { bindings.detailed(chain.thisObject, result)?.toString() }
-                    .onFailure {
-                        Logger.error(
-                            "details failed tweak=$TWEAK reason=${it.message}",
-                            it,
-                        )
-                    }.getOrNull()
-                    ?: result
+                try {
+                    (bindings.indicationView?.get(chain.thisObject) as? TextView)
+                        ?.let(::updateIndicationView)
+                    if (!enabled || result !is String) return@intercept result
+                    bindings.detailed(chain.thisObject, result)?.toString() ?: result
+                } catch (e: Exception) {
+                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                    result
+                } catch (e: LinkageError) {
+                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                    result
+                }
             }
             continue
         }
@@ -224,11 +276,15 @@ private fun XposedModule.installChargingDetails(cl: ClassLoader): Boolean {
             if (switch.enabled && chain.getArg(0) == INDICATION_TYPE_BATTERY &&
                 indication != null
             ) {
-                runCatching {
+                try {
                     (message.get(indication) as? CharSequence)
                         ?.let { bindings.detailed(chain.thisObject, it) }
                         ?.let { message.set(indication, it) }
-                }.onFailure { Logger.error("details failed tweak=$TWEAK reason=${it.message}", it) }
+                } catch (e: Exception) {
+                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                } catch (e: LinkageError) {
+                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                }
             }
             chain.proceed()
         }
