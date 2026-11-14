@@ -4,12 +4,13 @@ import android.content.Context
 import android.media.Ringtone
 import android.os.Build
 import android.os.SystemClock
+import android.os.VibrationAttributes
 import android.view.View
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.sound.SystemSounds
 import eu.hxreborn.pixelinjector.util.member
-import eu.hxreborn.pixelinjector.util.optionalMethod
+import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.util.signature
@@ -19,6 +20,7 @@ import eu.hxreborn.pixelinjector.xposed.Tweak
 import eu.hxreborn.pixelinjector.xposed.Value
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import kotlin.concurrent.thread
 
 private const val TWEAK = "BiometricBypass"
@@ -73,9 +75,13 @@ private class AuthBindings(
                 CONTAINER_VIEWS.firstNotNullOfOrNull {
                     resolving { cl.loadClass(it) }.getOrNull()
                 } ?: throw ClassNotFoundException("AuthContainerView")
+            if (!View::class.java.isAssignableFrom(view)) {
+                throw NoSuchMethodException("AuthContainerView extends View")
+            }
             val candidates =
                 view.declaredMethods.filter {
-                    it.parameterCount == 0 &&
+                    !Modifier.isStatic(it.modifiers) && it.returnType == Void.TYPE &&
+                        it.parameterCount == 0 &&
                         (it.name == ANIMATED_IN || it.name.startsWith("$ANIMATED_IN$"))
                 }
             val animatedIn =
@@ -85,7 +91,28 @@ private class AuthBindings(
                         "AuthContainerView.$ANIMATED_IN candidates=${candidates.size}",
                     )
             val playToken =
-                resolving { cl.loadClass(MULTISENSORY).optionalMethod(PLAY_TOKEN, 3) }.getOrNull()
+                resolving {
+                    cl
+                        .loadClass(MULTISENSORY)
+                        .requiredMethod(
+                            PLAY_TOKEN,
+                            Int::class.javaPrimitiveType,
+                            Boolean::class.javaPrimitiveType,
+                            VibrationAttributes::class.java,
+                        ).also {
+                            if (Modifier.isStatic(it.modifiers) || it.returnType != Void.TYPE) {
+                                throw NoSuchMethodException(
+                                    "MultisensoryManager.playToken(int,boolean,VibrationAttributes):void",
+                                )
+                            }
+                        }
+                }.getOrElse {
+                    Logger.warn(
+                        "target not found tweak=$TWEAK member=MultisensoryManager#$PLAY_TOKEN " +
+                            "build=${Build.ID} reason=${it.reason()}",
+                    )
+                    null
+                }
             return AuthBindings(animatedIn.apply { isAccessible = true }, playToken)
         }
     }
@@ -113,7 +140,9 @@ private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
             if (!quiet) return@intercept chain.proceed()
             confirmedAt = 0
             Logger.info("unlock sound skipped tweak=$TWEAK")
-            chain.proceed(arrayOf(chain.getArg(0), false, chain.getArg(2)))
+            val args = chain.args.toTypedArray<Any?>()
+            args[1] = false
+            chain.proceed(args)
         }
     }
     hook(bindings.animatedIn).intercept { chain ->

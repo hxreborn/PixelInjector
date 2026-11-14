@@ -18,6 +18,7 @@ import eu.hxreborn.pixelinjector.util.optionalField
 import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
+import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.requiredMethods
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.util.signature
@@ -31,6 +32,7 @@ import java.lang.ref.WeakReference
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 private const val TWEAK = "EmptyShade"
 private const val CONTENT =
@@ -250,6 +252,8 @@ private fun findCollectorViews(cl: ClassLoader): Map<Method, Field> {
 
 private class ShadeBindings(
     val content: Method,
+    private val contentArgCount: Int,
+    private val iconType: Class<*>,
     private val stockIcon: StockIcon,
     private val newLoadedIcon: Constructor<*>,
     val recompose: RecomposeTrigger,
@@ -257,9 +261,13 @@ private class ShadeBindings(
     @Volatile private var lastLoaded: Pair<Drawable, Any>? = null
 
     fun rewriteCaughtUp(args: Array<Any?>): Boolean {
-        if (!stockIcon.matches(args[ICON_ARG])) return false
+        if (args.size != contentArgCount || !stockIcon.matches(args[ICON_ARG])) return false
         customText.value.takeIf(String::isNotEmpty)?.let { args[TEXT_ARG] = it }
-        customIcon.value?.let { args[ICON_ARG] = loadedIcon(it) }
+        customIcon.value?.let {
+            val replacement = loadedIcon(it)
+            if (!iconType.isInstance(replacement)) return false
+            args[ICON_ARG] = replacement
+        }
         return true
     }
 
@@ -272,17 +280,36 @@ private class ShadeBindings(
     }
 
     companion object {
-        fun resolve(cl: ClassLoader): ShadeBindings =
-            ShadeBindings(
-                content =
-                    cl
-                        .loadClass(CONTENT)
-                        .requiredMethods("EmptyShadeContent")
-                        .single { it.parameterTypes.firstOrNull() == String::class.java },
+        fun resolve(cl: ClassLoader): ShadeBindings {
+            val icon = cl.loadClass("com.android.systemui.common.shared.model.Icon")
+            val loadedIcon = cl.loadClass(LOADED_ICON)
+            if (!icon.isAssignableFrom(loadedIcon)) {
+                throw NoSuchMethodException("Icon.Loaded extends Icon")
+            }
+            val content =
+                cl.loadClass(CONTENT).requiredMethod(
+                    "EmptyShadeContent",
+                    String::class.java,
+                    icon,
+                    cl.loadClass("kotlin.jvm.functions.Function1"),
+                    cl.loadClass("androidx.compose.ui.Modifier"),
+                    cl.loadClass("androidx.compose.runtime.Composer"),
+                    Int::class.javaPrimitiveType,
+                )
+            if (!Modifier.isStatic(content.modifiers) || content.returnType != Void.TYPE) {
+                throw NoSuchMethodException(
+                    "EmptyShadeContent(String,Icon,Function1,Modifier,Composer,int):void static",
+                )
+            }
+            return ShadeBindings(
+                content = content,
+                contentArgCount = content.parameterCount,
+                iconType = icon,
                 stockIcon = StockIcon.resolve(cl),
-                newLoadedIcon = cl.loadClass(LOADED_ICON).getConstructor(Drawable::class.java),
+                newLoadedIcon = loadedIcon.getConstructor(Drawable::class.java),
                 recompose = RecomposeTrigger.resolve(cl),
             )
+        }
     }
 }
 
