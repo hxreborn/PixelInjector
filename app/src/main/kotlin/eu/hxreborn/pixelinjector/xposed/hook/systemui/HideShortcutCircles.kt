@@ -128,39 +128,90 @@ private object IconColor {
     }
 }
 
+private inline fun <T> shortcutViewCallback(
+    default: T,
+    action: () -> T,
+): T =
+    try {
+        action()
+    } catch (e: Exception) {
+        Logger.error("view callback failed tweak=$TWEAK reason=${e.reason()}", e)
+        default
+    } catch (e: LinkageError) {
+        Logger.error("view callback failed tweak=$TWEAK reason=${e.reason()}", e)
+        default
+    }
+
 private class HiddenCircle(
     stock: Drawable,
     private val button: ImageView,
 ) : DrawableWrapper(stock) {
     private var iconColor: Int? = null
+    private var failed = false
 
     val hidden: Boolean get() = iconColor != null
 
-    fun update() {
-        val color =
-            if (switch.enabled && !button.isActivated && !button.isSelected) {
-                IconColor.of(button.context)
-            } else {
-                null
+    fun update(): Boolean {
+        val updated =
+            shortcutViewCallback(false) {
+                if (failed) return@shortcutViewCallback false
+                val color =
+                    if (switch.enabled && !button.isActivated && !button.isSelected) {
+                        IconColor.of(button.context)
+                    } else {
+                        null
+                    }
+                if (color != iconColor) {
+                    button.colorFilter =
+                        color?.let { PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN) }
+                    iconColor = color
+                    invalidateSelf()
+                }
+                true
             }
-        if (color == iconColor) return
-        iconColor = color
-        button.colorFilter = color?.let { PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN) }
-        invalidateSelf()
+        if (!updated) keepStock()
+        return updated
+    }
+
+    private fun keepStock() {
+        failed = true
+        iconColor = null
+        shortcutViewCallback(Unit) {
+            val stock = drawable
+            if (button.background === this) button.background = stock
+            if (button.background === stock) stock?.callback = button
+            button.colorFilter = null
+        }
     }
 
     override fun isStateful(): Boolean = true
 
-    override fun onStateChange(state: IntArray): Boolean =
-        super.onStateChange(state).also { update() }
+    override fun onStateChange(state: IntArray): Boolean {
+        val changed = shortcutViewCallback<Boolean?>(null) { super.onStateChange(state) }
+        if (changed == null) {
+            keepStock()
+            return false
+        }
+        update()
+        return changed
+    }
 
     override fun setTintList(tint: ColorStateList?) {
-        super.setTintList(tint)
-        update()
+        val tinted =
+            shortcutViewCallback(false) {
+                super.setTintList(tint)
+                true
+            }
+        if (tinted) update() else keepStock()
     }
 
     override fun draw(canvas: Canvas) {
-        if (!hidden) super.draw(canvas)
+        val drawn =
+            shortcutViewCallback(false) {
+                if (!hidden) super.draw(canvas)
+                true
+            }
+        if (!drawn) keepStock()
     }
 }
 
@@ -174,7 +225,7 @@ private class ViewShortcuts(
     fun register(button: ImageView) {
         if (painted?.onDraw?.declaringClass?.isInstance(button) == true) return
         buttons += button
-        button.post { attach(button) }
+        button.post { shortcutViewCallback(Unit) { attach(button) } }
     }
 
     fun registerIn(root: View) {
@@ -193,9 +244,11 @@ private class ViewShortcuts(
 
     fun updateAll() {
         mainHandler.post {
-            val tracked = snapshot().onEach(::attach)
-            val hidden = tracked.count { (it.background as? HiddenCircle)?.hidden == true }
-            Logger.info("applied tweak=$TWEAK on=${switch.enabled} path=view hidden=$hidden")
+            shortcutViewCallback(Unit) {
+                val tracked = snapshot().onEach(::attach)
+                val hidden = tracked.count { (it.background as? HiddenCircle)?.hidden == true }
+                Logger.info("applied tweak=$TWEAK on=${switch.enabled} path=view hidden=$hidden")
+            }
         }
     }
 
@@ -206,7 +259,10 @@ private class ViewShortcuts(
         val circle =
             background as? HiddenCircle
                 ?: if (switch.enabled) {
-                    HiddenCircle(background, button).also { button.background = it }
+                    HiddenCircle(background, button).also {
+                        if (!it.update()) return
+                        button.background = it
+                    }
                 } else {
                     return
                 }
@@ -223,11 +279,13 @@ private class ViewShortcuts(
         for ((button, stock) in carried) {
             if (button !is ImageView || stock !is Drawable) continue
             button.post {
-                if ((button.background as? DrawableWrapper)?.drawable === stock) {
-                    button.background = stock
+                shortcutViewCallback(Unit) {
+                    if ((button.background as? DrawableWrapper)?.drawable === stock) {
+                        button.background = stock
+                    }
+                    button.colorFilter = null
+                    register(button)
                 }
-                button.colorFilter = null
-                register(button)
             }
         }
     }
@@ -547,7 +605,7 @@ private fun XposedModule.installViewPath(bindings: ViewShortcuts) {
         hook(bind).intercept { chain ->
             val result = chain.proceed()
             (chain.args.firstOrNull() as? View)?.let { root ->
-                root.post { bindings.registerIn(root) }
+                root.post { shortcutViewCallback(Unit) { bindings.registerIn(root) } }
             }
             result
         }
