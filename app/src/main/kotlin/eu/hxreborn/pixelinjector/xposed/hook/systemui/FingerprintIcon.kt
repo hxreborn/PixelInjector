@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
+import android.content.res.Resources
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
@@ -35,12 +36,15 @@ import java.lang.reflect.Method
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.zip.ZipFile
+import kotlin.concurrent.thread
 
 private const val TWEAK = "FingerprintIcon"
 private const val ICON_VIEW = "com.android.systemui.keyguard.ui.view.DeviceEntryIconView"
 private const val UDFPS_VIEW = "com.android.systemui.biometrics.UdfpsKeyguardView"
 private const val SAMSUNG_LOCK_ICON_VIEW = "com.android.keyguard.SecLockIconView"
 private const val OPAQUE = 255
+private const val MAX_CUSTOM_ICON_SIZE_PX = 1024
+private const val MAX_CUSTOM_SOURCE_SIZE_PX = 32768
 
 @Volatile private var current: FingerprintBindings? = null
 
@@ -54,8 +58,9 @@ internal val fingerprintIcon =
         targets = setOf(Target.SYSTEMUI),
         prefs = listOf(switch, style, hideCircle),
         install = XposedModule::installFingerprintIcon,
-        saveState = { current?.let { ArrayList<View>(it.views) } },
-        restoreState = { saved -> (saved as? List<*>)?.let { current?.restore(it) } },
+        saveState = { current?.carry() },
+        onReloadRejected = { current?.resume() },
+        restoreState = { saved -> (saved as? Map<*, *>)?.let { current?.restore(it) } },
     )
 
 private class FingerprintSwap(
@@ -106,6 +111,13 @@ private sealed interface IconTarget {
     val members: String
     val refresh: Method?
 
+    fun stock(view: View): Drawable? = null
+
+    fun restoreStock(
+        view: View,
+        stock: Drawable,
+    ) = Unit
+
     fun apply(
         view: View,
         replacement: () -> Drawable?,
@@ -125,6 +137,18 @@ private class DeviceEntryTarget(
     override val refresh: Method? = null
 
     @Volatile private var fingerprintStates: List<IntArray>? = null
+
+    override fun stock(view: View): Drawable? =
+        (iconView.get(view) as? ImageView)?.drawable?.let(::unwrap)
+
+    override fun restoreStock(
+        view: View,
+        stock: Drawable,
+    ) {
+        val icon = iconView.get(view) as? ImageView ?: return
+        val wrapper = icon.drawable as? DrawableWrapper ?: return
+        if (wrapper !is FingerprintSwap && wrapper.drawable === stock) icon.setImageDrawable(stock)
+    }
 
     private fun fingerprintStates(view: View): List<IntArray> =
         fingerprintStates
@@ -156,13 +180,7 @@ private class DeviceEntryTarget(
     }
 
     private fun unwrap(drawable: Drawable): Drawable =
-        if (drawable is DrawableWrapper &&
-            drawable.javaClass.name == FingerprintSwap::class.java.name
-        ) {
-            drawable.drawable ?: drawable
-        } else {
-            drawable
-        }
+        (drawable as? FingerprintSwap)?.drawable ?: drawable
 }
 
 private class UdfpsTarget(
@@ -199,6 +217,11 @@ private class UdfpsTarget(
     }
 }
 
+private class CachedIcon(
+    val style: String,
+    val drawable: Drawable?,
+)
+
 private class FingerprintBindings(
     val target: IconTarget,
 ) {
@@ -207,15 +230,45 @@ private class FingerprintBindings(
             Collections.newSetFromMap(WeakHashMap()),
         )
 
-    @Volatile private var cachedIcon: Pair<String, Drawable?>? = null
+    @Volatile private var cachedIcon: CachedIcon? = null
 
-    fun register(view: View) {
+    private val iconLoads = mutableMapOf<String, Thread>()
+    private var retired = false
+
+    @Synchronized
+    fun register(
+        view: View,
+        carriedStock: Drawable? = null,
+    ) {
+        if (retired) return
         views += view
-        view.post { updateView(view) }
+        view.post {
+            synchronized(this) {
+                if (!retired) {
+                    carriedStock?.let { target.restoreStock(view, it) }
+                    updateView(view)
+                }
+            }
+        }
     }
 
+    @Synchronized
+    fun carry(): HashMap<View, Drawable?> {
+        retired = true
+        iconLoads.values.forEach(Thread::interrupt)
+        val savedViews = synchronized(views) { views.toList() }
+        return savedViews.associateWithTo(HashMap()) { target.stock(it) }
+    }
+
+    @Synchronized
+    fun resume() {
+        retired = false
+        updateAll()
+    }
+
+    @Synchronized
     fun updateAll() {
-        cachedIcon = null
+        if (retired) return
         synchronized(views) { views.toList() }.forEach { view -> view.post { updateView(view) } }
     }
 
@@ -252,58 +305,130 @@ private class FingerprintBindings(
             }
         }
 
-    fun restore(saved: List<*>) {
-        saved.filterIsInstance<View>().forEach(::register)
+    fun restore(saved: Map<*, *>) {
+        for ((view, stock) in saved) {
+            if (view is View) register(view, stock as? Drawable)
+        }
         Logger.info("carried tweak=$TWEAK views=${saved.size}")
     }
 
-    private fun newReplacement(
-        view: View,
-        style: String,
-    ): Drawable? {
-        val cached = cachedIcon
-        val prototype = if (cached?.first == style) cached.second else loadIcon(view, style)
-        return prototype?.constantState?.newDrawable(view.resources)?.mutate()
-    }
-
-    private fun loadIcon(
-        view: View,
-        style: String,
-    ): Drawable? {
-        val drawable =
-            if (FingerprintStyles.isCustom(style)) {
-                module.openRemoteFile(FingerprintStyles.IMAGE_FILE).use { fd ->
-                    BitmapFactory
-                        .decodeFileDescriptor(
-                            fd.fileDescriptor,
-                        )?.let { BitmapDrawable(view.resources, it) }
-                }
-            } else {
-                ZipFile(module.moduleApplicationInfo.sourceDir).use { zip ->
-                    zip.getEntry("assets/${FingerprintStyles.assetPath(style)}")?.let { entry ->
-                        zip.getInputStream(entry).use(BitmapFactory::decodeStream)?.let {
-                            BitmapDrawable(view.resources, it)
+    private fun loadAsync(
+        resources: Resources,
+        requestedStyle: String,
+    ) {
+        synchronized(this) {
+            if (retired || requestedStyle in iconLoads) return
+            val worker =
+                thread(start = false, isDaemon = true, name = "PixelInjector-FingerprintIcon") {
+                    val loadedIcon = loadIcon(resources, requestedStyle)
+                    synchronized(this) {
+                        iconLoads.remove(requestedStyle)
+                        if (!retired && requestedStyle == style.value) {
+                            cachedIcon = loadedIcon
+                            updateAll()
                         }
                     }
                 }
+            iconLoads[requestedStyle] = worker
+            worker.start()
+        }
+    }
+
+    private fun loadIcon(
+        resources: Resources,
+        style: String,
+    ): CachedIcon {
+        val drawable =
+            try {
+                decodeIcon(resources, style)
+            } catch (e: Exception) {
+                Logger.error("icon failed tweak=$TWEAK style=$style reason=${e.message}", e)
+                null
+            } catch (e: LinkageError) {
+                Logger.error("icon failed tweak=$TWEAK style=$style reason=${e.message}", e)
+                null
             }
         if (drawable == null) {
             Logger.error("icon failed tweak=$TWEAK style=$style reason=no-drawable")
         }
-        cachedIcon = style to drawable
-        return drawable
+        return CachedIcon(style, drawable)
     }
 
+    private fun decodeIcon(
+        resources: Resources,
+        style: String,
+    ): Drawable? =
+        if (FingerprintStyles.isCustom(style)) {
+            loadCustomIcon(resources)
+        } else {
+            ZipFile(module.moduleApplicationInfo.sourceDir).use { zip ->
+                zip.getEntry("assets/${FingerprintStyles.assetPath(style)}")?.let { entry ->
+                    zip.getInputStream(entry).use(BitmapFactory::decodeStream)?.let {
+                        BitmapDrawable(resources, it)
+                    }
+                }
+            }
+        }
+
+    private fun loadCustomIcon(resources: Resources): Drawable? {
+        val options =
+            BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+                inSampleSize = 1
+            }
+        val bitmap =
+            module.openRemoteFile(FingerprintStyles.IMAGE_FILE).use { fd ->
+                BitmapFactory.decodeFileDescriptor(fd.fileDescriptor, null, options)
+                if (options.outWidth !in 1..MAX_CUSTOM_SOURCE_SIZE_PX ||
+                    options.outHeight !in 1..MAX_CUSTOM_SOURCE_SIZE_PX
+                ) {
+                    Logger.warn(
+                        "icon rejected tweak=$TWEAK width=${options.outWidth} height=${options.outHeight}",
+                    )
+                    return null
+                }
+                while (maxOf(options.outWidth, options.outHeight) >
+                    MAX_CUSTOM_ICON_SIZE_PX * options.inSampleSize
+                ) {
+                    options.inSampleSize *= 2
+                }
+                options.inJustDecodeBounds = false
+                BitmapFactory.decodeFileDescriptor(fd.fileDescriptor, null, options)
+            } ?: return null
+        if (bitmap.width > MAX_CUSTOM_ICON_SIZE_PX || bitmap.height > MAX_CUSTOM_ICON_SIZE_PX) {
+            bitmap.recycle()
+            Logger.warn(
+                "icon rejected tweak=$TWEAK reason=decoded-size size=$MAX_CUSTOM_ICON_SIZE_PX",
+            )
+            return null
+        }
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    @Synchronized
     private fun updateView(view: View) {
+        if (retired) return
         runCatching {
             val style = style.value
             val swapping =
                 switch.enabled && style != FingerprintStyles.STOCK &&
                     style != FingerprintStyles.NONE
+            val cached = cachedIcon?.takeIf { it.style == style }
+            if (swapping && cached == null) return loadAsync(view.resources, style)
             val applied =
                 target.apply(
                     view,
-                    replacement = { if (swapping) newReplacement(view, style) else null },
+                    replacement = {
+                        if (swapping) {
+                            cached
+                                ?.drawable
+                                ?.constantState
+                                ?.newDrawable(view.resources)
+                                ?.mutate()
+                        } else {
+                            null
+                        }
+                    },
                     hidden = switch.enabled && style == FingerprintStyles.NONE,
                     circleScale = if (switch.enabled && hideCircle.enabled) 0f else 1f,
                 )
