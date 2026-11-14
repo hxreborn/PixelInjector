@@ -6,9 +6,11 @@ import android.content.pm.PackageManager.ApplicationInfoFlags
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorSpace
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.hardware.HardwareBuffer
 import android.os.Build
 import android.os.UserHandle
 import eu.hxreborn.pixelinjector.Target
@@ -26,6 +28,7 @@ import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
 import eu.hxreborn.pixelinjector.xposed.Value
+import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
@@ -35,6 +38,9 @@ private const val TWEAK = "PillShot"
 private const val CONTROLLER = "com.android.systemui.screenshot.ScreenshotController"
 private const val DATA = "com.android.systemui.screenshot.ScreenshotData"
 private const val CAPTURE = "com.android.systemui.screenshot.ImageCaptureImpl"
+private const val TRANSSION_VIEW = "com.android.systemui.screenshot.TrScreenshotView"
+private const val NULL_BITMAP_MESSAGE = "handleScreenshot: Screenshot bitmap was null"
+private const val CAPTURE_BUFFER = "android.window.ScreenCapture\$ScreenshotHardwareBuffer"
 private const val SAMSUNG_RESULT = "com.android.systemui.screenshot.sep.SemScreenshotResult"
 private const val MOTO_SESSION =
     "com.android.systemui.screenshot.MotoGlobalScreenshot\$DisplayScreenshotSession"
@@ -69,18 +75,45 @@ internal val pillShot =
 
 private class ScreenshotBindings(
     val handleScreenshot: List<Method>,
-    val captureDisplay: Method?,
+    val captureBitmap: Method?,
+    val captureCaller: Method?,
     val captureResultConstructor: Constructor<*>?,
     val context: Field,
     val type: Field,
     val bitmap: Field,
     val topComponent: Field,
+    val entryService: Field?,
+    val serviceController: Field?,
 ) {
     companion object {
         fun resolve(cl: ClassLoader): ScreenshotBindings {
             val controller = cl.loadClass(CONTROLLER)
             val data = cl.loadClass(DATA)
-            val handleScreenshot = controller.requiredMethods("handleScreenshot")
+            val handleScreenshot =
+                resolving { controller.requiredMethods("handleScreenshot") }.getOrElse { failure ->
+                    if (orNullIfMissing { cl.loadClass(TRANSSION_VIEW) } == null) throw failure
+                    listOf(
+                        DexKit.method(
+                            "$TWEAK.transsion",
+                            cl,
+                            "accept usingStrings($NULL_BITMAP_MESSAGE)",
+                        ) { bridge ->
+                            bridge.findMethod {
+                                matcher {
+                                    name("accept")
+                                        .paramTypes("java.lang.Object")
+                                        .usingStrings(NULL_BITMAP_MESSAGE)
+                                }
+                            }
+                        },
+                    )
+                }
+            val entryService =
+                handleScreenshot
+                    .first()
+                    .declaringClass
+                    .takeUnless { it == controller }
+                    ?.requiredField("f\$0")
             val captureResultConstructor =
                 orNullIfMissing { cl.loadClass(SAMSUNG_RESULT) }
                     ?.getDeclaredConstructor(
@@ -95,20 +128,44 @@ private class ScreenshotBindings(
                 } else {
                     null
                 }
-            val captureDisplay = capture?.optionalMethod("captureDisplay")
-            if (captureResultConstructor == null && captureDisplay == null &&
+            val captureBitmap =
+                if (entryService != null) {
+                    Bitmap::class.java.requiredMethod(
+                        "wrapHardwareBuffer",
+                        HardwareBuffer::class.java,
+                        ColorSpace::class.java,
+                    )
+                } else {
+                    capture?.optionalMethod("captureDisplay")
+                }
+            if (captureResultConstructor == null && captureBitmap == null &&
                 Build.VERSION.SDK_INT <= LAST_INLINE_CAPTURE_SDK
             ) {
                 throw NoSuchMethodException("ImageCaptureImpl.captureDisplay")
             }
             return ScreenshotBindings(
                 handleScreenshot = handleScreenshot,
-                captureDisplay = captureDisplay,
+                captureBitmap = captureBitmap,
+                captureCaller =
+                    if (entryService != null) {
+                        orNullIfMissing { cl.loadClass(CAPTURE_BUFFER).requiredMethod("asBitmap") }
+                    } else {
+                        null
+                    },
                 captureResultConstructor = captureResultConstructor,
                 context = controller.requiredField("context", "mContext"),
                 type = data.requiredField("type", "mType"),
                 bitmap = data.requiredField("bitmap", "mBitmap"),
                 topComponent = data.requiredField("topComponent", "mTopComponent"),
+                entryService = entryService,
+                serviceController =
+                    if (entryService != null) {
+                        cl
+                            .loadClass("com.android.systemui.screenshot.TakeScreenshotService")
+                            .requiredField("mScreenshot")
+                    } else {
+                        null
+                    },
             )
         }
     }
@@ -116,10 +173,20 @@ private class ScreenshotBindings(
     fun members(): String =
         (
             handleScreenshot.map { it.signature() } +
-                listOfNotNull(captureDisplay?.signature(), captureResultConstructor?.toString())
+                listOfNotNull(captureBitmap?.signature(), captureResultConstructor?.toString())
         ).joinToString(",")
 
-    fun contextOf(controller: Any): Context? = context.get(controller) as? Context
+    fun contextOf(receiver: Any): Context? =
+        try {
+            val owner = serviceController?.get(entryService?.get(receiver)) ?: receiver
+            context.get(owner) as? Context
+        } catch (e: Exception) {
+            Logger.error("context failed tweak=$TWEAK reason=${e.message}", e)
+            null
+        } catch (e: LinkageError) {
+            Logger.error("context failed tweak=$TWEAK reason=${e.message}", e)
+            null
+        }
 
     fun awaitingCapture(shot: Any): Boolean =
         try {
@@ -188,6 +255,11 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
         hook(method).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
             val shot = chain.getArg(0)
+            if (bindings.entryService != null &&
+                !bindings.type.declaringClass.isInstance(shot)
+            ) {
+                return@intercept chain.proceed()
+            }
             val context = bindings.contextOf(chain.thisObject) ?: return@intercept chain.proceed()
             try {
                 bindings.stamp(context, shot)
@@ -208,11 +280,14 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
                 }
             }
         }
+        if (bindings.entryService != null) deoptimize(method)
     }
-    bindings.captureDisplay?.let { method ->
+    bindings.captureCaller?.let(::deoptimize)
+    bindings.captureBitmap?.let { method ->
         hook(method).intercept { chain ->
+            if (!switch.enabled) return@intercept chain.proceed()
             val (context, shot) = pendingScreenshot.get() ?: return@intercept chain.proceed()
-            if (!switch.enabled || !bindings.awaitingCapture(shot)) return@intercept chain.proceed()
+            if (!bindings.awaitingCapture(shot)) return@intercept chain.proceed()
             val captured = chain.proceed() as Bitmap? ?: return@intercept null
             bindings.stampCapturedBitmap(context, shot, captured, "capture")
         }

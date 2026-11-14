@@ -1,6 +1,7 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
 import android.media.MediaActionSound
+import android.media.MediaPlayer
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
@@ -21,6 +22,7 @@ private const val PLAY_LAMBDA =
     "com.android.systemui.screenshot.ScreenshotSoundControllerImpl\$playScreenshotSound\$2"
 private const val CONTROLLER = "com.android.systemui.screenshot.ScreenshotController"
 private const val SAMSUNG_SOUND = "com.android.systemui.screenshot.sep.ScreenshotCaptureSound"
+private const val TRANSSION_VIEW = "com.android.systemui.screenshot.TrScreenshotView"
 private const val UNIT = "kotlin.Unit"
 private const val PLAY_FAILED_MESSAGE = "Screenshot sound failed to play"
 private const val INVOKE_SUSPEND = "invokeSuspend"
@@ -43,33 +45,74 @@ private class SoundBindings(
     val play: Method,
     val skipped: Any?,
     val playbackCallback: Method? = null,
+    val soundId: Int? = null,
 ) {
     val member: String
         get() = "${play.declaringClass.name.substringAfterLast('.')}#${play.name}"
 
     companion object {
         fun resolve(cl: ClassLoader): List<SoundBindings> {
-            orNullIfMissing { cl.loadClass(MOTO_SESSION) }?.let {
+            if (orNullIfMissing { cl.loadClass(MOTO_SESSION) } != null) {
                 val callback =
-                    DexKit
-                        .methods("$TWEAK.motorola", cl) { bridge ->
+                    try {
+                        DexKit.method(
+                            "$TWEAK.motorola",
+                            cl,
+                            "run usingStrings($MOTO_CALLBACK_MESSAGE)",
+                        ) { bridge ->
                             bridge.findMethod {
                                 matcher { name("run").usingStrings(MOTO_CALLBACK_MESSAGE) }
                             }
-                        }.singleOrNull()
-                        ?.apply { isAccessible = true }
+                        }
+                    } catch (_: NoSuchMethodException) {
+                        null
+                    }
                 callback?.let {
                     return listOf(
-                    SoundBindings(
-                        play =
-                            MediaActionSound::class.java.requiredMethod(
-                                "play",
-                                Int::class.javaPrimitiveType,
-                            ),
-                        skipped = null,
-                        playbackCallback = it,
-                    ),
-                )
+                        SoundBindings(
+                            play =
+                                MediaActionSound::class.java.requiredMethod(
+                                    "play",
+                                    Int::class.javaPrimitiveType,
+                                ),
+                            skipped = null,
+                            playbackCallback = it,
+                            soundId = MediaActionSound.SHUTTER_CLICK,
+                        ),
+                    )
+                }
+            }
+            if (orNullIfMissing { cl.loadClass(TRANSSION_VIEW) } != null) {
+                val callback =
+                    try {
+                        DexKit.method(
+                            "$TWEAK.transsion",
+                            cl,
+                            "run invoking MediaPlayer.start using $CONTROLLER",
+                        ) { bridge ->
+                            bridge.findMethod {
+                                matcher {
+                                    name("run").paramCount(0)
+                                    addUsingField { type(CONTROLLER) }
+                                    addInvoke {
+                                        declaredClass(
+                                            MediaPlayer::class.java,
+                                        ).name("start").paramCount(0)
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: NoSuchMethodException) {
+                        null
+                    }
+                callback?.let {
+                    return listOf(
+                        SoundBindings(
+                            play = MediaPlayer::class.java.requiredMethod("start"),
+                            skipped = null,
+                            playbackCallback = it,
+                        ),
+                    )
                 }
             }
             val samsung =
@@ -98,12 +141,9 @@ private class SoundBindings(
 }
 
 private fun findPlayMethodByString(cl: ClassLoader): Method =
-    DexKit
-        .methods(TWEAK, cl) {
-            it.findMethod { matcher { name(INVOKE_SUSPEND).usingStrings(PLAY_FAILED_MESSAGE) } }
-        }.singleOrNull()
-        ?.apply { isAccessible = true }
-        ?: throw NoSuchMethodException("$INVOKE_SUSPEND usingStrings($PLAY_FAILED_MESSAGE)")
+    DexKit.method(TWEAK, cl, "$INVOKE_SUSPEND usingStrings($PLAY_FAILED_MESSAGE)") {
+        it.findMethod { matcher { name(INVOKE_SUSPEND).usingStrings(PLAY_FAILED_MESSAGE) } }
+    }
 
 private fun XposedModule.installScreenshotSound(cl: ClassLoader): Boolean {
     val bindings =
@@ -131,12 +171,10 @@ private fun XposedModule.installScreenshotSound(cl: ClassLoader): Boolean {
         }
         hook(binding.play).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
-            if (binding.playbackCallback != null &&
-                (
-                    screenshotPlayback.get() != true ||
-                        chain.getArg(0) != MediaActionSound.SHUTTER_CLICK
-                )
-            ) {
+            if (binding.playbackCallback != null && screenshotPlayback.get() != true) {
+                return@intercept chain.proceed()
+            }
+            if (binding.soundId != null && chain.getArg(0) != binding.soundId) {
                 return@intercept chain.proceed()
             }
             Logger.info("sound skipped tweak=$TWEAK")

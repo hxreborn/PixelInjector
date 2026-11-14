@@ -43,6 +43,15 @@ internal object DexKit {
         return methods
     }
 
+    fun method(
+        tweak: String,
+        cl: ClassLoader,
+        description: String,
+        query: (DexKitBridge) -> MethodDataList,
+    ): Method =
+        methods(tweak, cl, query).singleOrNull()?.apply { isAccessible = true }
+            ?: throw NoSuchMethodException(description)
+
     private fun openBridge(
         tweak: String,
         cl: ClassLoader,

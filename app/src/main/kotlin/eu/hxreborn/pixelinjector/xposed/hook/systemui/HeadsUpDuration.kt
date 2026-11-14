@@ -6,6 +6,7 @@ import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
+import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.requiredMethods
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.util.signature
@@ -127,7 +128,17 @@ private class HeadsUpBindings(
                     resolving { manager.requiredMethods("createHeadsUpEntry") }
                         .getOrDefault(emptyList())
                         .filterNot { Modifier.isAbstract(it.modifiers) }
-                        .ifEmpty { manager.requiredMethods("showNotification") },
+                        .ifEmpty {
+                            resolving { manager.requiredMethods("showNotification") }.getOrElse {
+                                listOf(
+                                    manager.requiredMethod(
+                                        "updateNotification",
+                                        String::class.java,
+                                        Boolean::class.javaPrimitiveType,
+                                    ),
+                                )
+                            }
+                        },
             )
         }
     }
