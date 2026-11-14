@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
+import android.os.UserHandle
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.member
@@ -17,6 +18,7 @@ import eu.hxreborn.pixelinjector.util.optionalMethod
 import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
+import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.requiredMethods
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.util.signature
@@ -34,6 +36,11 @@ private const val CONTROLLER = "com.android.systemui.screenshot.ScreenshotContro
 private const val DATA = "com.android.systemui.screenshot.ScreenshotData"
 private const val CAPTURE = "com.android.systemui.screenshot.ImageCaptureImpl"
 private const val SAMSUNG_RESULT = "com.android.systemui.screenshot.sep.SemScreenshotResult"
+private const val MOTO_SESSION =
+    "com.android.systemui.screenshot.MotoGlobalScreenshot\$DisplayScreenshotSession"
+private const val MOTO_BITMAP_ARGUMENT = 0
+private const val MOTO_PREVIEW_ARGUMENT = 1
+private const val MOTO_PACKAGE_ARGUMENT = 3
 private const val TAKE_SCREENSHOT_FULLSCREEN = 1
 private const val LAST_INLINE_CAPTURE_SDK = 35
 private const val PORTRAIT_TOP_DP = 12
@@ -115,9 +122,15 @@ private class ScreenshotBindings(
     fun contextOf(controller: Any): Context? = context.get(controller) as? Context
 
     fun awaitingCapture(shot: Any): Boolean =
-        runCatching {
+        try {
             type.getInt(shot) == TAKE_SCREENSHOT_FULLSCREEN && bitmap.get(shot) == null
-        }.getOrDefault(false)
+        } catch (e: Exception) {
+            Logger.error("capture state failed tweak=$TWEAK reason=${e.message}", e)
+            false
+        } catch (e: LinkageError) {
+            Logger.error("capture state failed tweak=$TWEAK reason=${e.message}", e)
+            false
+        }
 
     fun stamp(
         context: Context,
@@ -158,6 +171,7 @@ private class ScreenshotBindings(
 }
 
 private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
+    orNullIfMissing { cl.loadClass(MOTO_SESSION) }?.let { return installMotoPillShot(it) }
     val bindings =
         resolving { ScreenshotBindings.resolve(cl) }.getOrElse {
             if (it is ClassNotFoundException) {
@@ -175,10 +189,13 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
             if (!switch.enabled) return@intercept chain.proceed()
             val shot = chain.getArg(0)
             val context = bindings.contextOf(chain.thisObject) ?: return@intercept chain.proceed()
-            runCatching { bindings.stamp(context, shot) }
-                .onFailure {
-                    Logger.error("stamp failed tweak=$TWEAK path=entry reason=${it.message}", it)
-                }
+            try {
+                bindings.stamp(context, shot)
+            } catch (e: Exception) {
+                Logger.error("stamp failed tweak=$TWEAK path=entry reason=${e.message}", e)
+            } catch (e: LinkageError) {
+                Logger.error("stamp failed tweak=$TWEAK path=entry reason=${e.message}", e)
+            }
             val previousScreenshot = pendingScreenshot.get()
             pendingScreenshot.set(context to shot)
             try {
@@ -214,6 +231,72 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
     return true
 }
 
+private class MotoScreenshotBindings(
+    val takeScreenshot: Method,
+    val context: Field,
+) {
+    companion object {
+        fun resolve(session: Class<*>): MotoScreenshotBindings =
+            MotoScreenshotBindings(
+                takeScreenshot =
+                    session.requiredMethod(
+                        "takeScreenshot",
+                        Bitmap::class.java,
+                        Bitmap::class.java,
+                        Int::class.javaPrimitiveType,
+                        String::class.java,
+                        UserHandle::class.java,
+                    ),
+                context = session.requiredField("mContext"),
+            )
+    }
+}
+
+private fun XposedModule.installMotoPillShot(session: Class<*>): Boolean {
+    val bindings =
+        resolving { MotoScreenshotBindings.resolve(session) }.getOrElse {
+            Logger.error(
+                "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
+            )
+            return false
+        }
+    Logger.info("resolved tweak=$TWEAK members=${bindings.takeScreenshot.signature()}")
+    hook(bindings.takeScreenshot).intercept { chain ->
+        if (!switch.enabled) return@intercept chain.proceed()
+        val captured =
+            chain.getArg(MOTO_BITMAP_ARGUMENT) as? Bitmap ?: return@intercept chain.proceed()
+        val pkg = chain.getArg(MOTO_PACKAGE_ARGUMENT) as? String ?: return@intercept chain.proceed()
+        if (!shouldStamp(pkg)) {
+            Logger.info("stamp skipped tweak=$TWEAK pkg=$pkg onlySelected=${onlySelected.enabled}")
+            return@intercept chain.proceed()
+        }
+        val args =
+            try {
+                val context = bindings.context.get(chain.thisObject) as Context
+                val label = label(context, pkg)
+                val preview = chain.getArg(MOTO_PREVIEW_ARGUMENT) as? Bitmap
+                val stamped = drawPill(context, label, captured)
+                chain.args.toTypedArray<Any?>().apply {
+                    this[MOTO_BITMAP_ARGUMENT] = stamped
+                    this[MOTO_PREVIEW_ARGUMENT] =
+                        when (preview) {
+                            null -> null
+                            captured -> stamped
+                            else -> drawPill(context, label, preview)
+                        }
+                }
+            } catch (e: Exception) {
+                Logger.error("stamp failed tweak=$TWEAK path=motorola reason=${e.message}", e)
+                null
+            } catch (e: LinkageError) {
+                Logger.error("stamp failed tweak=$TWEAK path=motorola reason=${e.message}", e)
+                null
+            }
+        if (args == null) chain.proceed() else chain.proceed(args)
+    }
+    return true
+}
+
 private fun shouldStamp(pkg: String): Boolean {
     val selected = selectedApps.value
     return selected.isEmpty() || (pkg in selected) == onlySelected.enabled
@@ -224,9 +307,13 @@ private fun label(
     pkg: String,
 ): String {
     val pm = context.packageManager
-    return runCatching {
+    return try {
         pm.getApplicationLabel(pm.getApplicationInfo(pkg, ApplicationInfoFlags.of(0))).toString()
-    }.getOrDefault(pkg)
+    } catch (_: Exception) {
+        pkg
+    } catch (_: LinkageError) {
+        pkg
+    }
 }
 
 private fun drawPill(

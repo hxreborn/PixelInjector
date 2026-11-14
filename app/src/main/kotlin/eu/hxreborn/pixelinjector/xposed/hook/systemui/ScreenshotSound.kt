@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
+import android.media.MediaActionSound
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
@@ -23,8 +24,12 @@ private const val SAMSUNG_SOUND = "com.android.systemui.screenshot.sep.Screensho
 private const val UNIT = "kotlin.Unit"
 private const val PLAY_FAILED_MESSAGE = "Screenshot sound failed to play"
 private const val INVOKE_SUSPEND = "invokeSuspend"
+private const val MOTO_SESSION =
+    "com.android.systemui.screenshot.MotoGlobalScreenshot\$DisplayScreenshotSession"
+private const val MOTO_CALLBACK_MESSAGE = "long screenshot get null finalBitmap"
 
 private val switch = Switch(Prefs.SCREENSHOT_SOUND)
+private val screenshotPlayback = ThreadLocal<Boolean>()
 
 internal val screenshotSound =
     Tweak(
@@ -37,12 +42,36 @@ internal val screenshotSound =
 private class SoundBindings(
     val play: Method,
     val skipped: Any?,
+    val playbackCallback: Method? = null,
 ) {
     val member: String
         get() = "${play.declaringClass.name.substringAfterLast('.')}#${play.name}"
 
     companion object {
         fun resolve(cl: ClassLoader): List<SoundBindings> {
+            orNullIfMissing { cl.loadClass(MOTO_SESSION) }?.let {
+                val callback =
+                    DexKit
+                        .methods("$TWEAK.motorola", cl) { bridge ->
+                            bridge.findMethod {
+                                matcher { name("run").usingStrings(MOTO_CALLBACK_MESSAGE) }
+                            }
+                        }.singleOrNull()
+                        ?.apply { isAccessible = true }
+                callback?.let {
+                    return listOf(
+                    SoundBindings(
+                        play =
+                            MediaActionSound::class.java.requiredMethod(
+                                "play",
+                                Int::class.javaPrimitiveType,
+                            ),
+                        skipped = null,
+                        playbackCallback = it,
+                    ),
+                )
+                }
+            }
             val samsung =
                 orNullIfMissing { cl.loadClass(SAMSUNG_SOUND) }
                     ?.requiredMethod("play", Boolean::class.javaPrimitiveType)
@@ -86,8 +115,30 @@ private fun XposedModule.installScreenshotSound(cl: ClassLoader): Boolean {
         }
     Logger.info("resolved tweak=$TWEAK members=${bindings.joinToString(",") { it.member }}")
     for (binding in bindings) {
+        binding.playbackCallback?.let { callback ->
+            hook(callback).intercept { chain ->
+                if (!switch.enabled || screenshotPlayback.get() == true) {
+                    return@intercept chain.proceed()
+                }
+                screenshotPlayback.set(true)
+                try {
+                    chain.proceed()
+                } finally {
+                    screenshotPlayback.remove()
+                }
+            }
+            deoptimize(callback)
+        }
         hook(binding.play).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
+            if (binding.playbackCallback != null &&
+                (
+                    screenshotPlayback.get() != true ||
+                        chain.getArg(0) != MediaActionSound.SHUTTER_CLICK
+                )
+            ) {
+                return@intercept chain.proceed()
+            }
             Logger.info("sound skipped tweak=$TWEAK")
             binding.skipped
         }

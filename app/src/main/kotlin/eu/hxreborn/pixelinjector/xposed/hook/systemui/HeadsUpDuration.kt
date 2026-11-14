@@ -3,9 +3,9 @@ package eu.hxreborn.pixelinjector.xposed.hook.systemui
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
-import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethods
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.util.signature
@@ -15,6 +15,7 @@ import eu.hxreborn.pixelinjector.xposed.Tweak
 import eu.hxreborn.pixelinjector.xposed.Value
 import io.github.libxposed.api.XposedModule
 import java.lang.ref.WeakReference
+import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -22,6 +23,7 @@ import java.lang.reflect.Modifier
 private const val TWEAK = "HeadsUpDuration"
 private const val MANAGER = "com.android.systemui.statusbar.notification.headsup.HeadsUpManagerImpl"
 private const val BASE_MANAGER = "com.android.systemui.statusbar.policy.BaseHeadsUpManager"
+private const val LEGACY_MANAGER = "com.android.systemui.statusbar.policy.HeadsUpManager"
 private const val MS_PER_SECOND = 1000
 private const val STATE_MANAGER = "manager"
 private const val STATE_AUTO = "auto"
@@ -46,6 +48,7 @@ internal val headsUpDuration =
     )
 
 private class HeadsUpBindings(
+    val constructors: List<Constructor<*>>,
     val autoDismiss: Field,
     val minimum: Field,
     val captureCallbacks: List<Method>,
@@ -66,13 +69,17 @@ private class HeadsUpBindings(
 
     fun applyDuration() {
         val manager = live?.get() ?: return
-        runCatching {
+        try {
             val autoDismissMs =
                 if (switch.enabled) seconds.value * MS_PER_SECOND else stockAutoDismissMs
             autoDismiss.setInt(manager, autoDismissMs)
             minimum.setInt(manager, minOf(stockMinimumDisplayMs, autoDismissMs))
             Logger.info("applied tweak=$TWEAK autoDismissMs=$autoDismissMs")
-        }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+        } catch (e: Exception) {
+            Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+        } catch (e: LinkageError) {
+            Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+        }
     }
 
     fun save(): HashMap<String, Any>? {
@@ -101,18 +108,21 @@ private class HeadsUpBindings(
     companion object {
         fun resolve(cl: ClassLoader): HeadsUpBindings {
             val manager =
-                resolving {
-                    cl.loadClass(
-                        MANAGER,
-                    )
-                }.getOrElse { cl.loadClass(BASE_MANAGER) }
+                listOf(MANAGER, BASE_MANAGER, LEGACY_MANAGER).firstNotNullOfOrNull {
+                    resolving { cl.loadClass(it) }.getOrNull()
+                } ?: throw ClassNotFoundException(MANAGER)
             return HeadsUpBindings(
-                autoDismiss = manager.requiredField("mAutoDismissTime"),
+                constructors = manager.declaredConstructors.toList(),
+                autoDismiss =
+                    manager.findFieldUpward("mAutoDismissTime")
+                        ?: manager.findFieldUpward("mAutoDismissNotificationDecay")
+                        ?: throw NoSuchFieldException(
+                            "${manager.simpleName}.mAutoDismissTime/mAutoDismissNotificationDecay",
+                        ),
                 minimum =
-                    manager.requiredField(
-                        "mMinimumDisplayTimeDefault",
-                        "mMinimumDisplayTime",
-                    ),
+                    manager.findFieldUpward("mMinimumDisplayTimeDefault")
+                        ?: manager.findFieldUpward("mMinimumDisplayTime")
+                        ?: throw NoSuchFieldException("${manager.simpleName}.mMinimumDisplayTime"),
                 captureCallbacks =
                     resolving { manager.requiredMethods("createHeadsUpEntry") }
                         .getOrDefault(emptyList())
@@ -120,6 +130,16 @@ private class HeadsUpBindings(
                         .ifEmpty { manager.requiredMethods("showNotification") },
             )
         }
+    }
+}
+
+private fun HeadsUpBindings.captureIsolated(manager: Any?) {
+    try {
+        manager?.let(::capture)
+    } catch (e: Exception) {
+        Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+    } catch (e: LinkageError) {
+        Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
     }
 }
 
@@ -135,18 +155,16 @@ private fun XposedModule.installHeadsUpDuration(cl: ClassLoader): Boolean {
         "resolved tweak=$TWEAK members=${bindings.autoDismiss.signature()},${bindings.minimum.signature()}",
     )
     current = bindings
-    for (constructor in bindings.autoDismiss.declaringClass.declaredConstructors) {
+    for (constructor in bindings.constructors) {
         hook(constructor).intercept { chain ->
             val result = chain.proceed()
-            runCatching { chain.thisObject?.let(bindings::capture) }
-                .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+            bindings.captureIsolated(chain.thisObject)
             result
         }
     }
     for (method in bindings.captureCallbacks) {
         hook(method).intercept { chain ->
-            runCatching { chain.thisObject?.let(bindings::capture) }
-                .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+            bindings.captureIsolated(chain.thisObject)
             chain.proceed()
         }
     }
