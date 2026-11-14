@@ -10,8 +10,8 @@ import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.sound.SystemSounds
 import eu.hxreborn.pixelinjector.util.member
-import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.reason
+import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.util.signature
 import eu.hxreborn.pixelinjector.xposed.Logger
@@ -21,6 +21,7 @@ import eu.hxreborn.pixelinjector.xposed.Value
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 private const val TWEAK = "BiometricBypass"
@@ -42,6 +43,8 @@ private val sound = Value(Prefs.BIOMETRIC_SOUND) { it.takeIf(String::isNotEmpty)
 
 @Volatile
 private var ringtone: Ringtone? = null
+
+private val soundPending = AtomicBoolean(false)
 
 @Volatile
 private var confirmedAt = 0L
@@ -148,7 +151,7 @@ private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
     hook(bindings.animatedIn).intercept { chain ->
         val result = chain.proceed()
         if (!switch.enabled) return@intercept result
-        runCatching {
+        confirmSafely {
             val view = chain.thisObject as View
             val id = bindings.confirmId(view)
             if (id == 0) {
@@ -156,7 +159,7 @@ private fun XposedModule.installBiometricBypass(cl: ClassLoader): Boolean {
             } else {
                 clickConfirm(view, id, SystemClock.uptimeMillis())
             }
-        }.onFailure { Logger.error("confirm failed tweak=$TWEAK reason=${it.message}", it) }
+        }
         result
     }
     return true
@@ -190,21 +193,43 @@ private fun clickConfirm(
 
         else -> {
             view.postOnAnimation {
-                runCatching { clickConfirm(view, id, start) }
-                    .onFailure {
-                        Logger.error("confirm failed tweak=$TWEAK reason=${it.message}", it)
-                    }
+                confirmSafely { clickConfirm(view, id, start) }
             }
         }
     }
 }
 
+private inline fun confirmSafely(action: () -> Unit) {
+    try {
+        action()
+    } catch (e: Exception) {
+        Logger.error("confirm failed tweak=$TWEAK reason=${e.message}", e)
+    } catch (e: LinkageError) {
+        Logger.error("confirm failed tweak=$TWEAK reason=${e.message}", e)
+    }
+}
+
 private fun playSound(context: Context) {
     val path = sound.value ?: return
-    thread {
-        runCatching {
-            ringtone?.stop()
-            ringtone = SystemSounds.play(context, path) ?: error("no ringtone")
-        }.onFailure { Logger.warn("sound failed tweak=$TWEAK path=$path reason=${it.message}") }
+    if (!soundPending.compareAndSet(false, true)) return
+    try {
+        thread(name = "PixelInjector-$TWEAK-sound") {
+            try {
+                ringtone?.stop()
+                ringtone = SystemSounds.play(context, path) ?: error("no ringtone")
+            } catch (e: Exception) {
+                Logger.warn("sound failed tweak=$TWEAK path=$path reason=${e.message}", e)
+            } catch (e: LinkageError) {
+                Logger.warn("sound failed tweak=$TWEAK path=$path reason=${e.message}", e)
+            } finally {
+                soundPending.set(false)
+            }
+        }
+    } catch (e: Exception) {
+        soundPending.set(false)
+        Logger.warn("sound worker failed tweak=$TWEAK reason=${e.message}", e)
+    } catch (e: LinkageError) {
+        soundPending.set(false)
+        Logger.warn("sound worker failed tweak=$TWEAK reason=${e.message}", e)
     }
 }

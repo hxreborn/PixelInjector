@@ -11,6 +11,7 @@ import android.view.KeyEvent
 import eu.hxreborn.pixelinjector.xposed.Logger
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 private const val KEYCODE_LOCK = 324
@@ -20,63 +21,94 @@ internal class SleepTrigger(
     private val tweak: String,
     private val viaRoot: Boolean,
 ) {
+    private val pending = AtomicBoolean(false)
+
     @SuppressLint("MissingPermission")
     fun sleep(context: Context) {
-        context
-            .getSystemService(Vibrator::class.java)
-            ?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
-        if (viaRoot) thread { lockAndSleepWithRoot() } else lockAndSleepInProcess(context)
+        if (!pending.compareAndSet(false, true)) return
+        try {
+            context
+                .getSystemService(Vibrator::class.java)
+                ?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+            if (viaRoot) {
+                thread(name = "PixelInjector-$tweak") {
+                    try {
+                        lockAndSleepWithRoot()
+                    } finally {
+                        pending.set(false)
+                    }
+                }
+            } else {
+                try {
+                    lockAndSleepInProcess(context)
+                } finally {
+                    pending.set(false)
+                }
+            }
+        } catch (e: Exception) {
+            pending.set(false)
+            sleepFailed(e)
+        } catch (e: LinkageError) {
+            pending.set(false)
+            sleepFailed(e)
+        }
     }
 
     private fun lockAndSleepWithRoot() {
-        runCatching { runRootCommand(LOCK_THEN_SLEEP) }
-            .onSuccess { (code, output) ->
-                if (code == 0) {
-                    Logger.info("sleep path=root tweak=$tweak exit=0")
-                } else {
-                    Logger.error("sleep path=root tweak=$tweak exit=$code output=$output")
-                }
-            }.onFailure { Logger.error("sleep failed path=root tweak=$tweak reason=${it.message}") }
+        try {
+            val (code, output) = runRootCommand(LOCK_THEN_SLEEP)
+            if (code == 0) {
+                Logger.info("sleep path=root tweak=$tweak exit=0")
+            } else {
+                Logger.error("sleep path=root tweak=$tweak exit=$code output=$output")
+            }
+        } catch (e: Exception) {
+            sleepFailed(e)
+        } catch (e: LinkageError) {
+            sleepFailed(e)
+        }
     }
 
     private fun lockAndSleepInProcess(context: Context) {
-        runCatching {
-            val windowManager =
-                Class
-                    .forName("android.view.WindowManagerGlobal")
-                    .getMethod("getWindowManagerService")
-                    .invoke(null)
-            windowManager.javaClass
-                .getMethod(
-                    "lockNow",
-                    Bundle::class.java,
-                ).invoke(windowManager, null)
-            val power = context.getSystemService(PowerManager::class.java)
-            PowerManager::class.java
-                .getMethod("goToSleep", Long::class.javaPrimitiveType)
-                .invoke(power, SystemClock.uptimeMillis())
-        }.onSuccess { Logger.info("sleep path=lockNow tweak=$tweak") }
-            .onFailure {
-                Logger.error(
-                    "sleep failed path=lockNow tweak=$tweak reason=${it.cause?.message ?: it.message}",
-                    it,
-                )
-            }
+        val windowManager =
+            Class
+                .forName("android.view.WindowManagerGlobal")
+                .getMethod("getWindowManagerService")
+                .invoke(null)
+        windowManager.javaClass
+            .getMethod("lockNow", Bundle::class.java)
+            .invoke(windowManager, null)
+        val power = context.getSystemService(PowerManager::class.java)
+        PowerManager::class.java
+            .getMethod("goToSleep", Long::class.javaPrimitiveType)
+            .invoke(power, SystemClock.uptimeMillis())
+        Logger.info("sleep path=lockNow tweak=$tweak")
+    }
+
+    private fun sleepFailed(cause: Throwable) {
+        val path = if (viaRoot) "root" else "lockNow"
+        Logger.error(
+            "sleep failed path=$path tweak=$tweak reason=${cause.cause?.message ?: cause.message}",
+            cause,
+        )
     }
 }
 
 private fun runRootCommand(command: String): Pair<Int, String> {
     val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
-    process.outputStream.close()
-    if (!process.waitFor(5, TimeUnit.SECONDS)) {
-        process.destroyForcibly()
-        throw TimeoutException("su timeout")
+    try {
+        return process.inputStream.use { input ->
+            process.outputStream.close()
+            if (!process.waitFor(5, TimeUnit.SECONDS)) throw TimeoutException("su timeout")
+            val text =
+                input
+                    .bufferedReader()
+                    .readText()
+                    .trim()
+                    .replace('\n', ' ')
+            process.exitValue() to text
+        }
+    } finally {
+        if (process.isAlive) process.destroyForcibly()
     }
-    val output =
-        process.inputStream
-            .bufferedReader()
-            .readText()
-            .trim()
-            .replace('\n', ' ')
-    return process.exitValue() to output
 }
