@@ -9,10 +9,13 @@ import android.graphics.Outline
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.animation.AlphaAnimation
@@ -41,8 +44,11 @@ import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 private const val TWEAK = "FirefoxClassicMenu"
 private const val MENU_PACKAGE = "org.mozilla.fenix.components.menu"
@@ -122,6 +128,7 @@ private const val RGB_MASK = 0xFFFFFFL
 private const val GROUP_SPACING_DP = 2f
 private const val FRAME_SPACING_DP = 12f
 private const val ENTER_MS = 200L
+private const val LISTENER_REMOVAL_TIMEOUT_SECONDS = 2L
 private const val RESTART_CALL_BIT = 1
 private const val BACKGROUND_COLOR = 1
 private const val BACKGROUND_SHAPE = 2
@@ -155,6 +162,10 @@ internal val firefoxClassicMenu =
         key = TWEAK,
         targets = setOf(Target.FIREFOX),
         prefs = listOf(switch),
+        saveState = {
+            removePositionListeners()
+            null
+        },
         install = XposedModule::installFirefoxClassicMenu,
     )
 
@@ -774,12 +785,87 @@ private fun WindowBindings.showAsPopup(
         params.marginEnd = sheet.dp(MARGIN_DP).toInt()
         sheet.layoutParams = params
     }
-    sheet.viewTreeObserver.addOnPreDrawListener {
-        positionSheet(sheet, behavior, bottomToolbar)
-        true
-    }
+    val observer = sheet.viewTreeObserver
+    val listener = MenuPositionListener(this, sheet, behavior, bottomToolbar, observer)
+    positionListeners.add(listener)
+    observer.addOnPreDrawListener(listener)
     sheet.startAnimation(enterAnimation(bottomToolbar))
     Logger.info("menu shown tweak=$TWEAK bottomToolbar=$bottomToolbar")
+}
+
+private val positionListeners: MutableSet<MenuPositionListener> =
+    Collections.synchronizedSet(Collections.newSetFromMap(WeakHashMap()))
+
+private class MenuPositionListener(
+    private val bindings: WindowBindings,
+    sheet: View,
+    behavior: Any,
+    private val bottomToolbar: Boolean,
+    observer: ViewTreeObserver,
+) : ViewTreeObserver.OnPreDrawListener {
+    private val sheet = WeakReference(sheet)
+    private val behavior = WeakReference(behavior)
+    private val observer = WeakReference(observer)
+
+    override fun onPreDraw(): Boolean {
+        try {
+            val view = sheet.get()
+            val owner = behavior.get()
+            if (view == null || owner == null) {
+                remove()
+            } else {
+                bindings.positionSheet(view, owner, bottomToolbar)
+            }
+        } catch (e: Exception) {
+            Logger.error("position failed tweak=$TWEAK reason=${e.reason()}", e)
+            remove()
+        } catch (e: LinkageError) {
+            Logger.error("position failed tweak=$TWEAK reason=${e.reason()}", e)
+            remove()
+        }
+        return true
+    }
+
+    fun remove() {
+        try {
+            val registered = observer.get()
+            registered?.takeIf { it.isAlive }?.removeOnPreDrawListener(this)
+            val current = sheet.get()?.viewTreeObserver
+            if (current !== registered) {
+                current?.takeIf { it.isAlive }?.removeOnPreDrawListener(this)
+            }
+            positionListeners.remove(this)
+        } catch (e: Exception) {
+            Logger.error("listener removal failed tweak=$TWEAK reason=${e.reason()}", e)
+        } catch (e: LinkageError) {
+            Logger.error("listener removal failed tweak=$TWEAK reason=${e.reason()}", e)
+        }
+    }
+}
+
+private fun removePositionListeners() {
+    val removeAll = {
+        val listeners = synchronized(positionListeners) { positionListeners.toList() }
+        listeners.forEach { it.remove() }
+        Logger.info("listeners removed tweak=$TWEAK count=${listeners.size}")
+    }
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+        removeAll()
+    } else {
+        val removed = CountDownLatch(1)
+        check(
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    removeAll()
+                } finally {
+                    removed.countDown()
+                }
+            },
+        ) { "main looper rejected listener removal" }
+        check(removed.await(LISTENER_REMOVAL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            "menu listener removal timed out"
+        }
+    }
 }
 
 private fun skipPopup(reason: String) = Logger.warn("popup skipped tweak=$TWEAK reason=$reason")
