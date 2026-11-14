@@ -11,6 +11,7 @@ import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.hook.DexKit
+import io.github.libxposed.api.XposedInterface.HookHandle
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
 import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
@@ -59,6 +60,7 @@ class PixelInjectorModule : XposedModule() {
     @Volatile private var installInProgress = false
     private var guardSite: GuardSite? = null
     private var stableTimer: Thread? = null
+    private var stableGuard: CrashGuard? = null
     private val prefsListener =
         SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             val target = target ?: return@OnSharedPreferenceChangeListener
@@ -132,15 +134,16 @@ class PixelInjectorModule : XposedModule() {
             }
         }
         val state = HashMap<String, Any?>()
+        val attempted = ArrayList<Tweak>()
         for (tweak in target?.let(::tweaksFor).orEmpty()) {
-            runCatching { tweak.saveState() }
-                .onSuccess { if (it != null) state[tweak.key] = it }
-                .onFailure {
-                    Logger.error(
-                        "save failed tweak=${tweak.key} reason=${it.message}",
-                        it,
-                    )
-                }
+            attempted.add(tweak)
+            try {
+                tweak.saveState()?.let { state[tweak.key] = it }
+            } catch (e: Exception) {
+                return saveFailed(tweak, e, attempted)
+            } catch (e: LinkageError) {
+                return saveFailed(tweak, e, attempted)
+            }
         }
         state[SAVED_CLASSLOADER] = cl
         state[SAVED_DEXKIT] = DexKit.save()
@@ -155,13 +158,11 @@ class PixelInjectorModule : XposedModule() {
 
     override fun onHotReloaded(param: HotReloadedParam) {
         module = this
-        runCatching { super.onHotReloaded(param) }
-            .onFailure {
-                Logger.warn(
-                    "hot reload old hook removal failed reason=${it.message}",
-                    it,
-                )
-            }
+        val hooksLeft = param.oldHookHandles.count { !unhookIsolated(it) }
+        if (hooksLeft > 0) {
+            Logger.error("hot reload aborted reason=old-hooks-left count=$hooksLeft")
+            return
+        }
         val saved = param.savedInstanceState as? Map<*, *>
         val cl = saved?.get(SAVED_CLASSLOADER) as? ClassLoader
         if (cl == null) {
@@ -178,6 +179,77 @@ class PixelInjectorModule : XposedModule() {
             saved,
         )
     }
+
+    private fun saveFailed(
+        tweak: Tweak,
+        cause: Throwable,
+        attempted: List<Tweak>,
+    ): Boolean {
+        Logger.error(
+            "hot reload rejected reason=save-failed tweak=${tweak.key} cause=${cause.message}",
+            cause,
+        )
+        attempted.forEach(::resumeAfterRejection)
+        stableGuard?.let(::markStableLater)
+        return false
+    }
+
+    private fun resumeAfterRejection(tweak: Tweak) {
+        try {
+            tweak.onReloadRejected()
+        } catch (e: Exception) {
+            resumeFailed(tweak, e)
+        } catch (e: LinkageError) {
+            resumeFailed(tweak, e)
+        }
+    }
+
+    private fun resumeFailed(
+        tweak: Tweak,
+        cause: Throwable,
+    ) = Logger.error("resume failed tweak=${tweak.key} reason=${cause.message}", cause)
+
+    private fun unhookIsolated(handle: HookHandle): Boolean =
+        try {
+            handle.unhook()
+            true
+        } catch (e: Exception) {
+            oldHookRemovalFailed(handle, e)
+        } catch (e: LinkageError) {
+            oldHookRemovalFailed(handle, e)
+        }
+
+    private fun oldHookRemovalFailed(
+        handle: HookHandle,
+        cause: Throwable,
+    ): Boolean {
+        Logger.error(
+            "hot reload old hook removal failed member=${handle.executable} reason=${cause.message}",
+            cause,
+        )
+        return false
+    }
+
+    private fun restoreFailed(
+        tweak: Tweak,
+        cause: Throwable,
+    ) = Logger.error("restore failed tweak=${tweak.key} reason=${cause.message}", cause)
+
+    private fun loadRemotePrefs(target: Target) {
+        try {
+            val prefs = getRemotePreferences(Prefs.GROUP)
+            remotePrefs = prefs
+            prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+            loadHookPrefs(prefs, target, process)
+        } catch (e: Exception) {
+            remotePrefsUnavailable(e)
+        } catch (e: LinkageError) {
+            remotePrefsUnavailable(e)
+        }
+    }
+
+    private fun remotePrefsUnavailable(cause: Throwable) =
+        Logger.warn("remote prefs unavailable defaults=true reason=${cause.message}", cause)
 
     private fun reloadGuardSite(
         saved: Map<*, *>,
@@ -313,6 +385,7 @@ class PixelInjectorModule : XposedModule() {
     }
 
     private fun markStableLater(guard: CrashGuard) {
+        stableGuard = guard
         stableTimer =
             thread(isDaemon = true, name = "PixelInjector-guard") {
                 try {
@@ -394,14 +467,7 @@ class PixelInjectorModule : XposedModule() {
             for (tweak in tweaksFor(target)) skipInstall(tweak, reason)
             return
         }
-        runCatching { getRemotePreferences(Prefs.GROUP) }
-            .onSuccess { prefs ->
-                remotePrefs = prefs
-                prefs.registerOnSharedPreferenceChangeListener(prefsListener)
-                loadHookPrefs(prefs, target, process)
-            }.onFailure {
-                Logger.warn("remote prefs unavailable defaults=true reason=${it.message}", it)
-            }
+        loadRemotePrefs(target)
         val tweaks = tweaksFor(target)
         val summary =
             try {
@@ -415,10 +481,14 @@ class PixelInjectorModule : XposedModule() {
         markStableLater(guard)
         if (saved != null) {
             for (tweak in tweaks) {
-                runCatching { tweak.restoreState(saved[tweak.key]) }
-                    .onFailure {
-                        Logger.error("restore failed tweak=${tweak.key} reason=${it.message}", it)
-                    }
+                if (summary[tweak.key] != true) continue
+                try {
+                    tweak.restoreState(saved[tweak.key])
+                } catch (e: Exception) {
+                    restoreFailed(tweak, e)
+                } catch (e: LinkageError) {
+                    restoreFailed(tweak, e)
+                }
             }
         }
         Logger.info(

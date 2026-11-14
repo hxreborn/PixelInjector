@@ -61,9 +61,23 @@ private const val CARRIED_MODEL = "model"
 
 @Volatile private var currentView: ViewBindings? = null
 
+private inline fun <T> isolated(
+    failure: String,
+    default: T,
+    action: () -> T,
+): T =
+    try {
+        action()
+    } catch (e: Exception) {
+        Logger.warn("$failure failed tweak=$TWEAK reason=${e.reason()}")
+        default
+    } catch (e: LinkageError) {
+        Logger.warn("$failure failed tweak=$TWEAK reason=${e.reason()}")
+        default
+    }
+
 private val requestRecompose: (Any?) -> Unit = {
-    runCatching { current?.recompose?.bump() }
-        .onFailure { Logger.warn("recompose failed tweak=$TWEAK reason=${it.reason()}") }
+    isolated("recompose", Unit) { current?.recompose?.bump() }
     currentView?.reapply()
 }
 
@@ -75,13 +89,22 @@ private val customIcon =
     }
 
 private fun renderableIcon(pathData: String): Drawable? =
-    runCatching {
+    try {
         val icon = ShadeIcons.fromPathData(pathData)
         check(icon.intrinsicWidth > 0 && icon.intrinsicWidth == icon.intrinsicHeight) {
             "intrinsic=${icon.intrinsicWidth}x${icon.intrinsicHeight}"
         }
         FixedSizeNoThrowIcon(icon).also { it.recordTestDraw() }
-    }.onFailure { Logger.warn("icon rejected tweak=$TWEAK reason=${it.reason()}", it) }.getOrNull()
+    } catch (e: Exception) {
+        iconRejected(e)
+    } catch (e: LinkageError) {
+        iconRejected(e)
+    }
+
+private fun iconRejected(cause: Throwable): Drawable? {
+    Logger.warn("icon rejected tweak=$TWEAK reason=${cause.reason()}", cause)
+    return null
+}
 
 private class FixedSizeNoThrowIcon(
     icon: Drawable,
@@ -103,10 +126,18 @@ private class FixedSizeNoThrowIcon(
 
     override fun draw(canvas: Canvas) {
         if (drawFailed) return
-        runCatching { super.draw(canvas) }.onFailure {
-            drawFailed = true
-            Logger.error("draw failed tweak=$TWEAK reason=${it.reason()}", it)
+        try {
+            super.draw(canvas)
+        } catch (e: Exception) {
+            drawFailure(e)
+        } catch (e: LinkageError) {
+            drawFailure(e)
         }
+    }
+
+    private fun drawFailure(cause: Throwable) {
+        drawFailed = true
+        Logger.error("draw failed tweak=$TWEAK reason=${cause.reason()}", cause)
     }
 }
 
@@ -137,12 +168,19 @@ private class StockIcon(
         return id != 0 && resourceIconId.getInt(icon) == id
     }
 
-    private fun lookUpId(): Int =
-        runCatching {
-            (currentApplication.invoke(null) as? Context)
-                ?.resources
-                ?.getIdentifier(STOCK_ICON, DRAWABLE_TYPE, SYSTEMUI_PACKAGE)
-        }.getOrNull() ?: 0
+    private fun lookUpId(): Int {
+        val id =
+            try {
+                (currentApplication.invoke(null) as? Context)
+                    ?.resources
+                    ?.getIdentifier(STOCK_ICON, DRAWABLE_TYPE, SYSTEMUI_PACKAGE)
+            } catch (e: Exception) {
+                null
+            } catch (e: LinkageError) {
+                null
+            }
+        return id ?: 0
+    }
 
     companion object {
         fun resolve(cl: ClassLoader): StockIcon {
@@ -199,8 +237,7 @@ private class ViewBindings(
         val (ref, model) = live ?: return
         val view = ref.get() ?: return
         view.post {
-            runCatching { apply(view, model) }
-                .onFailure { Logger.warn("reapply failed tweak=$TWEAK reason=${it.reason()}") }
+            isolated("reapply", Unit) { apply(view, model) }
         }
     }
 
@@ -325,14 +362,14 @@ private fun XposedModule.installEmptyShade(cl: ClassLoader): Boolean {
     Logger.info("resolved tweak=$TWEAK members=${bindings.content.signature()}")
     current = bindings
     hook(bindings.content).intercept { chain ->
-        runCatching { bindings.recompose.read() }
+        try {
+            bindings.recompose.read()
+        } catch (_: Exception) {
+        } catch (_: LinkageError) {
+        }
         if (!switch.enabled) return@intercept chain.proceed()
         val args = chain.args.toTypedArray<Any?>()
-        val rewritten =
-            runCatching { bindings.rewriteCaughtUp(args) }.getOrElse {
-                Logger.warn("rewrite failed tweak=$TWEAK reason=${it.reason()}")
-                false
-            }
+        val rewritten = isolated("rewrite", false) { bindings.rewriteCaughtUp(args) }
         if (rewritten) chain.proceed(args) else chain.proceed()
     }
     return true
@@ -357,8 +394,9 @@ private fun XposedModule.installViewPath(
     for ((emit, viewField) in bindings.collectorViews) {
         hook(emit).intercept { chain ->
             val result = chain.proceed()
-            runCatching { bindings.onEmit(viewField, chain.thisObject, chain.args[0]) }
-                .onFailure { Logger.warn("rewrite failed tweak=$TWEAK reason=${it.reason()}") }
+            isolated("rewrite", Unit) {
+                bindings.onEmit(viewField, chain.thisObject, chain.args[0])
+            }
             result
         }
     }

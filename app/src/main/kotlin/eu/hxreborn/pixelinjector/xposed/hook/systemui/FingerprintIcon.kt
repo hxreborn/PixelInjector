@@ -273,7 +273,7 @@ private class FingerprintBindings(
     }
 
     fun registerAttached() {
-        runCatching {
+        try {
             val global = Class.forName("android.view.WindowManagerGlobal")
             val roots =
                 global
@@ -283,7 +283,11 @@ private class FingerprintBindings(
             val found = roots.filterIsInstance<View>().flatMap { iconViewsIn(it) }
             found.forEach(::register)
             Logger.info("attached tweak=$TWEAK views=${found.size}")
-        }.onFailure { Logger.error("attached failed tweak=$TWEAK reason=${it.message}", it) }
+        } catch (e: Exception) {
+            Logger.error("attached failed tweak=$TWEAK reason=${e.message}", e)
+        } catch (e: LinkageError) {
+            Logger.error("attached failed tweak=$TWEAK reason=${e.message}", e)
+        }
     }
 
     private fun iconViewsIn(view: View): List<View> =
@@ -408,7 +412,7 @@ private class FingerprintBindings(
     @Synchronized
     private fun updateView(view: View) {
         if (retired) return
-        runCatching {
+        try {
             val style = style.value
             val swapping =
                 switch.enabled && style != FingerprintStyles.STOCK &&
@@ -432,12 +436,16 @@ private class FingerprintBindings(
                     hidden = switch.enabled && style == FingerprintStyles.NONE,
                     circleScale = if (switch.enabled && hideCircle.enabled) 0f else 1f,
                 )
-            if (!applied) return@runCatching
+            if (!applied) return
             val styleLabel = style.ifEmpty { "stock" }
             Logger.info(
                 "applied tweak=$TWEAK style=$styleLabel hideCircle=${hideCircle.enabled} on=${switch.enabled}",
             )
-        }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+        } catch (e: Exception) {
+            Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+        } catch (e: LinkageError) {
+            Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+        }
     }
 
     companion object {

@@ -275,6 +275,26 @@ private class IconHider(
         }
     }
 
+    fun hideQuietly(
+        container: ViewGroup,
+        key: String,
+    ): List<Triple<Any, Float, Boolean>> =
+        try {
+            hide(container, key)
+        } catch (_: Exception) {
+            emptyList()
+        } catch (_: LinkageError) {
+            emptyList()
+        }
+
+    fun restoreQuietly(saved: List<Triple<Any, Float, Boolean>>) {
+        try {
+            restore(saved)
+        } catch (_: Exception) {
+        } catch (_: LinkageError) {
+        }
+    }
+
     companion object {
         fun resolve(cl: ClassLoader): IconHider {
             val container = cl.loadClass(ICON_CONTAINER)
@@ -308,6 +328,18 @@ private fun headsUpChangeMethods(manager: Class<*>): List<Method> =
         "onEntryRemoved",
         "showNotification",
     ).mapNotNull { findInheritedMethod(manager, it) }
+
+private fun hasHeadsUp(
+    query: Method,
+    manager: Any?,
+): Boolean? =
+    try {
+        query.invoke(manager) as? Boolean
+    } catch (_: Exception) {
+        null
+    } catch (_: LinkageError) {
+        null
+    }
 
 private fun headsUpQueryMethod(manager: Class<*>): Method? =
     generateSequence(manager) { it.superclass }.firstNotNullOfOrNull {
@@ -394,7 +426,13 @@ private fun resolveIcon(
     sbn: StatusBarNotification,
 ): Drawable? =
     if (appIcon.value) {
-        runCatching { context.packageManager.getApplicationIcon(sbn.packageName) }.getOrNull()
+        try {
+            context.packageManager.getApplicationIcon(sbn.packageName)
+        } catch (e: Exception) {
+            null
+        } catch (e: LinkageError) {
+            null
+        }
     } else {
         sbn.notification.smallIcon?.loadDrawable(context)
     }
@@ -421,8 +459,13 @@ private fun setHeadsUp(value: Boolean) {
 }
 
 private fun replay() {
-    runCatching { listener?.get()?.activeNotifications?.forEach(::onPosted) }
-        .onFailure { Logger.error("replay failed tweak=$TWEAK reason=${it.message}", it) }
+    try {
+        listener?.get()?.activeNotifications?.forEach(::onPosted)
+    } catch (e: Exception) {
+        Logger.error("replay failed tweak=$TWEAK reason=${e.message}", e)
+    } catch (e: LinkageError) {
+        Logger.error("replay failed tweak=$TWEAK reason=${e.message}", e)
+    }
 }
 
 private fun postNotificationUpdate(
@@ -484,8 +527,7 @@ private fun attach(bar: ViewGroup) {
 
 private fun attachLive(statusBarClass: Class<*>) {
     if (statusBar != null) return
-    runCatching { findLiveStatusBar(statusBarClass)?.let(::attach) }
-        .onFailure { Logger.error("attach failed tweak=$TWEAK reason=${it.message}", it) }
+    isolateChipCallback(TWEAK, "attachLive") { findLiveStatusBar(statusBarClass)?.let(::attach) }
 }
 
 private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
@@ -512,8 +554,7 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
     )
     hook(bindings.onFinishInflate).intercept { chain ->
         val result = chain.proceed()
-        runCatching { attach(chain.thisObject as ViewGroup) }
-            .onFailure { Logger.error("attach failed tweak=$TWEAK reason=${it.message}", it) }
+        isolateChipCallback(TWEAK, "inflate") { attach(chain.thisObject as ViewGroup) }
         result
     }
     for (method in listenerCallbacks.posted) {
@@ -560,13 +601,7 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
         for (method in bindings.headsUpChanges) {
             hook(method).intercept { chain ->
                 val result = chain.proceed()
-                (
-                    runCatching {
-                        query.invoke(
-                            chain.thisObject,
-                        )
-                    }.getOrNull() as? Boolean
-                )?.let(::setHeadsUp)
+                hasHeadsUp(query, chain.thisObject)?.let(::setHeadsUp)
                 result
             }
         }
@@ -574,20 +609,11 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
     bindings.iconHider?.let { hider ->
         hook(hider.calculate).intercept { chain ->
             val key = if (hideStatusIcon.enabled && chipShown) trackedNotificationKey else null
-            val saved =
-                key
-                    ?.let {
-                        runCatching {
-                            hider.hide(
-                                chain.thisObject as ViewGroup,
-                                it,
-                            )
-                        }.getOrNull()
-                    }.orEmpty()
+            val saved = key?.let { hider.hideQuietly(chain.thisObject as ViewGroup, it) }.orEmpty()
             try {
                 chain.proceed()
             } finally {
-                runCatching { hider.restore(saved) }
+                hider.restoreQuietly(saved)
             }
         }
     }

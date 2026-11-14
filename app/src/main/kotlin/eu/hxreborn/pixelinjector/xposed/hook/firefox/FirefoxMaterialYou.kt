@@ -226,6 +226,7 @@ internal val firefoxMaterialYou =
         prefs = listOf(switch),
         saveState = ::saveMaterialYou,
         restoreState = ::restoreMaterialYou,
+        onReloadRejected = { liveApplication?.get()?.let(::trackActivities) },
         install = XposedModule::installFirefoxMaterialYou,
     )
 

@@ -122,10 +122,13 @@ private fun XposedModule.installForceNewTask(cl: ClassLoader): Boolean {
     for (method in bindings.executeRequest) {
         hook(method).intercept { chain ->
             if (switch.enabled && rules.value.isNotEmpty()) {
-                runCatching { bindings.applyMatchingRule(chain.getArg(0)) }
-                    .onFailure {
-                        Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it)
-                    }
+                try {
+                    bindings.applyMatchingRule(chain.getArg(0))
+                } catch (e: Exception) {
+                    Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+                } catch (e: LinkageError) {
+                    Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+                }
             }
             chain.proceed()
         }
