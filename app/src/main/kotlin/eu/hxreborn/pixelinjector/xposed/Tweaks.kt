@@ -26,6 +26,7 @@ import eu.hxreborn.pixelinjector.xposed.hook.systemui.expandNotifications
 import eu.hxreborn.pixelinjector.xposed.hook.systemui.fingerprintIcon
 import eu.hxreborn.pixelinjector.xposed.hook.systemui.headsUpDuration
 import eu.hxreborn.pixelinjector.xposed.hook.systemui.hideShortcutCircles
+import eu.hxreborn.pixelinjector.xposed.hook.systemui.nowPlayingChip
 import eu.hxreborn.pixelinjector.xposed.hook.systemui.ongoingNoDismiss
 import eu.hxreborn.pixelinjector.xposed.hook.systemui.pillShot
 import eu.hxreborn.pixelinjector.xposed.hook.systemui.screenshotSound
@@ -43,6 +44,7 @@ internal val tweaks: List<Tweak> =
         headsUpDuration,
         chargingDetails,
         downloadChip,
+        nowPlayingChip,
         fingerprintIcon,
         hideShortcutCircles,
         statusBarDoubleTap,

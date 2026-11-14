@@ -54,6 +54,7 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 - **Always expand notifications**: opens notifications expanded unless you collapsed one by hand.
 - **Pin ongoing notifications**: stops swiping away ongoing notifications like media and VPN.
 - **Charging details**: adds watts, volts, amps and battery temperature under the lock screen charging text.
+- **Now playing chip**: shows the playing track and source app icon in the status bar.
 - **Download chip**: shows a download's progress as a chip in the status bar. Ported from [Iconify](https://github.com/Mahmud0808/Iconify)'s ongoing action chip.
 - **Fingerprint icon**: replaces the lock screen fingerprint icon with one of 34 icons from custom ROMs or your own image and can hide the circle behind it. Phones with an under-display fingerprint sensor.
 - **Hide shortcut circles**: removes the circle behind the lock screen shortcuts and keeps it while a shortcut is on, like the flashlight. The icons take the lock icon color on AOSP and keep their stock colors on One UI.

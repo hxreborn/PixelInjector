@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.HorizontalRule
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Public
@@ -161,6 +162,17 @@ val tweakUis: List<TweakUi> =
             R.string.tweak_charging_details,
             R.string.tweak_charging_details_desc,
             TweakGroup.SYSTEM_UI,
+        ),
+        TweakUi(
+            "NowPlayingChip",
+            Prefs.NOW_PLAYING_CHIP,
+            R.string.tweak_now_playing_chip,
+            R.string.tweak_now_playing_chip_desc,
+            TweakGroup.SYSTEM_UI,
+            editor =
+                TweakEditor(R.string.tweak_now_playing_chip_edit, null, Destination.NowPlayingChipEditor) {
+                    it[Prefs.NOW_PLAYING_CHIP_SIDE].replaceFirstChar(Char::uppercase)
+                },
         ),
         TweakUi(
             "DownloadChip",
@@ -363,6 +375,7 @@ private val tweakSymbols: Map<String, ImageVector> =
         "FingerprintIcon" to Icons.Outlined.Fingerprint,
         "HideShortcutCircles" to Icons.Outlined.HideSource,
         "ChargingDetails" to Icons.Outlined.BatteryChargingFull,
+        "NowPlayingChip" to Icons.Outlined.MusicNote,
         "DownloadChip" to Icons.Outlined.Download,
         "StatusBarDoubleTap" to Icons.Outlined.TouchApp,
         "ForceNewTask" to Icons.Outlined.Layers,

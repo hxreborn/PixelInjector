@@ -500,4 +500,10 @@
     <string name="date_style_relative">Relative</string>
     <string name="licenses">Open source licenses</string>
     <string name="licenses_summary">Libraries this app is built with</string>
+    <string name="tweak_now_playing_chip">Now playing chip</string>
+    <string name="tweak_now_playing_chip_desc">Shows the app icon and playing track in the status bar</string>
+    <string name="tweak_now_playing_chip_edit">Side and title width</string>
+    <string name="now_playing_chip_width">Maximum title width</string>
+    <string name="now_playing_chip_width_value">%1$d dp</string>
+    <string name="now_playing_chip_hide_shade">Hide when the shade is open</string>
 </resources>

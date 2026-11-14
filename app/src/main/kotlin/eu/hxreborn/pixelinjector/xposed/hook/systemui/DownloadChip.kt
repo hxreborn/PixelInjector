@@ -18,7 +18,6 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.TextView
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.findFieldUpward
@@ -43,26 +42,16 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
 private const val TWEAK = "DownloadChip"
-private const val STATUS_BAR_VIEW = "com.android.systemui.statusbar.phone.PhoneStatusBarView"
 private const val LISTENER = "com.android.systemui.statusbar.NotificationListener"
-private const val CLOCK = "com.android.systemui.statusbar.policy.Clock"
-private const val SAMSUNG_CLOCK = "com.android.systemui.statusbar.policy.QSClockIndicatorView"
-private const val ICON_AREA_ID = "notification_icon_area"
-private const val START_SIDE_ID = "status_bar_start_side_except_heads_up"
-private const val END_SIDE_ID = "status_bar_end_side_content"
-private const val SYSTEM_ICONS_ID = "system_icons"
 private const val ICON_CONTAINER = "com.android.systemui.statusbar.phone.NotificationIconContainer"
 private const val STATUS_BAR_ICON = "com.android.systemui.statusbar.StatusBarIconView"
 private const val STATUS_BAR_PACKAGE = "com.android.systemui.statusbar"
-private const val KEYGUARD_STATE = "$STATUS_BAR_PACKAGE.policy.KeyguardStateControllerImpl"
 private const val HEADS_UP_MANAGER = "$STATUS_BAR_PACKAGE.notification.headsup.HeadsUpManagerImpl"
 private const val HEADS_UP_BASE_MANAGER = "com.android.systemui.statusbar.policy.BaseHeadsUpManager"
-private const val WINDOW_MANAGER_GLOBAL = "android.view.WindowManagerGlobal"
 private const val STATE_CHIP = "chip"
 private const val STATE_LISTENER = "listener"
 private const val CHIP_WIDTH_DP = 56
 private const val CHIP_PADDING_DP = 4
-private const val CHIP_MARGIN_DP = 3
 private const val ICON_SIZE_DP = 10
 private const val ICON_GAP_DP = 3
 private const val BAR_HEIGHT_DP = 3
@@ -237,17 +226,7 @@ private class ChipBindings(
             return ChipBindings(
                 onFinishInflate = cl.loadClass(STATUS_BAR_VIEW).requiredMethod("onFinishInflate"),
                 listenerCallbacks = listenerCallbacks,
-                darkChangedCallbacks =
-                    listOf(CLOCK, SAMSUNG_CLOCK).mapNotNull { name ->
-                        resolving {
-                            cl.loadClass(name).requiredMethod(
-                                "onDarkChanged",
-                                java.util.ArrayList::class.java,
-                                Float::class.javaPrimitiveType,
-                                Int::class.javaPrimitiveType,
-                            )
-                        }.getOrNull()
-                    },
+                darkChangedCallbacks = resolveStatusBarTint(cl),
                 keyguardState =
                     resolving {
                         cl.loadClass(KEYGUARD_STATE).requiredMethod(
@@ -334,8 +313,6 @@ private fun headsUpQueryMethod(manager: Class<*>): Method? =
     generateSequence(manager) { it.superclass }.firstNotNullOfOrNull {
         it.optionalMethod("hasPinnedHeadsUp", 0) ?: it.optionalMethod("hasNotifications", 0)
     }
-
-private fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
 private fun buildChip(context: Context): LinearLayout =
     LinearLayout(context).apply {
@@ -453,23 +430,7 @@ private fun postNotificationUpdate(
     sbn: StatusBarNotification,
     update: (StatusBarNotification) -> Unit,
 ) {
-    chip?.post {
-        try {
-            update(sbn)
-        } catch (e: Exception) {
-            Logger.error(
-                "notification callback failed tweak=$TWEAK callback=$callback " +
-                    "key=${sbn.key} reason=${e.message}",
-                e,
-            )
-        } catch (e: LinkageError) {
-            Logger.error(
-                "notification callback failed tweak=$TWEAK callback=$callback " +
-                    "key=${sbn.key} reason=${e.message}",
-                e,
-            )
-        }
-    }
+    chip?.post { isolateChipCallback(TWEAK, "$callback key=${sbn.key}") { update(sbn) } }
 }
 
 private fun onPosted(sbn: StatusBarNotification) {
@@ -503,56 +464,12 @@ private fun release() {
     if (switch.enabled) replay()
 }
 
-private fun View.childOf(ancestor: ViewGroup): View? {
-    var child: View = this
-    while (child.parent !== ancestor) child = child.parent as? View ?: return null
-    return child
-}
-
-private fun ViewGroup.idOf(name: String): Int =
-    resources.getIdentifier(name, "id", context.packageName)
-
-private fun startAnchor(bar: ViewGroup): Pair<ViewGroup, Int> {
-    val iconArea = bar.findViewById<View>(iconAreaId) ?: error("no $ICON_AREA_ID")
-    val startSide = bar.findViewById<View>(bar.idOf(START_SIDE_ID)) ?: iconArea.parent as ViewGroup
-    val anchor = iconArea.childOf(startSide as ViewGroup) ?: iconArea
-    val container = anchor.parent as ViewGroup
-    return container to container.indexOfChild(anchor)
-}
-
-private fun endAnchor(bar: ViewGroup): Pair<ViewGroup, Int>? {
-    val endSide = bar.findViewById<ViewGroup>(bar.idOf(END_SIDE_ID))
-    val icons = bar.findViewById<View>(bar.idOf(SYSTEM_ICONS_ID))
-    val anchor = endSide?.let { icons?.childOf(it) }
-    if (endSide == null || anchor == null) {
-        val member = if (endSide == null) END_SIDE_ID else SYSTEM_ICONS_ID
-        Logger.error("target not found tweak=$TWEAK member=$member build=${Build.ID} reason=no-id")
-        return null
-    }
-    return endSide to endSide.indexOfChild(anchor)
-}
-
 private fun place() {
     val bar = statusBar?.get() ?: return
     val view = chip ?: return
-    runCatching {
-        (view.parent as? ViewGroup)?.removeView(view)
-        val (container, index) = (if (rightSide.value) endAnchor(bar) else null) ?: startAnchor(bar)
-        val margin = view.context.dp(CHIP_MARGIN_DP)
-        val onEnd = container.id == bar.idOf(END_SIDE_ID)
-        val params =
-            LinearLayout
-                .LayoutParams(
-                    view.context.dp(CHIP_WIDTH_DP),
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    marginStart = margin
-                    if (onEnd) marginEnd = margin
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-        container.addView(view, index, params)
-        Logger.info("placed tweak=$TWEAK side=${if (onEnd) "right" else "left"}")
-    }.onFailure { Logger.error("place failed tweak=$TWEAK reason=${it.message}", it) }
+    isolateChipCallback(TWEAK, "place") {
+        placeStatusBarChip(bar, view, rightSide.value, view.context.dp(CHIP_WIDTH_DP), TWEAK)
+    }
 }
 
 private fun attach(bar: ViewGroup) {
@@ -563,25 +480,6 @@ private fun attach(bar: ViewGroup) {
     place()
     Logger.info("attached tweak=$TWEAK")
     resync()
-}
-
-private fun View.findInstance(type: Class<*>): View? {
-    if (type.isInstance(this)) return this
-    val group = this as? ViewGroup ?: return null
-    for (index in 0 until group.childCount) {
-        group.getChildAt(index).findInstance(type)?.let { return it }
-    }
-    return null
-}
-
-private fun findLiveStatusBar(statusBarClass: Class<*>): ViewGroup? {
-    val global = Class.forName(WINDOW_MANAGER_GLOBAL)
-    val instance = global.getMethod("getInstance").invoke(null)
-    val names = global.getMethod("getViewRootNames").invoke(instance) as Array<*>
-    val getRootView = global.getMethod("getRootView", String::class.java)
-    return names.firstNotNullOfOrNull { name ->
-        (getRootView.invoke(instance, name) as? View)?.findInstance(statusBarClass) as? ViewGroup
-    }
 }
 
 private fun attachLive(statusBarClass: Class<*>) {
@@ -646,13 +544,9 @@ private fun XposedModule.installDownloadChip(cl: ClassLoader): Boolean {
             result
         }
     }
-    for (method in bindings.darkChangedCallbacks) {
-        hook(method).intercept { chain ->
-            val result = chain.proceed()
-            tint = (chain.thisObject as? TextView)?.currentTextColor ?: chain.getArg(2) as Int
-            chip?.let { view -> view.post { applyTint(view) } }
-            result
-        }
+    installStatusBarTint(bindings.darkChangedCallbacks, TWEAK) { color ->
+        tint = color
+        chip?.let { view -> view.post { isolateChipCallback(TWEAK, "tint") { applyTint(view) } } }
     }
     bindings.keyguardState?.let { method ->
         hook(method).intercept { chain ->

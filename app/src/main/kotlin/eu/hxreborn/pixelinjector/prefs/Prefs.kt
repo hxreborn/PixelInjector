@@ -36,6 +36,26 @@ object Prefs {
     val EXPAND_NOTIFICATIONS = BoolPref("systemui.expandNotifications", false).register()
     val ONGOING_NO_DISMISS = BoolPref("systemui.ongoingNoDismiss", false).register()
     val CHARGING_DETAILS = BoolPref("systemui.chargingDetails", false).register()
+    const val NOW_PLAYING_WIDTH_MIN = 40
+    const val NOW_PLAYING_WIDTH_MAX = 160
+    const val NOW_PLAYING_WIDTH_DEFAULT = 80
+    val NOW_PLAYING_CHIP = BoolPref("systemui.nowPlayingChip", false).register()
+    val NOW_PLAYING_CHIP_SIDE =
+        StringPref(
+            "systemui.nowPlayingChip.side",
+            DOWNLOAD_CHIP_LEFT,
+        ).register()
+    val NOW_PLAYING_CHIP_WIDTH =
+        IntPref(
+            "systemui.nowPlayingChip.width",
+            NOW_PLAYING_WIDTH_DEFAULT,
+        ).register()
+    val NOW_PLAYING_CHIP_HIDE_LOCKED =
+        BoolPref(
+            "systemui.nowPlayingChip.hideLocked",
+            true,
+        ).register()
+    val NOW_PLAYING_CHIP_HIDE_SHADE = BoolPref("systemui.nowPlayingChip.hideShade", true).register()
     val DOWNLOAD_CHIP = BoolPref("systemui.downloadChip", false).register()
     const val DOWNLOAD_CHIP_LEFT = "left"
     const val DOWNLOAD_CHIP_RIGHT = "right"

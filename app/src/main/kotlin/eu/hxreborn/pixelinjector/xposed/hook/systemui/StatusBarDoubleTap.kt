@@ -23,7 +23,6 @@ import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TWEAK = "StatusBarDoubleTap"
-private const val STATUS_BAR_VIEW = "com.android.systemui.statusbar.phone.PhoneStatusBarView"
 
 @Volatile private var current: StatusBarBindings? = null
 

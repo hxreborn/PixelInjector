@@ -54,6 +54,7 @@ import eu.hxreborn.pixelinjector.ui.editor.AppsSheet
 import eu.hxreborn.pixelinjector.ui.editor.DownloadChipSheet
 import eu.hxreborn.pixelinjector.ui.editor.EmptyShadeSheet
 import eu.hxreborn.pixelinjector.ui.editor.FingerprintIconSheet
+import eu.hxreborn.pixelinjector.ui.editor.NowPlayingChipSheet
 import eu.hxreborn.pixelinjector.ui.editor.RulesEditorScreen
 import eu.hxreborn.pixelinjector.ui.editor.SoundSheet
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogScreen
@@ -249,6 +250,18 @@ fun AppNavHost(
                         onStyleChange = { viewModel.save(Prefs.FINGERPRINT_ICON_STYLE, it) },
                         onHideCircleChange = { viewModel.save(Prefs.FINGERPRINT_HIDE_CIRCLE, it) },
                         onImagePicked = viewModel::saveFingerprintImage,
+                    )
+                }
+                entry<Destination.NowPlayingChipEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
+                    NowPlayingChipSheet(
+                        side = prefs[Prefs.NOW_PLAYING_CHIP_SIDE],
+                        width = prefs[Prefs.NOW_PLAYING_CHIP_WIDTH],
+                        hideLocked = prefs[Prefs.NOW_PLAYING_CHIP_HIDE_LOCKED],
+                        hideShade = prefs[Prefs.NOW_PLAYING_CHIP_HIDE_SHADE],
+                        onSideChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_SIDE, it) },
+                        onWidthChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_WIDTH, it) },
+                        onHideLockedChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_HIDE_LOCKED, it) },
+                        onHideShadeChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE, it) },
                     )
                 }
                 entry<Destination.DownloadChipEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {

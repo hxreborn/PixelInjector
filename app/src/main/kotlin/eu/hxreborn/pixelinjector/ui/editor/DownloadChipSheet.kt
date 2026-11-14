@@ -111,7 +111,7 @@ fun DownloadChipSheet(
             appIcon = icon == Prefs.DOWNLOAD_CHIP_APP,
             hideStatusIcon = hideStatusIcon,
         )
-        ChoiceTile(
+        ChipChoiceTile(
             title = stringResource(R.string.download_chip_side),
             options =
                 listOf(
@@ -121,7 +121,7 @@ fun DownloadChipSheet(
             selected = side,
             onSelect = onSideChange,
         )
-        ChoiceTile(
+        ChipChoiceTile(
             title = stringResource(R.string.download_chip_icon),
             options =
                 listOf(
@@ -132,16 +132,16 @@ fun DownloadChipSheet(
             onSelect = onIconChange,
         )
         Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
-            SwitchTile(stringResource(R.string.download_chip_hide_locked), hideLocked, onHideLockedChange)
-            SwitchTile(stringResource(R.string.download_chip_hide_heads_up), hideHeadsUp, onHideHeadsUpChange)
-            SwitchTile(stringResource(R.string.download_chip_hide_status_icon), hideStatusIcon, onHideStatusIconChange)
+            ChipSwitchTile(stringResource(R.string.download_chip_hide_locked), hideLocked, onHideLockedChange)
+            ChipSwitchTile(stringResource(R.string.download_chip_hide_heads_up), hideHeadsUp, onHideHeadsUpChange)
+            ChipSwitchTile(stringResource(R.string.download_chip_hide_status_icon), hideStatusIcon, onHideStatusIconChange)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ChoiceTile(
+internal fun ChipChoiceTile(
     title: String,
     options: List<Pair<String, String>>,
     selected: String,
@@ -176,7 +176,7 @@ private fun ChoiceTile(
 }
 
 @Composable
-private fun SwitchTile(
+internal fun ChipSwitchTile(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
