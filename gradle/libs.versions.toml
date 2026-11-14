@@ -13,6 +13,7 @@ ktlintCli = "1.8.0"
 libsu = "6.0.0"
 dexkit = "2.3.0"
 aboutlibraries = "15.3.0"
+junit = "4.13.2"
 
 [libraries]
 libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposed" }
@@ -34,6 +35,7 @@ aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3",
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
 libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu" }
 dexkit = { module = "org.luckypray:dexkit", version.ref = "dexkit" }
+junit = { module = "junit:junit", version.ref = "junit" }
 ktlint-cli = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlintCli" }
 
 [bundles]

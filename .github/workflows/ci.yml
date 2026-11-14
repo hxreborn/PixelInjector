@@ -27,4 +27,4 @@ jobs:
           cache: gradle
 
       - name: Check and build
-        run: ./gradlew :app:ktlintCheck :app:assembleDebug :app:lint
+        run: ./gradlew :app:ktlintCheck :app:testDebugUnitTest :app:assembleDebug :app:lint

@@ -158,6 +158,8 @@ dependencies {
     implementation(libs.libsu.core)
     implementation(libs.dexkit)
     implementation(libs.aboutlibraries.compose.m3)
+
+    testImplementation(libs.junit)
 }
 
 tasks.register<JavaExec>("ktlintCheck") {
