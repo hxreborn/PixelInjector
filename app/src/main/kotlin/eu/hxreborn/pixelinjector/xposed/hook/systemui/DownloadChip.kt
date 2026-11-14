@@ -25,6 +25,7 @@ import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalField
 import eu.hxreborn.pixelinjector.util.optionalMethod
+import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.requiredMethods
@@ -43,6 +44,7 @@ import java.lang.reflect.Modifier
 
 private const val TWEAK = "DownloadChip"
 private const val STATUS_BAR_VIEW = "com.android.systemui.statusbar.phone.PhoneStatusBarView"
+private const val LISTENER = "com.android.systemui.statusbar.NotificationListener"
 private const val CLOCK = "com.android.systemui.statusbar.policy.Clock"
 private const val SAMSUNG_CLOCK = "com.android.systemui.statusbar.policy.QSClockIndicatorView"
 private const val ICON_AREA_ID = "notification_icon_area"
@@ -159,6 +161,23 @@ private class NotificationListenerBindings(
         }
 
         private fun findPostedCallbacks(cl: ClassLoader): List<Method> =
+            orNullIfMissing { cl.loadClass(LISTENER) }
+                ?.declaredMethods
+                ?.filter(::isPostedCallback)
+                ?.takeIf { it.isNotEmpty() }
+                ?: findPostedCallbacksByScan(cl)
+
+        private fun isPostedCallback(method: Method): Boolean =
+            method.name == "onNotificationPosted" &&
+                method.returnType == Void.TYPE &&
+                method.parameterTypes.contentEquals(
+                    arrayOf(
+                        StatusBarNotification::class.java,
+                        NotificationListenerService.RankingMap::class.java,
+                    ),
+                )
+
+        private fun findPostedCallbacksByScan(cl: ClassLoader): List<Method> =
             DexKit.methods(TWEAK, cl) { bridge ->
                 bridge.findMethod {
                     matcher {
