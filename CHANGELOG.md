@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/hxreborn/PixelInjector/compare/v1.25.0...v1.25.1) (2026-11-15)
+
+### Bug Fixes
+
+* **hook:** update DexKit for shared DEX containers ([cf05bed](https://github.com/hxreborn/PixelInjector/commit/cf05bedf05645f99fe4917f03dc1d1e2bcbbc533))
+* **tweak:** remove lock screen switch from NowPlayingChip ([1f5a391](https://github.com/hxreborn/PixelInjector/commit/1f5a391eba0ff0f5e7803c860a17895cb5704644))
+
 ## [1.25.0](https://github.com/hxreborn/PixelInjector/compare/v1.24.4...v1.25.0) (2026-11-15)
 
 ### Features
