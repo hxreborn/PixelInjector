@@ -1,3 +1,26 @@
+## [1.25.0](https://github.com/hxreborn/PixelInjector/compare/v1.24.4...v1.25.0) (2026-11-15)
+
+### Features
+
+* **hook:** quarantine tweaks that crash their host process ([34efb2f](https://github.com/hxreborn/PixelInjector/commit/34efb2fe07ad104b7160c42a434af85e71e97b5e))
+* **tweak:** add NowPlayingChip status bar chip ([ef1552a](https://github.com/hxreborn/PixelInjector/commit/ef1552a3932ea042d760777e06e7ce71522f72dd)), closes [#63](https://github.com/hxreborn/PixelInjector/issues/63)
+* **ui:** add Indonesian translation ([b77c876](https://github.com/hxreborn/PixelInjector/commit/b77c876eac631e47998e3ed0fbc2183edd9da0ea))
+
+### Bug Fixes
+
+* **hook:** catch Exception and LinkageError instead of Throwable ([bb8a154](https://github.com/hxreborn/PixelInjector/commit/bb8a154d5cbe7a39568d9fb7c08e3396b8769a0c))
+* **hook:** scan DexKit from APK files instead of loaded dex memory ([9531994](https://github.com/hxreborn/PixelInjector/commit/95319944287fac08bbd7bb57fa5e7a20bb42d2bd)), closes [#65](https://github.com/hxreborn/PixelInjector/issues/65)
+* **hook:** serialize sleep and biometric sound workers ([4fc7e2a](https://github.com/hxreborn/PixelInjector/commit/4fc7e2a39c27ed7b914b3d6d7b9505a9b6693524))
+* **tweak:** add Motorola screenshot and heads-up targets ([8276b57](https://github.com/hxreborn/PixelInjector/commit/8276b576822c66bd71d26e0bf4c46059073a4abf)), closes [#55](https://github.com/hxreborn/PixelInjector/issues/55)
+* **tweak:** add Transsion screenshot and heads-up targets ([d763cbc](https://github.com/hxreborn/PixelInjector/commit/d763cbce27420e6c9bd40017e47a9d9acf4778a4)), closes [#66](https://github.com/hxreborn/PixelInjector/issues/66)
+* **tweak:** bound FingerprintIcon custom image decoding ([ebabeb0](https://github.com/hxreborn/PixelInjector/commit/ebabeb05e8b0e8a1642b17ea6856e1a6a35d6ca9))
+* **tweak:** cap ForceNewTask rule input ([7176227](https://github.com/hxreborn/PixelInjector/commit/717622749973df49a86724fcce4ff858bec2b235))
+* **tweak:** guard HideShortcutCircles view callbacks ([8e98898](https://github.com/hxreborn/PixelInjector/commit/8e98898f3b2f901c269be6e916011e97ce36929d))
+* **tweak:** remove FirefoxClassicMenu pre-draw listeners ([cb2acea](https://github.com/hxreborn/PixelInjector/commit/cb2aceadffa04f71664fc32de0c778171741ec81))
+* **tweak:** resolve DownloadChip listener by name before DexKit ([98fed79](https://github.com/hxreborn/PixelInjector/commit/98fed797bc1ca619b96537ba6fe027cc2476cdd1))
+* **tweak:** show charging details below wrapped Pixel text ([cd09043](https://github.com/hxreborn/PixelInjector/commit/cd09043a6fc1f4e99ccdcaec2df46e0078992d12)), closes [#62](https://github.com/hxreborn/PixelInjector/issues/62)
+* **tweak:** validate BiometricBypass and EmptyShade signatures ([8526a9e](https://github.com/hxreborn/PixelInjector/commit/8526a9e610f70818c01a64decb65804cedcc46c4))
+
 ## [1.24.4](https://github.com/hxreborn/PixelInjector/compare/v1.24.3...v1.24.4) (2026-11-09)
 
 ### Bug Fixes
