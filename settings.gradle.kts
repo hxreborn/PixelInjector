@@ -11,6 +11,10 @@ plugins {
 
 dependencyResolutionManagement {
     repositories {
+        maven {
+            url = uri("third-party/maven")
+            content { includeModule("org.luckypray", "dexkit") }
+        }
         google()
         mavenCentral()
         maven("https://jitpack.io") { content { includeGroup("com.github.topjohnwu.libsu") } }

@@ -1,6 +1,5 @@
 package eu.hxreborn.pixelinjector.xposed.hook
 
-import android.os.Build
 import android.os.SystemClock
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.Logger
@@ -36,7 +35,7 @@ internal object DexKit {
         }
         nativeLib.getOrThrow()
         val start = SystemClock.uptimeMillis()
-        val live = bridge ?: openBridge(tweak, cl).also { bridge = it }
+        val live = bridge ?: DexKitBridge.create(cl, true).also { bridge = it }
         val methods = query(live).mapNotNull { methodInstance(it, cl) }
         Logger.info("dexkit tweak=$tweak durationMs=${SystemClock.uptimeMillis() - start}")
         if (methods.isNotEmpty()) found[tweak] = methods
@@ -51,22 +50,6 @@ internal object DexKit {
     ): Method =
         methods(tweak, cl, query).singleOrNull()?.apply { isAccessible = true }
             ?: throw NoSuchMethodException(description)
-
-    private fun openBridge(
-        tweak: String,
-        cl: ClassLoader,
-    ): DexKitBridge {
-        val fromApk = DexKitBridge.create(cl, false)
-        if (fromApk.getDexNum() > 0) return fromApk
-        val sdk = Build.VERSION.SDK_INT
-        if (sdk >= Build.VERSION_CODES.CINNAMON_BUN) {
-            Logger.warn("dexkit unavailable tweak=$tweak reason=no-dex-in-apk sdk=$sdk")
-            return fromApk
-        }
-        fromApk.close()
-        Logger.info("dexkit tweak=$tweak source=memory reason=no-dex-in-apk")
-        return DexKitBridge.create(cl, true)
-    }
 
     private fun methodInstance(
         data: MethodData,
