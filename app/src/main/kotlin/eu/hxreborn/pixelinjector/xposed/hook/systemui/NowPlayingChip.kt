@@ -1,6 +1,5 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
-import android.app.KeyguardManager
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.Drawable
@@ -43,7 +42,6 @@ private const val SHADE_EXPANSION_STATE_MANAGER =
 private const val STATE_BAR = "bar"
 private const val STATE_CHIP = "chip"
 private const val STATE_TINT = "tint"
-private const val STATE_LOCKED = "locked"
 private const val STATE_SHADE = "shade"
 private const val ICON_INDEX = 0
 private const val TITLE_INDEX = 1
@@ -62,7 +60,6 @@ private var chip: LinearLayout? = null
 @Volatile private var sessions: ChipSessions? = null
 private val closing = CopyOnWriteArrayList<ChipSessions>()
 private var tint = Color.WHITE
-private var locked = false
 private var shadeExpanded = false
 private var hasTrack = false
 private var retired = false
@@ -76,14 +73,13 @@ private val titleWidth =
     Value(Prefs.NOW_PLAYING_CHIP_WIDTH, onLoad = {
         postUi(::place)
     }) { it.coerceIn(Prefs.NOW_PLAYING_WIDTH_MIN, Prefs.NOW_PLAYING_WIDTH_MAX) }
-private val hideLocked = Switch(Prefs.NOW_PLAYING_CHIP_HIDE_LOCKED) { postUi(::render) }
 private val hideShade = Switch(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE) { postUi(::render) }
 
 internal val nowPlayingChip =
     Tweak(
         key = TWEAK,
         targets = setOf(Target.SYSTEMUI),
-        prefs = listOf(enabled, rightSide, titleWidth, hideLocked, hideShade),
+        prefs = listOf(enabled, rightSide, titleWidth, hideShade),
         install = XposedModule::installNowPlayingChip,
         saveState = ::saveNowPlayingChipState,
         onReloadRejected = {
@@ -98,7 +94,6 @@ internal val nowPlayingChip =
                 postUi {
                     if (!savedBar.isAttachedToWindow) return@postUi
                     tint = saved[STATE_TINT] as? Int ?: Color.WHITE
-                    locked = saved[STATE_LOCKED] as? Boolean ?: false
                     shadeExpanded = saved[STATE_SHADE] as? Boolean ?: false
                     chip = saved[STATE_CHIP] as? LinearLayout
                     attach(savedBar)
@@ -127,7 +122,6 @@ private fun saveNowPlayingChipState(): HashMap<String, Any?> {
         STATE_BAR to bar,
         STATE_CHIP to chip,
         STATE_TINT to tint,
-        STATE_LOCKED to locked,
         STATE_SHADE to shadeExpanded,
     )
 }
@@ -135,7 +129,6 @@ private fun saveNowPlayingChipState(): HashMap<String, Any?> {
 private class NowPlayingBindings(
     val inflate: Method,
     val tint: List<Method>,
-    val keyguard: Method,
     val shade: Method,
 ) {
     companion object {
@@ -143,11 +136,6 @@ private class NowPlayingBindings(
             NowPlayingBindings(
                 cl.loadClass(STATUS_BAR_VIEW).requiredMethod("onFinishInflate"),
                 resolveStatusBarTint(cl).also { check(it.isNotEmpty()) { "Clock.onDarkChanged" } },
-                cl.loadClass(KEYGUARD_STATE).requiredMethod(
-                    "notifyKeyguardState",
-                    Boolean::class.javaPrimitiveType,
-                    Boolean::class.javaPrimitiveType,
-                ),
                 cl
                     .loadClass(SHADE_EXPANSION_STATE_MANAGER)
                     .requiredMethod("updateStateInternal", Int::class.javaPrimitiveType),
@@ -164,7 +152,6 @@ private val LinearLayout.iconView: ImageView get() = getChildAt(ICON_INDEX) as I
 private val LinearLayout.titleView: TextView get() = getChildAt(TITLE_INDEX) as TextView
 
 private fun attach(view: ViewGroup) {
-    locked = view.context.getSystemService(KeyguardManager::class.java).isKeyguardLocked
     bar = view
     chip = chip?.takeIf { it.context === view.context }
         ?: view.findViewWithTag<LinearLayout>(TWEAK)
@@ -219,9 +206,7 @@ private fun applyTint() {
 
 private fun render() {
     chip?.visibility =
-        if (enabled.enabled && hasTrack && !(hideLocked.enabled && locked) &&
-            !(hideShade.enabled && shadeExpanded)
-        ) {
+        if (enabled.enabled && hasTrack && !(hideShade.enabled && shadeExpanded)) {
             View.VISIBLE
         } else {
             View.GONE
@@ -375,7 +360,7 @@ private fun XposedModule.installNowPlayingChip(cl: ClassLoader): Boolean {
     val tintMembers = bindings.tint.joinToString { it.signature() }
     Logger.info(
         "resolved tweak=$TWEAK members=${bindings.inflate.signature()},$tintMembers," +
-            "${bindings.keyguard.signature()},${bindings.shade.signature()}",
+            "${bindings.shade.signature()}",
     )
     hook(bindings.inflate).intercept { chain ->
         val result = chain.proceed()
@@ -390,17 +375,6 @@ private fun XposedModule.installNowPlayingChip(cl: ClassLoader): Boolean {
             tint = color
             applyTint()
         }
-    }
-    hook(bindings.keyguard).intercept { chain ->
-        val result = chain.proceed()
-        isolateChipCallback(TWEAK, "keyguard") {
-            val showing = chain.getArg(0) as Boolean
-            postUi {
-                locked = showing
-                render()
-            }
-        }
-        result
     }
     hook(bindings.shade).intercept { chain ->
         val result = chain.proceed()

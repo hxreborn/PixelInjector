@@ -33,11 +33,9 @@ private const val SHEET_HEIGHT = 0.8f
 fun NowPlayingChipSheet(
     side: String,
     width: Int,
-    hideLocked: Boolean,
     hideShade: Boolean,
     onSideChange: (String) -> Unit,
     onWidthChange: (Int) -> Unit,
-    onHideLockedChange: (Boolean) -> Unit,
     onHideShadeChange: (Boolean) -> Unit,
 ) {
     var titleWidth by remember(width) { mutableFloatStateOf(width.toFloat()) }
@@ -68,7 +66,6 @@ fun NowPlayingChipSheet(
                 )
             }
         }
-        ChipSwitchTile(stringResource(R.string.download_chip_hide_locked), hideLocked, onHideLockedChange)
         ChipSwitchTile(stringResource(R.string.now_playing_chip_hide_shade), hideShade, onHideShadeChange)
     }
 }

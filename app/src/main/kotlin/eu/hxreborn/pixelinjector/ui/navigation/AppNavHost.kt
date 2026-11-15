@@ -256,11 +256,9 @@ fun AppNavHost(
                     NowPlayingChipSheet(
                         side = prefs[Prefs.NOW_PLAYING_CHIP_SIDE],
                         width = prefs[Prefs.NOW_PLAYING_CHIP_WIDTH],
-                        hideLocked = prefs[Prefs.NOW_PLAYING_CHIP_HIDE_LOCKED],
                         hideShade = prefs[Prefs.NOW_PLAYING_CHIP_HIDE_SHADE],
                         onSideChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_SIDE, it) },
                         onWidthChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_WIDTH, it) },
-                        onHideLockedChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_HIDE_LOCKED, it) },
                         onHideShadeChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE, it) },
                     )
                 }

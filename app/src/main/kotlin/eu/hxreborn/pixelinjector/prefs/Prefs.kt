@@ -50,11 +50,6 @@ object Prefs {
             "systemui.nowPlayingChip.width",
             NOW_PLAYING_WIDTH_DEFAULT,
         ).register()
-    val NOW_PLAYING_CHIP_HIDE_LOCKED =
-        BoolPref(
-            "systemui.nowPlayingChip.hideLocked",
-            true,
-        ).register()
     val NOW_PLAYING_CHIP_HIDE_SHADE = BoolPref("systemui.nowPlayingChip.hideShade", true).register()
     val DOWNLOAD_CHIP = BoolPref("systemui.downloadChip", false).register()
     const val DOWNLOAD_CHIP_LEFT = "left"
