@@ -111,7 +111,7 @@ private class AuthBindings(
                         }
                 }.getOrElse {
                     Logger.warn(
-                        "target not found tweak=$TWEAK member=MultisensoryManager#$PLAY_TOKEN " +
+                        "unlock sound kept tweak=$TWEAK member=MultisensoryManager#$PLAY_TOKEN " +
                             "build=${Build.ID} reason=${it.reason()}",
                     )
                     null
