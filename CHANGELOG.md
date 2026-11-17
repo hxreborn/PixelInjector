@@ -1,3 +1,9 @@
+## [1.25.2](https://github.com/hxreborn/PixelInjector/compare/v1.25.1...v1.25.2) (2026-11-17)
+
+### Bug Fixes
+
+* **tweak:** stop flagging working BiometricBypass as missing ([39a3da6](https://github.com/hxreborn/PixelInjector/commit/39a3da6bb0bf7cc97fd9afd34e566c969ff8cd48)), closes [#72](https://github.com/hxreborn/PixelInjector/issues/72)
+
 ## [1.25.1](https://github.com/hxreborn/PixelInjector/compare/v1.25.0...v1.25.1) (2026-11-15)
 
 ### Bug Fixes
