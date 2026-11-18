@@ -70,7 +70,6 @@ import eu.hxreborn.pixelinjector.ui.support.ReportSheet
 import eu.hxreborn.pixelinjector.ui.support.ReportsSheet
 import eu.hxreborn.pixelinjector.ui.support.SettingsActions
 import eu.hxreborn.pixelinjector.ui.support.SettingsScreen
-import eu.hxreborn.pixelinjector.ui.support.UpdateActions
 import eu.hxreborn.pixelinjector.ui.support.UpdateSheet
 import eu.hxreborn.pixelinjector.ui.support.WhatsNewSheet
 import eu.hxreborn.pixelinjector.ui.viewmodel.MainViewModel
@@ -144,10 +143,7 @@ fun AppNavHost(
                 },
                 onOpenSettings = { push(Destination.Settings) },
                 onReport = { openReport(Destination.Report(tweak = it)) },
-                onUpdate = {
-                    viewModel.support.resetInstall()
-                    push(Destination.Update)
-                },
+                onUpdate = { push(Destination.Update) },
                 onLater = { viewModel.support.postponeUpdate(it) },
                 onResumeSupport = viewModel::onResumeSupport,
                 onUpdatedNoticeShown = viewModel::consumeUpdatedNotice,
@@ -409,10 +405,7 @@ fun AppNavHost(
                         actions =
                             SettingsActions(
                                 onCheck = { viewModel.support.checkRelease(force = true) },
-                                onUpdate = {
-                                    viewModel.support.resetInstall()
-                                    push(Destination.Update)
-                                },
+                                onUpdate = { push(Destination.Update) },
                                 onSendReport = {
                                     openReport(Destination.Report())
                                 },
@@ -485,29 +478,10 @@ fun AppNavHost(
                     if (release == null) {
                         LaunchedEffect(Unit) { backStack.remove(Destination.Update) }
                     } else {
-                        LifecycleResumeEffect(release) {
-                            viewModel.support.resumeAfterInstallPermission()
-                            onPauseOrDispose {}
-                        }
                         UpdateSheet(
                             release = release,
                             fixes = support.fixesByLine,
-                            step = support.install,
-                            actions =
-                                UpdateActions(
-                                    onInstall = { viewModel.support.startInstall(release) },
-                                    onInstallAnyway = { viewModel.support.installAnyway(release) },
-                                    onOpenSettings = {
-                                        context.startActivity(
-                                            Intent(
-                                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                                "package:${context.packageName}".toUri(),
-                                            ),
-                                        )
-                                    },
-                                    onGitHub = { uriHandler.openUri(release.url) },
-                                    onCancel = viewModel.support::cancelInstall,
-                                ),
+                            onOpenRelease = { uriHandler.openUri(release.url) },
                         )
                     }
                 }

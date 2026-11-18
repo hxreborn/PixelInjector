@@ -83,16 +83,12 @@ class Support(
     private val reportStore = ReportStore(context.filesDir)
     private val sendLock = Mutex()
     private val romCodeLock = Mutex()
-    val updater = Updater(context)
 
     private val _reports = MutableStateFlow(reportStore.read())
     val reports: StateFlow<List<SentReport>> = _reports.asStateFlow()
 
     private val _release = MutableStateFlow<ReleaseCheck>(cachedRelease())
     val release: StateFlow<ReleaseCheck> = _release.asStateFlow()
-
-    private val _install = MutableStateFlow<InstallStep>(InstallStep.Idle)
-    val install: StateFlow<InstallStep> = _install.asStateFlow()
 
     private val _autoCheckUpdates = MutableStateFlow(prefs.getBoolean(AUTO_CHECK_UPDATES, true))
     val autoCheckUpdates: StateFlow<Boolean> = _autoCheckUpdates.asStateFlow()
@@ -470,7 +466,7 @@ class Support(
                 runCatching {
                     ApiResponse.Ok(
                         gitHub.code,
-                        Release.fromGitHub(gitHub.body, ReportConfig.assetPattern),
+                        Release.fromGitHub(gitHub.body),
                     )
                 }.onSuccess {
                     gitHub.etag?.let { etag -> prefs.edit { putString(GITHUB_ETAG, etag) } }
@@ -485,154 +481,6 @@ class Support(
             else -> {
                 gitHub
             }
-        }
-    }
-
-    fun startInstall(release: Release) {
-        val asset = release.asset ?: return
-        installJob?.cancel()
-        installJob =
-            scope.launch {
-                val job = coroutineContext.job
-                _install.value = InstallStep.Downloading(0, asset.size, "")
-                val downloaded =
-                    runCatching {
-                        updater.download(asset, { !job.isActive }) {
-                            if (job.isActive) {
-                                _install.value =
-                                    it
-                            }
-                        }
-                    }.getOrElse {
-                        if (!job.isActive) return@launch
-                        val bytes = (_install.value as? InstallStep.Downloading)?.bytes ?: 0
-                        _install.value =
-                            InstallStep.DownloadFailed(bytes, it.message ?: it.javaClass.simpleName)
-                        return@launch
-                    }
-                val (file, hash) = downloaded
-                val rejection =
-                    verify(file, hash, asset.sha256) {
-                        if (job.isActive) {
-                            _install.value =
-                                it
-                        }
-                    }
-                if (!job.isActive) return@launch
-                if (rejection != null) {
-                    if (rejection.releaseKey) {
-                        verifiedApk = file
-                        verifiedVersion = release.versionCode
-                    } else {
-                        file.delete()
-                    }
-                    _install.value = rejection
-                    return@launch
-                }
-                verifiedApk = file
-                verifiedVersion = release.versionCode
-                installVerified(file)
-            }
-    }
-
-    private fun verify(
-        file: File,
-        hash: String,
-        expected: String?,
-        onStep: (InstallStep) -> Unit,
-    ): InstallStep.Rejected? {
-        expected ?: return InstallStep.Rejected(InstallStep.Rejected.Cause.NO_CHECKSUM, null, hash)
-        val installed = updater.installedSigners()
-        onStep(InstallStep.Verifying(expected, hash, installed.firstOrNull(), null))
-        if (!expected.equals(hash, ignoreCase = true)) {
-            return InstallStep.Rejected(InstallStep.Rejected.Cause.CHECKSUM, expected, hash)
-        }
-        val archive = updater.readApkPackageInfo(file)
-        val fileSigners = updater.signers(archive)
-        onStep(
-            InstallStep.Verifying(
-                expected,
-                hash,
-                installed.firstOrNull(),
-                fileSigners.firstOrNull(),
-            ),
-        )
-        return when {
-            archive?.packageName != context.packageName -> {
-                InstallStep.Rejected(
-                    InstallStep.Rejected.Cause.PACKAGE,
-                    context.packageName,
-                    archive?.packageName,
-                )
-            }
-
-            fileSigners.isEmpty() || fileSigners != installed -> {
-                InstallStep.Rejected(
-                    InstallStep.Rejected.Cause.SIGNER,
-                    installed.firstOrNull(),
-                    fileSigners.firstOrNull(),
-                    checksum = hash,
-                )
-            }
-
-            else -> {
-                null
-            }
-        }
-    }
-
-    private var verifiedApk: File? = null
-    private var verifiedVersion: Int? = null
-
-    private fun installVerified(file: File) {
-        _install.value = InstallStep.Installing
-        when (val root = Root.installApk(file)) {
-            Root.Install.Done -> {
-                return
-            }
-
-            is Root.Install.Failed -> {
-                _install.value = InstallStep.InstallFailed(root.message)
-            }
-
-            Root.Install.Denied -> {
-                if (!updater.canRequestInstalls()) {
-                    _install.value = InstallStep.NeedsPermission
-                } else {
-                    runCatching { updater.install(file) { _install.value = it } }
-                        .onFailure {
-                            _install.value =
-                                InstallStep.InstallFailed(it.message ?: it.javaClass.simpleName)
-                        }
-                }
-            }
-        }
-    }
-
-    fun installAnyway(release: Release) {
-        val file = verifiedApk?.takeIf { verifiedVersion == release.versionCode } ?: return
-        scope.launch { installVerified(file) }
-    }
-
-    fun resumeAfterInstallPermission() {
-        val file = verifiedApk ?: return
-        if (_install.value is InstallStep.NeedsPermission && updater.canRequestInstalls()) {
-            scope.launch { installVerified(file) }
-        }
-    }
-
-    private var installJob: Job? = null
-
-    fun cancelInstall() {
-        installJob?.cancel()
-        _install.value = InstallStep.Idle
-    }
-
-    fun resetInstall() {
-        if (_install.value !is InstallStep.Downloading &&
-            _install.value !is InstallStep.Installing
-        ) {
-            _install.value = InstallStep.Idle
         }
     }
 

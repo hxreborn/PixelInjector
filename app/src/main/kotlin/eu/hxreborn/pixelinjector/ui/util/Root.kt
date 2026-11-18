@@ -49,31 +49,6 @@ object Root {
         return Shell.cmd("cat $from > $to && chmod 644 $to").exec().isSuccess
     }
 
-    sealed interface Install {
-        data object Denied : Install
-
-        data object Done : Install
-
-        data class Failed(
-            val message: String,
-        ) : Install
-    }
-
-    fun installApk(apk: File): Install {
-        if (!Shell.getShell().isRoot) {
-            Shell.getCachedShell()?.close()
-            return Install.Denied
-        }
-        val quoted = "'" + apk.path.replace("'", "'\\''") + "'"
-        val result = Shell.cmd("cat $quoted | pm install -r -S ${apk.length()}").exec()
-        val output = (result.out + result.err).joinToString(" ").trim()
-        return if (result.isSuccess && output.contains("Success")) {
-            Install.Done
-        } else {
-            Install.Failed(output.ifEmpty { "exit ${result.code}" })
-        }
-    }
-
     fun readModuleLog(): LogRead {
         if (!Shell.getShell().isRoot) {
             Shell.getCachedShell()?.close()

@@ -41,7 +41,7 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 
 1. Download the APK from [Releases](https://github.com/hxreborn/PixelInjector/releases/latest) or the [Xposed Modules Repo](https://github.com/Xposed-Modules-Repo/eu.hxreborn.pixelinjector/releases).
 2. Enable PixelInjector in your Xposed manager and select the apps of the tweaks you need in its scope.
-3. Reboot once. Later updates install from the app and reload without a reboot.
+3. Reboot once. Later updates install over the old APK and reload without a reboot.
 
 ## Tweaks
 

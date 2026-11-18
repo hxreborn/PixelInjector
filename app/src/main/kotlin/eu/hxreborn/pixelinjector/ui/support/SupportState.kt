@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import eu.hxreborn.pixelinjector.R
-import eu.hxreborn.pixelinjector.support.InstallStep
 import eu.hxreborn.pixelinjector.support.Release
 import eu.hxreborn.pixelinjector.support.ReleaseCheck
 import eu.hxreborn.pixelinjector.support.ReportStatus
@@ -27,7 +26,6 @@ data class SupportState(
     val reports: List<SentReport>,
     val autoCheckUpdates: Boolean,
     val postponedVersion: Int,
-    val install: InstallStep,
     val framework: String?,
 ) {
     val available: Release? get() = release.known?.takeIf { it.newer }

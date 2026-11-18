@@ -77,7 +77,7 @@ object ReportBuilder {
         return ReportPreview(facts, redacted.text, lines.size, redacted.hidden)
     }
 
-    fun signer(context: Context): String? =
+    fun installedSigner(context: Context): String? =
         runCatching {
             val packageInfo =
                 context.packageManager.getPackageInfo(
@@ -89,8 +89,10 @@ object ReportBuilder {
                     ?.apkContentsSigners
                     ?.firstOrNull()
                     ?.toByteArray() ?: return null
-            sha256(cert).copyOf(SIGNER_BYTES).toHex()
+            sha256(cert).toHex()
         }.getOrNull()
+
+    fun signer(context: Context): String? = installedSigner(context)?.take(SIGNER_BYTES * 2)
 
     val noteInfo: ByteArray =
         "reportkit/v1/note".toByteArray() + byteArrayOf(0) + ReportConfig.app.toByteArray()

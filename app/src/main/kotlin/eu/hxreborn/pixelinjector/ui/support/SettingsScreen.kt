@@ -50,7 +50,6 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Coffee
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Forum
@@ -65,7 +64,6 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.StarOutline
-import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -119,10 +117,10 @@ import androidx.compose.ui.unit.dp
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.support.ReleaseCheck
+import eu.hxreborn.pixelinjector.support.ReportBuilder
 import eu.hxreborn.pixelinjector.support.ReportConfig
 import eu.hxreborn.pixelinjector.support.ReportStatus
 import eu.hxreborn.pixelinjector.support.SentReport
-import eu.hxreborn.pixelinjector.support.Updater
 import eu.hxreborn.pixelinjector.ui.component.DetailScaffold
 import eu.hxreborn.pixelinjector.ui.component.SectionGap
 import eu.hxreborn.pixelinjector.ui.component.SectionHeader
@@ -435,7 +433,7 @@ private fun VersionTile(
     }
     val onClick = if (available != null) actions.onUpdate else onCheck
     Tile(shape = shape, onClick = onClick) {
-        TileLeading(Icons.Outlined.SystemUpdate)
+        TileLeading(Icons.Outlined.NewReleases)
         val supporting =
             when {
                 available != null -> {
@@ -494,7 +492,11 @@ private fun VersionTile(
                         shapes = ButtonDefaults.shapes(),
                         modifier = Modifier.clearAndSetSemantics { },
                     ) {
-                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Icon(
+                            Icons.AutoMirrored.Outlined.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                         Text(stringResource(R.string.update))
                     }
@@ -682,7 +684,7 @@ private fun LinkTile(
 @Composable
 private fun DeviceGroup(framework: String?) {
     val context = LocalContext.current
-    val signer = remember { Updater(context).installedSigners().firstOrNull() }
+    val signer = remember { ReportBuilder.installedSigner(context) }
     val rows =
         listOfNotNull(
             framework?.let { Triple(Icons.Outlined.Extension, R.string.settings_framework, it.replace("\n", " · ")) },

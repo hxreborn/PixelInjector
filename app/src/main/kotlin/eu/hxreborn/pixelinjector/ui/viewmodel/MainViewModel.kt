@@ -284,10 +284,9 @@ class MainViewModel(
             ) { release, reports -> release to reports },
             support.autoCheckUpdates,
             support.postponedVersion,
-            support.install,
             bound,
-        ) { (release, reports), autoCheck, postponed, install, _ ->
-            SupportState(release, reports, autoCheck, postponed, install, frameworkLabel())
+        ) { (release, reports), autoCheck, postponed, _ ->
+            SupportState(release, reports, autoCheck, postponed, frameworkLabel())
         }.stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
@@ -296,7 +295,6 @@ class MainViewModel(
                 support.reports.value,
                 support.autoCheckUpdates.value,
                 support.postponedVersion.value,
-                support.install.value,
                 null,
             ),
         )
