@@ -39,6 +39,10 @@ object Prefs {
     const val NOW_PLAYING_WIDTH_MIN = 40
     const val NOW_PLAYING_WIDTH_MAX = 160
     const val NOW_PLAYING_WIDTH_DEFAULT = 80
+    const val NOW_PLAYING_COLOR_FOLLOWS_STATUS_BAR = 0
+    const val NOW_PLAYING_OPACITY_MIN = 0
+    const val NOW_PLAYING_OPACITY_MAX = 100
+    const val NOW_PLAYING_OPACITY_DEFAULT = 20
     val NOW_PLAYING_CHIP = BoolPref("systemui.nowPlayingChip", false).register()
     val NOW_PLAYING_CHIP_SIDE =
         StringPref(
@@ -51,6 +55,21 @@ object Prefs {
             NOW_PLAYING_WIDTH_DEFAULT,
         ).register()
     val NOW_PLAYING_CHIP_HIDE_SHADE = BoolPref("systemui.nowPlayingChip.hideShade", true).register()
+    val NOW_PLAYING_CHIP_TEXT_COLOR =
+        IntPref(
+            "systemui.nowPlayingChip.textColor",
+            NOW_PLAYING_COLOR_FOLLOWS_STATUS_BAR,
+        ).register()
+    val NOW_PLAYING_CHIP_COLOR =
+        IntPref(
+            "systemui.nowPlayingChip.chipColor",
+            NOW_PLAYING_COLOR_FOLLOWS_STATUS_BAR,
+        ).register()
+    val NOW_PLAYING_CHIP_OPACITY =
+        IntPref(
+            "systemui.nowPlayingChip.chipOpacity",
+            NOW_PLAYING_OPACITY_DEFAULT,
+        ).register()
     val DOWNLOAD_CHIP = BoolPref("systemui.downloadChip", false).register()
     const val DOWNLOAD_CHIP_LEFT = "left"
     const val DOWNLOAD_CHIP_RIGHT = "right"

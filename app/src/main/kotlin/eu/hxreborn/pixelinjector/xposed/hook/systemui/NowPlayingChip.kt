@@ -49,7 +49,8 @@ private const val ICON_DP = 12
 private const val PADDING_DP = 4
 private const val GAP_DP = 3
 private const val TITLE_SP = 11f
-private const val PILL_ALPHA = 0x33000000
+private const val ALPHA_OPAQUE = 0xFF
+private const val ALPHA_SHIFT = 24
 private const val COLOR_MASK = 0x00FFFFFF
 private const val TEARDOWN_SECONDS = 3L
 
@@ -74,12 +75,29 @@ private val titleWidth =
         postUi(::place)
     }) { it.coerceIn(Prefs.NOW_PLAYING_WIDTH_MIN, Prefs.NOW_PLAYING_WIDTH_MAX) }
 private val hideShade = Switch(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE) { postUi(::render) }
+private val textColor =
+    Value(Prefs.NOW_PLAYING_CHIP_TEXT_COLOR, onLoad = { postUi(::applyTint) }) { it }
+private val chipColor =
+    Value(Prefs.NOW_PLAYING_CHIP_COLOR, onLoad = { postUi(::applyTint) }) { it }
+private val chipOpacity =
+    Value(Prefs.NOW_PLAYING_CHIP_OPACITY, onLoad = { postUi(::applyTint) }) {
+        it.coerceIn(Prefs.NOW_PLAYING_OPACITY_MIN, Prefs.NOW_PLAYING_OPACITY_MAX)
+    }
 
 internal val nowPlayingChip =
     Tweak(
         key = TWEAK,
         targets = setOf(Target.SYSTEMUI),
-        prefs = listOf(enabled, rightSide, titleWidth, hideShade),
+        prefs =
+            listOf(
+                enabled,
+                rightSide,
+                titleWidth,
+                hideShade,
+                textColor,
+                chipColor,
+                chipOpacity,
+            ),
         install = XposedModule::installNowPlayingChip,
         saveState = ::saveNowPlayingChipState,
         onReloadRejected = {
@@ -200,9 +218,13 @@ private fun place() {
 
 private fun applyTint() {
     val view = chip ?: return
-    (view.background as GradientDrawable).setColor((tint and COLOR_MASK) or PILL_ALPHA)
-    view.titleView.setTextColor(tint)
+    val pillRgb = (customColor(chipColor.value) ?: tint) and COLOR_MASK
+    val pillAlpha = chipOpacity.value * ALPHA_OPAQUE / Prefs.NOW_PLAYING_OPACITY_MAX
+    (view.background as GradientDrawable).setColor((pillAlpha shl ALPHA_SHIFT) or pillRgb)
+    view.titleView.setTextColor(customColor(textColor.value) ?: tint)
 }
+
+private fun customColor(stored: Int): Int? = stored.takeIf { it ushr ALPHA_SHIFT == ALPHA_OPAQUE }
 
 private fun render() {
     chip?.visibility =

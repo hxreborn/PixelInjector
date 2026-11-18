@@ -257,9 +257,15 @@ fun AppNavHost(
                         side = prefs[Prefs.NOW_PLAYING_CHIP_SIDE],
                         width = prefs[Prefs.NOW_PLAYING_CHIP_WIDTH],
                         hideShade = prefs[Prefs.NOW_PLAYING_CHIP_HIDE_SHADE],
+                        textColor = prefs[Prefs.NOW_PLAYING_CHIP_TEXT_COLOR],
+                        chipColor = prefs[Prefs.NOW_PLAYING_CHIP_COLOR],
+                        opacity = prefs[Prefs.NOW_PLAYING_CHIP_OPACITY],
                         onSideChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_SIDE, it) },
                         onWidthChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_WIDTH, it) },
                         onHideShadeChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE, it) },
+                        onTextColorChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_TEXT_COLOR, it) },
+                        onChipColorChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_COLOR, it) },
+                        onOpacityChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_OPACITY, it) },
                     )
                 }
                 entry<Destination.DownloadChipEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
