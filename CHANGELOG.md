@@ -1,3 +1,21 @@
+## [1.26.0](https://github.com/hxreborn/PixelInjector/compare/v1.25.2...v1.26.0) (2026-11-18)
+
+### Features
+
+* **tweak:** add FingerprintIcon wallpaper accent tint ([87222c9](https://github.com/hxreborn/PixelInjector/commit/87222c946eecb85e8720e0c1a0c9a0564e8dd13a)), closes [#73](https://github.com/hxreborn/PixelInjector/issues/73)
+* **tweak:** add NowPlayingChip text color, chip color and opacity ([72fcc3a](https://github.com/hxreborn/PixelInjector/commit/72fcc3a3944252cc25311a4014b2dfdb7c860945)), closes [#71](https://github.com/hxreborn/PixelInjector/issues/71)
+
+### Bug Fixes
+
+* **hook:** drop path literals and boot_id read from CrashGuard ([854c007](https://github.com/hxreborn/PixelInjector/commit/854c0079967a04a1109ab82221df611778848923))
+* **update:** copy release link when no browser opens it ([47a5a9d](https://github.com/hxreborn/PixelInjector/commit/47a5a9d845a3dc65852641777ee4c755a1ab3249))
+* **update:** delete leftover update APK on start ([e5cb9a6](https://github.com/hxreborn/PixelInjector/commit/e5cb9a690b92fb07dc591ce57c1194a66d0d3c67))
+* **update:** remove in-app install, open release page in browser ([73a1683](https://github.com/hxreborn/PixelInjector/commit/73a1683b8ff5b22924d157d49013d0a17b1250b7))
+
+### Refactor
+
+* **update:** merge support state flows into one combine ([21714bb](https://github.com/hxreborn/PixelInjector/commit/21714bb0439929c040abd13ae7d97f0f59cfd9da))
+
 ## [1.25.2](https://github.com/hxreborn/PixelInjector/compare/v1.25.1...v1.25.2) (2026-11-17)
 
 ### Bug Fixes
