@@ -51,6 +51,7 @@
     <string name="tweak_fingerprint_icon_desc">Replaces the lock screen fingerprint icon and its circle</string>
     <string name="tweak_fingerprint_icon_edit">Icon and circle</string>
     <string name="fingerprint_hide_circle">Hide the circle</string>
+    <string name="fingerprint_tint">Tint the icon with the wallpaper accent</string>
     <string name="fingerprint_style_stock">Stock</string>
     <string name="fingerprint_style_none">None</string>
     <string name="fingerprint_style_custom">Image</string>

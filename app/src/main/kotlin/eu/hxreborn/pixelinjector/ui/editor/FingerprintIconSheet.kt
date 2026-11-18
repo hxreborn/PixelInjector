@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -71,6 +72,7 @@ import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.icons.FingerprintStyles
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.component.Tile
+import eu.hxreborn.pixelinjector.ui.component.TileGap
 import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
@@ -92,6 +94,7 @@ private val SectionGap = 16.dp
 private val LockScreen = Color.Black
 private val LockScreenIcon = Color.White
 private const val COLUMNS = 4
+private const val DARK_LUMINANCE = 0.5f
 private const val ICON_PX = 192
 private const val SHEET_HEIGHT_FRACTION = 0.8f
 
@@ -101,8 +104,10 @@ fun fingerprintImageFile(context: Context): File = File(context.filesDir, Finger
 fun FingerprintIconSheet(
     style: String,
     hideCircle: Boolean,
+    tint: Boolean,
     onStyleChange: (String) -> Unit,
     onHideCircleChange: (Boolean) -> Unit,
+    onTintChange: (Boolean) -> Unit,
     onImagePicked: (Uri) -> Unit,
 ) {
     val context = LocalContext.current
@@ -126,26 +131,11 @@ fun FingerprintIconSheet(
 
     Column(Modifier.fillMaxHeight(SHEET_HEIGHT_FRACTION).padding(start = 16.dp, end = 16.dp, bottom = 20.dp)) {
         SheetHeader(stringResource(R.string.tweak_fingerprint_icon_edit), stringResource(R.string.tweak_fingerprint_icon_desc))
-        Preview(icon = if (imageSelected) pickedImage else icons[style], tinted = style == FingerprintStyles.STOCK, hideCircle = hideCircle)
-        Tile(
-            shape = TileShape,
-            checked = hideCircle,
-            onCheckedChange = onHideCircleChange,
-            modifier = Modifier.padding(top = SectionGap).semantics { role = Role.Switch },
-        ) {
-            TileText(stringResource(R.string.fingerprint_hide_circle))
-            Switch(
-                checked = hideCircle,
-                onCheckedChange = null,
-                thumbContent = {
-                    Icon(
-                        if (hideCircle) Icons.Filled.Check else Icons.Filled.Close,
-                        contentDescription = null,
-                        modifier = Modifier.size(SwitchDefaults.IconSize),
-                    )
-                },
-            )
-        }
+        Preview(
+            icon = if (imageSelected) pickedImage else icons[style],
+            iconTint = previewIconTint(style, tint),
+            hideCircle = hideCircle,
+        )
         val cells = listOf(FingerprintStyles.STOCK, FingerprintStyles.NONE) + FingerprintStyles.presets + FingerprintStyles.CUSTOM
         Column(
             Modifier
@@ -156,6 +146,10 @@ fun FingerprintIconSheet(
                 .verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(StyleGap),
         ) {
+            Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
+                SwitchTile(stringResource(R.string.fingerprint_hide_circle), hideCircle, onHideCircleChange)
+                SwitchTile(stringResource(R.string.fingerprint_tint), tint, onTintChange)
+            }
             cells.chunked(COLUMNS).forEach { row ->
                 Row(Modifier.fillMaxWidth()) {
                     row.forEach { key ->
@@ -176,6 +170,60 @@ fun FingerprintIconSheet(
                     repeat(COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SwitchTile(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Tile(
+        shape = TileShape,
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = Modifier.semantics { role = Role.Switch },
+    ) {
+        TileText(label)
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            thumbContent = {
+                Icon(
+                    if (checked) Icons.Filled.Check else Icons.Filled.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun previewIconTint(
+    style: String,
+    tint: Boolean,
+): Color? {
+    val colors = MaterialTheme.colorScheme
+    return when {
+        style == FingerprintStyles.STOCK -> {
+            LockScreenIcon
+        }
+
+        tint && style != FingerprintStyles.NONE -> {
+            if (colors.surface.luminance() <
+                DARK_LUMINANCE
+            ) {
+                colors.primary
+            } else {
+                colors.inversePrimary
+            }
+        }
+
+        else -> {
+            null
         }
     }
 }
@@ -225,7 +273,7 @@ private fun ImageCell(
 @Composable
 private fun Preview(
     icon: ImageBitmap?,
-    tinted: Boolean,
+    iconTint: Color?,
     hideCircle: Boolean,
 ) {
     val circleAlpha by animateFloatAsState(
@@ -253,7 +301,7 @@ private fun Preview(
                 icon,
                 contentDescription = null,
                 modifier = Modifier.size(PreviewIcon),
-                colorFilter = if (tinted) ColorFilter.tint(LockScreenIcon) else null,
+                colorFilter = iconTint?.let(ColorFilter::tint),
             )
         }
     }

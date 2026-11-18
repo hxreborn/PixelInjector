@@ -51,6 +51,7 @@
     <string name="tweak_fingerprint_icon_desc">Mengganti ikon sidik jari layar kunci beserta lingkarannya</string>
     <string name="tweak_fingerprint_icon_edit">Ikon dan lingkaran</string>
     <string name="fingerprint_hide_circle">Sembunyikan lingkaran</string>
+    <string name="fingerprint_tint">Warnai ikon dengan aksen wallpaper</string>
     <string name="fingerprint_style_stock">Bawaan</string>
     <string name="fingerprint_style_none">Tidak ada</string>
     <string name="fingerprint_style_custom">Gambar</string>

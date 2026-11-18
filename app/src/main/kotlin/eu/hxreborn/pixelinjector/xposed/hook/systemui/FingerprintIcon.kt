@@ -1,5 +1,7 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
+import android.content.Context
+import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -16,6 +18,7 @@ import android.util.StateSet
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.icons.FingerprintStyles
 import eu.hxreborn.pixelinjector.prefs.Prefs
@@ -42,6 +45,7 @@ private const val TWEAK = "FingerprintIcon"
 private const val ICON_VIEW = "com.android.systemui.keyguard.ui.view.DeviceEntryIconView"
 private const val UDFPS_VIEW = "com.android.systemui.biometrics.UdfpsKeyguardView"
 private const val SAMSUNG_LOCK_ICON_VIEW = "com.android.keyguard.SecLockIconView"
+private const val ACCENT_ATTR = "wallpaperTextColorAccent"
 private const val OPAQUE = 255
 private const val MAX_CUSTOM_ICON_SIZE_PX = 1024
 private const val MAX_CUSTOM_SOURCE_SIZE_PX = 32768
@@ -51,12 +55,13 @@ private const val MAX_CUSTOM_SOURCE_SIZE_PX = 32768
 private val switch = Switch(Prefs.FINGERPRINT_ICON) { current?.updateAll() }
 private val style = Value(Prefs.FINGERPRINT_ICON_STYLE, onLoad = { current?.updateAll() }) { it }
 private val hideCircle = Switch(Prefs.FINGERPRINT_HIDE_CIRCLE) { current?.updateAll() }
+private val tint = Switch(Prefs.FINGERPRINT_TINT) { current?.updateAll() }
 
 internal val fingerprintIcon =
     Tweak(
         key = TWEAK,
         targets = setOf(Target.SYSTEMUI),
-        prefs = listOf(switch, style, hideCircle),
+        prefs = listOf(switch, style, hideCircle, tint),
         install = XposedModule::installFingerprintIcon,
         saveState = { current?.carry() },
         onReloadRejected = { current?.resume() },
@@ -71,8 +76,25 @@ private class FingerprintSwap(
         set(value) {
             field = value
             value?.bounds = square(bounds)
-            invalidateSelf()
+            paintReplacement()
         }
+
+    var accentColor: (() -> Int?)? = null
+        set(value) {
+            field = value
+            paintReplacement()
+        }
+
+    override fun setTintList(colors: ColorStateList?) {
+        super.setTintList(colors)
+        paintReplacement()
+    }
+
+    private fun paintReplacement() {
+        val color = accentColor?.invoke()
+        if (color != null) replacement?.setTint(color) else replacement?.setTintList(null)
+        invalidateSelf()
+    }
 
     private fun isFingerprint(state: IntArray): Boolean =
         fingerprintStates.any {
@@ -121,6 +143,7 @@ private sealed interface IconTarget {
     fun apply(
         view: View,
         replacement: () -> Drawable?,
+        accentColor: (() -> Int?)?,
         hidden: Boolean,
         circleScale: Float,
     ): Boolean
@@ -159,6 +182,7 @@ private class DeviceEntryTarget(
     override fun apply(
         view: View,
         replacement: () -> Drawable?,
+        accentColor: (() -> Int?)?,
         hidden: Boolean,
         circleScale: Float,
     ): Boolean {
@@ -170,6 +194,7 @@ private class DeviceEntryTarget(
             val wrapper =
                 icon.drawable as? FingerprintSwap
                     ?: FingerprintSwap(stock, fingerprintStates(view)).also(icon::setImageDrawable)
+            wrapper.accentColor = accentColor
             wrapper.replacement = swap
         } else if (icon.drawable !== stock) {
             icon.setImageDrawable(stock)
@@ -194,6 +219,7 @@ private class UdfpsTarget(
     override fun apply(
         view: View,
         replacement: () -> Drawable?,
+        accentColor: (() -> Int?)?,
         hidden: Boolean,
         circleScale: Float,
     ): Boolean {
@@ -207,6 +233,7 @@ private class UdfpsTarget(
                         ColorDrawable(Color.TRANSPARENT),
                         listOf(StateSet.WILD_CARD),
                     ).apply {
+                        this.accentColor = accentColor
                         this.replacement = it
                     }
                 }
@@ -419,6 +446,10 @@ private class FingerprintBindings(
                     style != FingerprintStyles.NONE
             val cached = cachedIcon?.takeIf { it.style == style }
             if (swapping && cached == null) return loadAsync(view.resources, style)
+            val accentColor =
+                view.context.takeIf { swapping && tint.enabled }?.let { context ->
+                    { resolveAccentColor(context) }
+                }
             val applied =
                 target.apply(
                     view,
@@ -433,13 +464,20 @@ private class FingerprintBindings(
                             null
                         }
                     },
+                    accentColor = accentColor,
                     hidden = switch.enabled && style == FingerprintStyles.NONE,
                     circleScale = if (switch.enabled && hideCircle.enabled) 0f else 1f,
                 )
             if (!applied) return
             val styleLabel = style.ifEmpty { "stock" }
+            val tintLabel =
+                when {
+                    !tint.enabled -> "off"
+                    accentColor == null -> "no-icon"
+                    else -> accentColor()?.let { "#%08x".format(it) } ?: "missing"
+                }
             Logger.info(
-                "applied tweak=$TWEAK style=$styleLabel hideCircle=${hideCircle.enabled} on=${switch.enabled}",
+                "applied tweak=$TWEAK style=$styleLabel hideCircle=${hideCircle.enabled} tint=$tintLabel on=${switch.enabled}",
             )
         } catch (e: Exception) {
             Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
@@ -496,6 +534,19 @@ private class FingerprintBindings(
                 refresh = view.requiredMethod("updateColor"),
             )
         }
+    }
+}
+
+private fun resolveAccentColor(context: Context): Int? {
+    val attr =
+        context.resources.getIdentifier(
+            ACCENT_ATTR,
+            "attr",
+            ModuleConstants.SYSTEMUI_PACKAGE,
+        )
+    if (attr == 0) return null
+    return context.obtainStyledAttributes(intArrayOf(attr)).use {
+        if (it.hasValue(0)) it.getColor(0, 0) else null
     }
 }
 

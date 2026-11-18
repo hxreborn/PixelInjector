@@ -247,8 +247,10 @@ fun AppNavHost(
                     FingerprintIconSheet(
                         style = prefs[Prefs.FINGERPRINT_ICON_STYLE],
                         hideCircle = prefs[Prefs.FINGERPRINT_HIDE_CIRCLE],
+                        tint = prefs[Prefs.FINGERPRINT_TINT],
                         onStyleChange = { viewModel.save(Prefs.FINGERPRINT_ICON_STYLE, it) },
                         onHideCircleChange = { viewModel.save(Prefs.FINGERPRINT_HIDE_CIRCLE, it) },
+                        onTintChange = { viewModel.save(Prefs.FINGERPRINT_TINT, it) },
                         onImagePicked = viewModel::saveFingerprintImage,
                     )
                 }
