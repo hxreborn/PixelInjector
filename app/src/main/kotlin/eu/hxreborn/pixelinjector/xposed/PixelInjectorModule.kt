@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import android.os.Environment
 import android.os.Process
 import android.os.SystemClock
 import eu.hxreborn.pixelinjector.BuildConfig
@@ -19,7 +20,6 @@ import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import java.io.File
-import java.io.IOException
 import kotlin.concurrent.thread
 
 private const val SAVED_CLASSLOADER = "classLoader"
@@ -31,14 +31,10 @@ private const val ACTIVITY_THREAD = "android.app.ActivityThread"
 private const val TIMER_JOIN_MS = 1_000L
 private val PERSISTENT_TARGETS = setOf(Target.SYSTEM, Target.SYSTEMUI)
 
-private const val SYSTEM_DATA_DIR = "/data/system"
-private const val USER_DE_DIR = "/data/user_de"
-private const val UIDS_PER_USER = 100_000
-private const val BOOT_ID_FILE = "/proc/sys/kernel/random/boot_id"
+private const val SYSTEM_DIR_NAME = "system"
 private const val GUARD_FILE_PREFIX = "pixelinjector-guard-"
 private const val GUARD_FILE_SUFFIX = ".properties"
 private const val STABLE_AFTER_MS = 60_000L
-private const val MS_PER_MINUTE = 60_000L
 
 private class GuardSite(
     val file: File,
@@ -86,7 +82,7 @@ class PixelInjectorModule : XposedModule() {
             param.classLoader,
             origin = "boot",
             GuardSite(
-                guardFile(SYSTEM_DATA_DIR, process),
+                guardFile(systemDataDir(), process),
                 SYSTEM_SERVER_HOST,
             ),
         )
@@ -111,7 +107,7 @@ class PixelInjectorModule : XposedModule() {
 
     private fun packageGuardSite(info: ApplicationInfo?): GuardSite? {
         val dataDir = info?.deviceProtectedDataDir ?: return null
-        return GuardSite(guardFile(dataDir, process), info.sourceDir.orEmpty())
+        return GuardSite(guardFile(File(dataDir), process), info.sourceDir.orEmpty())
     }
 
     override fun onHotReloading(param: HotReloadingParam): Boolean {
@@ -255,17 +251,21 @@ class PixelInjectorModule : XposedModule() {
         saved: Map<*, *>,
         systemServer: Boolean,
         processName: String,
-    ): GuardSite {
+    ): GuardSite? {
+        val application = runningApplication()
+        val dataDir =
+            if (systemServer) systemDataDir() else application?.deviceProtectedDataDir?.let(::File)
         val file =
             (saved[SAVED_GUARD_FILE] as? String)?.let(::File)
-                ?: guardFile(hostDataDir(systemServer, processName), processName)
+                ?: dataDir?.let { guardFile(it, processName) }
+                ?: return null
         val hostApk =
             saved[SAVED_HOST_APK] as? String
-                ?: if (systemServer) SYSTEM_SERVER_HOST else runningHostApk()
+                ?: if (systemServer) SYSTEM_SERVER_HOST else application?.sourceDir.orEmpty()
         return GuardSite(file, hostApk)
     }
 
-    private fun runningHostApk(): String =
+    private fun runningApplication(): ApplicationInfo? =
         resolving {
             val application =
                 Class
@@ -273,32 +273,15 @@ class PixelInjectorModule : XposedModule() {
                         ACTIVITY_THREAD,
                     ).getMethod("currentApplication")
                     .invoke(null)
-            (application as? Application)?.applicationInfo?.sourceDir
-        }.getOrNull().orEmpty()
+            (application as? Application)?.applicationInfo
+        }.getOrNull()
 
-    private fun hostDataDir(
-        systemServer: Boolean,
-        processName: String,
-    ): String =
-        if (systemServer) {
-            SYSTEM_DATA_DIR
-        } else {
-            "$USER_DE_DIR/${Process.myUid() / UIDS_PER_USER}/${processName.substringBefore(':')}"
-        }
+    private fun systemDataDir(): File = File(Environment.getDataDirectory(), SYSTEM_DIR_NAME)
 
     private fun guardFile(
-        dir: String,
+        dir: File,
         processName: String,
     ): File = File(dir, GUARD_FILE_PREFIX + processName.replace(':', '_') + GUARD_FILE_SUFFIX)
-
-    private fun bootId(): String =
-        try {
-            File(BOOT_ID_FILE).readText().trim()
-        } catch (e: IOException) {
-            Logger.warn("boot id unreadable reason=${e.message}")
-            ((System.currentTimeMillis() - SystemClock.elapsedRealtime()) / MS_PER_MINUTE)
-                .toString()
-        }
 
     private fun openGuard(
         site: GuardSite,
@@ -309,7 +292,7 @@ class PixelInjectorModule : XposedModule() {
                 .open(
                     site.file,
                     "${BuildConfig.VERSION_CODE}|${Build.FINGERPRINT}|${site.hostApk}",
-                    bootId(),
+                    { System.currentTimeMillis() - SystemClock.elapsedRealtime() },
                     "${Process.myPid()}-${SystemClock.elapsedRealtimeNanos()}",
                     countEarlyDeaths,
                 ).also(::logGuard)

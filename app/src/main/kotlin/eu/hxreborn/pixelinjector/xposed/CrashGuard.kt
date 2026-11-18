@@ -3,9 +3,11 @@ package eu.hxreborn.pixelinjector.xposed
 import java.io.File
 import java.io.IOException
 import java.util.Properties
+import kotlin.math.abs
 
 private const val KEY_IDENTITY = "identity"
 private const val KEY_BOOT = "boot"
+private const val KEY_BOOT_INSTANT = "bootInstantMs"
 private const val KEY_GENERATION = "generation"
 private const val KEY_STABLE = "stable"
 private const val KEY_EARLY_DEATHS = "earlyDeaths"
@@ -15,6 +17,7 @@ private const val KEY_SAFE_MODE_BOOT = "safeModeBoot"
 private const val RUNTIME_DEATHS_FOR_SAFE_MODE = 2
 private const val ANY_DEATHS_FOR_SAFE_MODE = 4
 private const val STAGING_SUFFIX = ".tmp"
+private const val SAME_BOOT_TOLERANCE_MS = 10_000L
 
 private fun Properties.markStable() {
     remove(KEY_INSTALLING)
@@ -26,6 +29,7 @@ internal class CrashGuard private constructor(
     private val file: File,
     private val state: Properties,
     private val generation: String,
+    private val bootInstant: () -> Long,
     val crashedDuringInstall: String?,
     val earlyDeaths: Int,
     val quarantined: Set<String>,
@@ -34,13 +38,13 @@ internal class CrashGuard private constructor(
     @Synchronized
     fun installing(tweak: String) {
         state.setProperty(KEY_INSTALLING, tweak)
-        write(file, state, generation)
+        write(file, state, generation, bootInstant)
     }
 
     @Synchronized
     fun installed() {
         state.remove(KEY_INSTALLING)
-        write(file, state, generation)
+        write(file, state, generation, bootInstant)
     }
 
     @Synchronized
@@ -48,7 +52,7 @@ internal class CrashGuard private constructor(
         val current = read(file)
         if (current.getProperty(KEY_GENERATION) != generation) return
         current.markStable()
-        write(file, current, generation)
+        write(file, current, generation, bootInstant)
         state.markStable()
     }
 
@@ -56,7 +60,7 @@ internal class CrashGuard private constructor(
         fun open(
             file: File,
             identity: String,
-            bootId: String,
+            bootInstant: () -> Long,
             generation: String,
             countEarlyDeaths: Boolean,
         ): CrashGuard {
@@ -67,7 +71,13 @@ internal class CrashGuard private constructor(
                 } else {
                     Properties().apply { setProperty(KEY_IDENTITY, identity) }
                 }
-            val sameBoot = state.getProperty(KEY_BOOT) == bootId
+            val storedBoot = state.getProperty(KEY_BOOT)
+            val sameBoot =
+                storedBoot != null &&
+                    state.getProperty(KEY_BOOT_INSTANT)?.toLongOrNull()?.let {
+                        abs(bootInstant() - it) <= SAME_BOOT_TOLERANCE_MS
+                    } == true
+            val bootId = storedBoot.takeIf { sameBoot } ?: generation
             val crashed = state.getProperty(KEY_INSTALLING)?.takeIf { sameBoot && it.isNotEmpty() }
             state.remove(KEY_INSTALLING)
             if (crashed != null) {
@@ -93,11 +103,12 @@ internal class CrashGuard private constructor(
             state.setProperty(KEY_STABLE, false.toString())
             state.setProperty(KEY_EARLY_DEATHS, earlyDeaths.toString())
             deleteStaleStaging(file, generation)
-            write(file, state, generation)
+            write(file, state, generation, bootInstant)
             return CrashGuard(
                 file,
                 state,
                 generation,
+                bootInstant,
                 crashed,
                 earlyDeaths,
                 quarantinedTweaks(state).toSet(),
@@ -140,7 +151,9 @@ internal class CrashGuard private constructor(
             file: File,
             state: Properties,
             generation: String,
+            bootInstant: () -> Long,
         ) {
+            state.setProperty(KEY_BOOT_INSTANT, bootInstant().toString())
             val staging = File(file.parentFile, stagingName(file, generation))
             staging.outputStream().use { state.store(it, null) }
             val renamed = staging.renameTo(file)

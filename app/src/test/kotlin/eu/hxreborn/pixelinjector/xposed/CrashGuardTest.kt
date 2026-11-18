@@ -14,11 +14,22 @@ import java.io.IOException
 private const val IDENTITY = "12500|google/bluejay:17/CP4A.261105.040.A1|SystemUIGoogle.apk"
 private const val BOOT = "boot-a"
 private const val OTHER_BOOT = "boot-b"
+private const val START_WALL_MS = 1_795_000_000_000L
+private const val START_UPTIME_MS = 100_000L
+private const val RESTART_GAP_MS = 10L
+private const val REBOOT_DOWNTIME_MS = 30_000L
+private const val REBOOT_UPTIME_DROP_MS = 1_000L
+private const val REBOOT_UPTIME_RISE_MS = 20_000L
+private const val CLOCK_JITTER_MS = 2_000L
+private const val CLOCK_STEP_MS = 3_600_000L
 
 class CrashGuardTest {
     @get:Rule val folder = TemporaryFolder()
 
     private var generations = 0
+    private var uptimeMs = START_UPTIME_MS
+    private var wallMs = START_WALL_MS
+    private var currentBoot = BOOT
 
     private val file: File get() =
         File(
@@ -30,7 +41,24 @@ class CrashGuardTest {
         boot: String = BOOT,
         identity: String = IDENTITY,
         countEarlyDeaths: Boolean = true,
-    ) = CrashGuard.open(file, identity, boot, "gen-${generations++}", countEarlyDeaths)
+        uptimeAfterRebootMs: Long = uptimeMs - REBOOT_UPTIME_DROP_MS,
+    ): CrashGuard {
+        if (boot == currentBoot) {
+            uptimeMs += RESTART_GAP_MS
+            wallMs += RESTART_GAP_MS
+        } else {
+            currentBoot = boot
+            wallMs += REBOOT_DOWNTIME_MS + uptimeAfterRebootMs
+            uptimeMs = uptimeAfterRebootMs
+        }
+        return CrashGuard.open(
+            file,
+            identity,
+            { wallMs - uptimeMs },
+            "gen-${generations++}",
+            countEarlyDeaths,
+        )
+    }
 
     private fun cleanStart(boot: String = BOOT): CrashGuard = start(boot).also { it.installed() }
 
@@ -71,6 +99,69 @@ class CrashGuardTest {
         val afterReboot = start(boot = OTHER_BOOT)
         assertNull(afterReboot.crashedDuringInstall)
         assertEquals(emptySet<String>(), afterReboot.quarantined)
+    }
+
+    @Test
+    fun rebootWithEqualUptimeDuringInstallDoesNotQuarantine() {
+        start().installing("WarmTiles")
+        val afterReboot = start(boot = OTHER_BOOT, uptimeAfterRebootMs = uptimeMs)
+        assertNull(afterReboot.crashedDuringInstall)
+        assertEquals(emptySet<String>(), afterReboot.quarantined)
+    }
+
+    @Test
+    fun rebootWithGreaterUptimeDuringInstallDoesNotQuarantine() {
+        start().installing("WarmTiles")
+        val afterReboot =
+            start(boot = OTHER_BOOT, uptimeAfterRebootMs = uptimeMs + REBOOT_UPTIME_RISE_MS)
+        assertNull(afterReboot.crashedDuringInstall)
+        assertEquals(emptySet<String>(), afterReboot.quarantined)
+    }
+
+    @Test
+    fun rebootWithEqualUptimeClearsSafeMode() {
+        cleanStart()
+        cleanStart()
+        assertTrue(start().safeMode)
+        assertFalse(start(boot = OTHER_BOOT, uptimeAfterRebootMs = uptimeMs).safeMode)
+    }
+
+    @Test
+    fun rebootWithGreaterUptimeClearsSafeMode() {
+        cleanStart()
+        cleanStart()
+        assertTrue(start().safeMode)
+        val afterReboot =
+            start(boot = OTHER_BOOT, uptimeAfterRebootMs = uptimeMs + REBOOT_UPTIME_RISE_MS)
+        assertFalse(afterReboot.safeMode)
+    }
+
+    @Test
+    fun rebootWithGreaterUptimeIsNotAnEarlyDeath() {
+        cleanStart()
+        val afterReboot =
+            start(boot = OTHER_BOOT, uptimeAfterRebootMs = uptimeMs + REBOOT_UPTIME_RISE_MS)
+        assertEquals(0, afterReboot.earlyDeaths)
+    }
+
+    @Test
+    fun clockJitterWithinTheBootStaysTheSameBoot() {
+        start().installing("DownloadChip")
+        wallMs += CLOCK_JITTER_MS
+        assertEquals("DownloadChip", start().crashedDuringInstall)
+    }
+
+    @Test
+    fun clockStepWithinTheBootCountsAsANewBootAndKeepsQuarantine() {
+        start().installing("DownloadChip")
+        start().also {
+            it.installing("WarmTiles")
+            it.installed()
+        }
+        wallMs += CLOCK_STEP_MS
+        val next = start()
+        assertNull(next.crashedDuringInstall)
+        assertEquals(setOf("DownloadChip"), next.quarantined)
     }
 
     @Test
@@ -252,6 +343,12 @@ class CrashGuardTest {
 
     @Test(expected = IOException::class)
     fun missingDirectoryThrows() {
-        CrashGuard.open(File(folder.root, "missing/guard.properties"), IDENTITY, BOOT, "gen", true)
+        CrashGuard.open(
+            File(folder.root, "missing/guard.properties"),
+            IDENTITY,
+            { 0L },
+            "gen",
+            true,
+        )
     }
 }
