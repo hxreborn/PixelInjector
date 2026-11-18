@@ -101,6 +101,10 @@ class Support(
             prefs.edit { putInt(LAST_RUN_VERSION, BuildConfig.VERSION_CODE) }
         }
 
+    init {
+        scope.launch { File(context.cacheDir, LEGACY_UPDATE_DIR).deleteRecursively() }
+    }
+
     private fun cachedRelease(): ReleaseCheck {
         val body = prefs.getString(RELEASE_BODY, null) ?: return ReleaseCheck.Idle
         val release = runCatching { Release.parse(body) }.getOrNull()
@@ -492,6 +496,7 @@ class Support(
         private const val RELEASE_RETRY_AT = "releaseRetryAt"
         private const val POSTPONED_VERSION = "postponedVersion"
         private const val LAST_RUN_VERSION = "lastRunVersion"
+        private const val LEGACY_UPDATE_DIR = "update"
         private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
         private const val UNDO_WINDOW_MS = 6_000L
         private const val MILLIS = 1000L
