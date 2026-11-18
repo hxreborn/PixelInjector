@@ -278,14 +278,12 @@ class MainViewModel(
 
     val supportState: StateFlow<SupportState> =
         combine(
-            combine(
-                support.release,
-                support.reports,
-            ) { release, reports -> release to reports },
+            support.release,
+            support.reports,
             support.autoCheckUpdates,
             support.postponedVersion,
             bound,
-        ) { (release, reports), autoCheck, postponed, _ ->
+        ) { release, reports, autoCheck, postponed, _ ->
             SupportState(release, reports, autoCheck, postponed, frameworkLabel())
         }.stateIn(
             viewModelScope,
