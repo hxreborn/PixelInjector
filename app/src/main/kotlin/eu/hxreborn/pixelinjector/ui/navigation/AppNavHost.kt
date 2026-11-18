@@ -1,6 +1,8 @@
 package eu.hxreborn.pixelinjector.ui.navigation
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
@@ -481,7 +483,15 @@ fun AppNavHost(
                         UpdateSheet(
                             release = release,
                             fixes = support.fixesByLine,
-                            onOpenRelease = { uriHandler.openUri(release.url) },
+                            onOpenRelease = {
+                                try {
+                                    uriHandler.openUri(release.url)
+                                } catch (_: IllegalArgumentException) {
+                                    context
+                                        .getSystemService(ClipboardManager::class.java)
+                                        .setPrimaryClip(ClipData.newPlainText(release.versionName, release.url))
+                                }
+                            },
                         )
                     }
                 }
