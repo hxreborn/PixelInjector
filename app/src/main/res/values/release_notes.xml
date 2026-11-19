@@ -1,0 +1,9 @@
+<resources>
+    <string name="release_notes_features">Features</string>
+    <string name="release_notes_fixes">Fixes</string>
+    <string name="release_notes_performance">Performance</string>
+    <string name="release_notes_security">Security</string>
+    <string name="release_notes_other">Other</string>
+    <string name="changelog_area_dependencies">Dependencies</string>
+    <string name="changelog_area_utilities">Utilities</string>
+</resources>

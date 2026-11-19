@@ -31,15 +31,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Handyman
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
@@ -48,12 +50,14 @@ import androidx.compose.material.icons.outlined.Webhook
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -64,8 +68,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -76,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.support.Release
+import eu.hxreborn.pixelinjector.support.SentReport
 import eu.hxreborn.pixelinjector.ui.component.DetailScaffold
 import eu.hxreborn.pixelinjector.ui.component.SheetActions
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
@@ -93,10 +100,11 @@ private const val CHANGELOG_ASSET = "CHANGELOG.md"
 private val ChipRadius = 8.dp
 private val ScrollbarGutter = 12.dp
 private val ReleaseCardPadding = 12.dp
-private val SectionIconSize = 16.dp
+private val SectionIconSize = 20.dp
+private val SectionIconSpacing = 6.dp
 private val BadgeHeight = 22.dp
 private val BadgeIconSize = 14.dp
-private val NoteMinHeight = 40.dp
+private val NoteMinHeight = 48.dp
 
 private enum class NoteArea(
     val scopes: Set<String?>,
@@ -111,6 +119,8 @@ private enum class NoteArea(
     RELOAD(setOf("reload"), R.string.changelog_area_reload, Icons.Outlined.Refresh),
     INTERFACE(setOf("ui"), R.string.changelog_area_ui, Icons.Outlined.Palette),
     APP(setOf("app"), R.string.changelog_area_app, Icons.Outlined.Smartphone),
+    DEPENDENCIES(setOf("deps"), R.string.changelog_area_dependencies, Icons.Outlined.Extension),
+    UTILITIES(setOf("util"), R.string.changelog_area_utilities, Icons.Outlined.Handyman),
     OTHER(emptySet(), R.string.changelog_area_other, Icons.Outlined.Code),
     ;
 
@@ -233,36 +243,81 @@ private fun InstalledChip() {
     }
 }
 
+private enum class NoteSection(
+    @param:StringRes val title: Int,
+) {
+    FEATURES(R.string.release_notes_features),
+    FIXES(R.string.release_notes_fixes),
+    PERFORMANCE(R.string.release_notes_performance),
+    SECURITY(R.string.release_notes_security),
+    OTHER(R.string.release_notes_other),
+    ;
+
+    companion object {
+        fun of(note: Release.Note): NoteSection =
+            when (note.kind) {
+                Release.Note.Kind.NEW -> {
+                    FEATURES
+                }
+
+                Release.Note.Kind.FIXED -> {
+                    FIXES
+                }
+
+                Release.Note.Kind.OTHER -> {
+                    when (note.section) {
+                        "Performance Improvements" -> PERFORMANCE
+                        "Security" -> SECURITY
+                        else -> OTHER
+                    }
+                }
+            }
+    }
+}
+
 @Composable
-private fun ReleaseNotes(release: Release) {
-    val bySection = release.notes.sortedBy { it.kind.ordinal }.groupBy { it.section }
+internal fun ReleaseNotes(
+    release: Release,
+    fixes: Map<String, List<SentReport>> = emptyMap(),
+) {
+    val bySection = release.notes.groupBy(NoteSection::of)
     Column {
-        bySection.values.forEach { notes ->
-            SectionHeader(notes.first())
-            notes.sortedBy { NoteArea.of(it.scope).ordinal }.forEach { NoteRow(it) }
+        NoteSection.entries.forEach { section ->
+            val notes = bySection[section] ?: return@forEach
+            ReleaseNoteHeading(section)
+            notes.sortedBy { NoteArea.of(it.scope).ordinal }.forEach { note ->
+                NoteRow(note)
+                fixes[note.text]?.let { reports ->
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+                        FixMark(reports)
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SectionHeader(note: Release.Note) {
+private fun ReleaseNoteHeading(section: NoteSection) {
     val scheme = MaterialTheme.colorScheme
-    val (label, icon, tint) =
-        when (note.kind) {
-            Release.Note.Kind.NEW -> Triple(stringResource(R.string.notes_new), Icons.Outlined.AutoAwesome, scheme.primary)
-            Release.Note.Kind.FIXED -> Triple(stringResource(R.string.notes_fixed), Icons.Outlined.Build, scheme.tertiary)
-            Release.Note.Kind.OTHER -> Triple(note.section, Icons.Outlined.Code, scheme.onSurfaceVariant)
+    val (icon, tint) =
+        when (section) {
+            NoteSection.FEATURES -> painterResource(R.drawable.ic_changelog_auto_awesome) to scheme.primary
+            NoteSection.FIXES -> painterResource(R.drawable.ic_changelog_build) to scheme.tertiary
+            NoteSection.PERFORMANCE -> rememberVectorPainter(Icons.Outlined.Speed) to scheme.primary
+            NoteSection.SECURITY -> rememberVectorPainter(Icons.Outlined.Security) to scheme.tertiary
+            NoteSection.OTHER -> painterResource(R.drawable.ic_changelog_list_alt) to scheme.onSurfaceVariant
         }
     Row(
         Modifier.padding(start = 4.dp, end = 4.dp, top = 12.dp, bottom = 2.dp).semantics { heading() },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(SectionIconSpacing),
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(SectionIconSize))
         Text(
-            label.uppercase(),
+            stringResource(section.title),
             style = MaterialTheme.typography.labelMediumEmphasized,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = scheme.onSurfaceVariant,
         )
     }
 }

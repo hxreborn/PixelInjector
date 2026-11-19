@@ -16,11 +16,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -44,26 +41,8 @@ fun UpdateSheet(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         SheetHeader(stringResource(R.string.update_sheet_title, release.versionName))
-        Notes(stringResource(R.string.notes_new), release.notesNew, fixes)
-        Notes(stringResource(R.string.notes_fixed), release.notesFixed, fixes)
-        Notes(stringResource(R.string.notes_other), release.notesOther, fixes)
+        ReleaseNotes(release, fixes)
         Primary(stringResource(R.string.update_open_release), onOpenRelease)
-    }
-}
-
-@Composable
-fun Notes(
-    title: String,
-    lines: List<String>,
-    fixes: Map<String, List<SentReport>>,
-) {
-    if (lines.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (title.isNotEmpty()) Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        lines.forEach { line ->
-            NoteLine(line)
-            fixes[line]?.let { CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) { FixMark(it) } }
-        }
     }
 }
 

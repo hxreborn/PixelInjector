@@ -1,7 +1,9 @@
 package eu.hxreborn.pixelinjector.support
 
 import eu.hxreborn.pixelinjector.BuildConfig
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 
 data class Release(
     val versionName: String,
@@ -34,6 +36,7 @@ data class Release(
     companion object {
         private const val MAJOR = 10_000
         private const val MINOR = 100
+        private const val NOTE_ENTRIES = "noteEntries"
 
         fun versionCodeOf(versionName: String): Int {
             val parts =
@@ -73,6 +76,13 @@ data class Release(
         private val bulletCommit =
             Regex("""\(\[`?[0-9a-f]{7,40}`?]\((https://[^)]+/commit/[0-9a-f]{7,40})\)\)""")
 
+        private fun kindForSection(section: String): Note.Kind =
+            when (section) {
+                "Features" -> Note.Kind.NEW
+                "Bug Fixes" -> Note.Kind.FIXED
+                else -> Note.Kind.OTHER
+            }
+
         private fun parseNotes(body: String): List<Note> {
             val notes = mutableListOf<Note>()
             var section: Pair<Note.Kind, String>? = null
@@ -80,13 +90,7 @@ data class Release(
                 val heading = Regex("""^###\s+(.+?)\s*$""").find(line)
                 if (heading != null) {
                     val title = heading.groupValues[1]
-                    val kind =
-                        when (title) {
-                            "Features" -> Note.Kind.NEW
-                            "Bug Fixes" -> Note.Kind.FIXED
-                            else -> Note.Kind.OTHER
-                        }
-                    section = kind to title
+                    section = kindForSection(title) to title
                     return@forEach
                 }
                 if (Regex("""^#{1,2}\s""").containsMatchIn(line)) section = null
@@ -105,17 +109,15 @@ data class Release(
             return notes
         }
 
-        private fun notes(body: String): JSONObject {
-            val parsed = parseNotes(body)
-            return JSONObject().apply {
+        private fun notes(parsed: List<Note>): JSONObject =
+            JSONObject().apply {
                 Note.Kind.entries.forEach { kind ->
                     put(
                         kind.key,
-                        org.json.JSONArray(parsed.filter { it.kind == kind }.map { it.text }),
+                        JSONArray(parsed.filter { it.kind == kind }.map { it.text }),
                     )
                 }
             }
-        }
 
         private fun releaseUrl(versionName: String): String =
             "https://github.com/${ReportConfig.repo}/releases/tag/v$versionName"
@@ -123,14 +125,67 @@ data class Release(
         fun fromGitHub(body: String): String {
             val json = JSONObject(body)
             val tag = json.getString("tag_name")
+            val entries = parseNotes(json.optString("body"))
             return JSONObject()
                 .put("tag", tag)
                 .put("versionName", tag.removePrefix("v"))
                 .put("publishedAt", json.optStringOrNull("published_at"))
                 .put("url", json.optString("html_url"))
-                .put("notes", notes(json.optString("body")))
-                .toString()
+                .put("notes", notes(entries))
+                .put(
+                    NOTE_ENTRIES,
+                    JSONArray(
+                        entries.map { note ->
+                            JSONObject()
+                                .put("kind", note.kind.key)
+                                .put("section", note.section)
+                                .put("scope", note.scope)
+                                .put("text", note.text)
+                                .put("commitUrl", note.commitUrl)
+                        },
+                    ),
+                ).toString()
         }
+
+        internal fun enrichWorkerNotes(
+            body: String,
+            cached: String?,
+            fetchGitHub: () -> String?,
+        ): String {
+            val worker = runCatching { JSONObject(body) }.getOrNull() ?: return body
+            val version = worker.optString("versionName")
+            if (versionCodeOf(version) <= BuildConfig.VERSION_CODE ||
+                worker.structuredNotes() != null
+            ) {
+                return body
+            }
+            val entries =
+                matchingNotes(cached, version)
+                    ?: matchingNotes(
+                        fetchGitHubNotes(fetchGitHub),
+                        version,
+                    )
+                    ?: return body
+            return worker.put(NOTE_ENTRIES, entries).toString()
+        }
+
+        private fun fetchGitHubNotes(fetchGitHub: () -> String?): String? =
+            try {
+                fetchGitHub()?.let { runCatching { fromGitHub(it) }.getOrNull() }
+            } catch (_: IOException) {
+                null
+            }
+
+        private fun matchingNotes(
+            body: String?,
+            version: String,
+        ): JSONArray? {
+            val release = body?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return null
+            return release.takeIf { it.optString("versionName") == version }?.structuredNotes()
+        }
+
+        private fun JSONObject.structuredNotes(): JSONArray? =
+            optJSONArray(NOTE_ENTRIES)?.takeIf { it.readNotes().isNotEmpty() }
 
         private val changelogHeading =
             Regex(
@@ -157,18 +212,57 @@ data class Release(
             }
         }
 
+        private fun JSONArray.readNotes(): List<Note> =
+            (0 until length()).mapNotNull { index ->
+                val entry = optJSONObject(index) ?: return@mapNotNull null
+                val text = entry.optStringOrNull("text") ?: return@mapNotNull null
+                val section = entry.optString("section")
+                val kind =
+                    Note.Kind.entries.firstOrNull { it.key == entry.optString("kind") }
+                        ?: kindForSection(section)
+                Note(
+                    kind = kind,
+                    section = section,
+                    scope = entry.optStringOrNull("scope"),
+                    text = text,
+                    commitUrl =
+                        entry
+                            .optStringOrNull(
+                                "commitUrl",
+                            )?.takeIf { it.startsWith("https://") },
+                )
+            }
+
         fun parse(body: String): Release {
             val json = JSONObject(body)
             val versionName = json.getString("versionName")
             val notes = json.optJSONObject("notes") ?: JSONObject()
+            val entries = json.optJSONArray(NOTE_ENTRIES)?.readNotes().orEmpty()
+            val linesByKind =
+                Note.Kind.entries.associateWith { kind ->
+                    if (notes.optJSONArray(kind.key) == null) {
+                        entries.filter { it.kind == kind }.map { it.text }
+                    } else {
+                        notes.strings(kind.key)
+                    }
+                }
+            val structuredLines = entries.map { it.kind to it.text }.toSet()
+            val legacyNotes =
+                Note.Kind.entries.flatMap { kind ->
+                    linesByKind
+                        .getValue(kind)
+                        .filterNot { kind to it in structuredLines }
+                        .map { Note(kind, "", null, it, null) }
+                }
             return Release(
                 versionName = versionName,
                 versionCode = versionCodeOf(versionName),
                 publishedAt = json.optStringOrNull("publishedAt"),
                 url = json.optString("url").ifEmpty { releaseUrl(versionName) },
-                notesNew = notes.strings("new"),
-                notesFixed = notes.strings("fixed"),
-                notesOther = notes.strings("other"),
+                notesNew = linesByKind.getValue(Note.Kind.NEW),
+                notesFixed = linesByKind.getValue(Note.Kind.FIXED),
+                notesOther = linesByKind.getValue(Note.Kind.OTHER),
+                notes = entries + legacyNotes,
             )
         }
     }

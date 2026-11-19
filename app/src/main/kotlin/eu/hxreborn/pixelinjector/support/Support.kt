@@ -454,8 +454,13 @@ class Support(
     private fun fetchRelease(): ApiResponse {
         val worker = ReportClient.fetchRelease()
         if (worker is ApiResponse.Ok) {
+            val cached = prefs.getString(RELEASE_BODY, null)
+            val body =
+                Release.enrichWorkerNotes(worker.body, cached) {
+                    (ReportClient.fetchGitHubRelease(etag = null) as? ApiResponse.Ok)?.body
+                }
             prefs.edit { remove(GITHUB_ETAG) }
-            return worker
+            return worker.copy(body = body)
         }
         Log.w(ModuleConstants.LOG_TAG, "release check failed source=worker reason=$worker")
         val cached = prefs.getString(RELEASE_BODY, null)
