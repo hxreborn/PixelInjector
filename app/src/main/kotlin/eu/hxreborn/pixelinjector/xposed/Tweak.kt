@@ -57,6 +57,7 @@ internal class Tweak(
     val targets: Set<Target>,
     val prefs: List<Value<*, *>> = emptyList(),
     val saveState: () -> Any? = { null },
+    val restoreBeforeInstall: (Any?) -> Unit = {},
     val restoreState: (Any?) -> Unit = {},
     val onReloadRejected: () -> Unit = {},
     val install: XposedModule.(ClassLoader) -> Boolean,

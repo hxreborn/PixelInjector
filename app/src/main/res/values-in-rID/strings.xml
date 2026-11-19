@@ -69,6 +69,8 @@
     <string name="tweak_new_task_desc">Memulai aktivitas yang cocok dengan NEW_TASK</string>
     <string name="tweak_new_task_rules">Aturan NEW_TASK</string>
     <string name="tweak_new_task_rules_desc">Satu aturan per baris dengan format source:target[:ir,nd]</string>
+    <string name="tweak_crt_screen_off">Animasi layar mati</string>
+    <string name="tweak_crt_screen_off_desc">Mengganti efek memudar layar mati dengan animasi CRT</string>
     <string name="tweak_clipboard">Papan klip di latar belakang</string>
     <string name="tweak_clipboard_desc">Mengizinkan aplikasi yang dipilih membaca papan klip di latar belakang</string>
     <string name="tweak_clipboard_apps">Aplikasi yang diizinkan</string>

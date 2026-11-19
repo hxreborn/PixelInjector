@@ -69,6 +69,8 @@
     <string name="tweak_new_task_desc">Starts matching activities with NEW_TASK</string>
     <string name="tweak_new_task_rules">NEW_TASK rules</string>
     <string name="tweak_new_task_rules_desc">One rule per line as source:target[:ir,nd]</string>
+    <string name="tweak_crt_screen_off">Screen off animation</string>
+    <string name="tweak_crt_screen_off_desc">Replaces the screen-off fade with a CRT animation</string>
     <string name="tweak_clipboard">Clipboard in background</string>
     <string name="tweak_clipboard_desc">Allows selected apps to read the clipboard in the background</string>
     <string name="tweak_clipboard_apps">Allowed apps</string>

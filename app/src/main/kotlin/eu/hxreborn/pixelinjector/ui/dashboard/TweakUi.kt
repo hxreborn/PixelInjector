@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.UnfoldMore
 import androidx.compose.material.icons.outlined.VolumeOff
 import androidx.compose.material.icons.outlined.WifiOff
@@ -253,6 +254,13 @@ val tweakUis: List<TweakUi> =
             editor = TweakEditor(R.string.tweak_clipboard_apps, null, Destination.AppsEditor) { it[Prefs.CLIPBOARD_APPS].size.toString() },
         ),
         TweakUi(
+            "CrtScreenOff",
+            Prefs.CRT_SCREEN_OFF,
+            R.string.tweak_crt_screen_off,
+            R.string.tweak_crt_screen_off_desc,
+            TweakGroup.SYSTEM,
+        ),
+        TweakUi(
             "DoubleTapToSleep",
             Prefs.DOUBLE_TAP_TO_SLEEP,
             R.string.tweak_double_tap_sleep,
@@ -380,6 +388,7 @@ private val tweakSymbols: Map<String, ImageVector> =
         "StatusBarDoubleTap" to Icons.Outlined.TouchApp,
         "ForceNewTask" to Icons.Outlined.Layers,
         "ClipboardAllowlist" to Icons.Outlined.ContentPaste,
+        "CrtScreenOff" to Icons.Outlined.Tv,
         "DoubleTapToSleep" to Icons.Outlined.Bedtime,
         "TaskbarHandle" to Icons.Outlined.HorizontalRule,
         "HideSearchBar" to Icons.Outlined.SearchOff,

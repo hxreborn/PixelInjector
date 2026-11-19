@@ -66,6 +66,7 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 
 - **Force NEW_TASK**: adds NEW_TASK to activity starts that match your rules, one `source:target` per line.
 - **Clipboard in background**: allows selected apps to read the clipboard in the background.
+- **Screen off animation**: replaces the screen-off fade with a CRT animation. Frame math from the [YRRPs Lineage CRT](https://github.com/YRRPs/android_frameworks_base/pull/5).
 
 ### <img src="assets/icons/home.svg" width="20" alt=""> Launcher
 

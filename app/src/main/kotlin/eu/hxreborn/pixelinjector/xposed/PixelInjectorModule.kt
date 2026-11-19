@@ -351,12 +351,20 @@ class PixelInjectorModule : XposedModule() {
         tweak: Tweak,
         cl: ClassLoader,
         guard: CrashGuard,
+        savedState: Any?,
     ): Boolean {
         if (tweak.key in guard.quarantined) return skipInstall(tweak, "quarantined")
         if (!guardWrite("tweak=${tweak.key}") { guard.installing(tweak.key) }) {
             return skipInstall(tweak, "guard-unavailable")
         }
-        return installIsolated(tweak, cl)
+        return try {
+            tweak.restoreBeforeInstall(savedState)
+            tweak.install(this, cl)
+        } catch (e: Exception) {
+            installFailed(tweak, e)
+        } catch (e: LinkageError) {
+            installFailed(tweak, e)
+        }
     }
 
     private fun skipInstall(
@@ -380,18 +388,6 @@ class PixelInjectorModule : XposedModule() {
                 Logger.debug { "guard stable proc=$process afterMs=$STABLE_AFTER_MS" }
             }
     }
-
-    private fun installIsolated(
-        tweak: Tweak,
-        cl: ClassLoader,
-    ): Boolean =
-        try {
-            tweak.install(this, cl)
-        } catch (e: Exception) {
-            installFailed(tweak, e)
-        } catch (e: LinkageError) {
-            installFailed(tweak, e)
-        }
 
     private fun installFailed(
         tweak: Tweak,
@@ -455,7 +451,7 @@ class PixelInjectorModule : XposedModule() {
         val summary =
             try {
                 tweaks.associate { tweak ->
-                    tweak.key to installGuarded(tweak, cl, guard)
+                    tweak.key to installGuarded(tweak, cl, guard, saved?.get(tweak.key))
                 }
             } finally {
                 DexKit.release()

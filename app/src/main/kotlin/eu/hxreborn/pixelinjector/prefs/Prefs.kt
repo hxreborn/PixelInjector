@@ -110,6 +110,7 @@ object Prefs {
     val NEW_TASK_RULES = StringPref("system.newTask.rules", "").register()
     val CLIPBOARD = BoolPref("system.clipboard", false).register()
     val CLIPBOARD_APPS = StringSetPref("system.clipboard.apps", emptySet()).register()
+    val CRT_SCREEN_OFF = BoolPref("system.crtScreenOff", false).register()
     val DOUBLE_TAP_TO_SLEEP = BoolPref("launcher.doubleTapToSleep", false).register()
     val BIOMETRIC_BYPASS = BoolPref("systemui.biometricBypass", false).register()
     val BIOMETRIC_SOUND = StringPref("systemui.biometricBypass.sound", "").register()
