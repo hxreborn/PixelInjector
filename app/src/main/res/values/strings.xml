@@ -314,15 +314,16 @@
     </plurals>
     <string name="notes_less">Show less</string>
     <string name="fixes_your_report">Fixes your report %1$s</string>
-    <plurals name="updated_reloaded">
-        <item quantity="one">Updated to %2$s. %1$d process reloaded</item>
-        <item quantity="other">Updated to %2$s. %1$d processes reloaded</item>
+    <string name="updated_version">Updated to %1$s</string>
+    <string name="updated_target_version">%1$s on %2$s</string>
+    <plurals name="updated_older_version">
+        <item quantity="one">Updated to %1$s. %2$s still runs %3$s</item>
+        <item quantity="other">Updated to %1$s. %2$s still run %3$s</item>
     </plurals>
-    <plurals name="updated_stale">
-        <item quantity="one">Updated to %2$s. %1$d process still runs %3$s</item>
-        <item quantity="other">Updated to %2$s. %1$d processes still run %3$s</item>
+    <plurals name="updated_needs_reload">
+        <item quantity="one">Updated to %1$s. %2$s needs a reload</item>
+        <item quantity="other">Updated to %1$s. %2$s need a reload</item>
     </plurals>
-    <string name="updated_previous">an older version</string>
 
     <string name="status_waiting">Waiting to send</string>
     <string name="status_received">Received</string>

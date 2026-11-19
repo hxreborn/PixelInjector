@@ -141,6 +141,7 @@ fun AppNavHost(
                 },
                 onOpen = { push(it) },
                 onHotReload = viewModel::hotReloadPending,
+                onRetryUpdateReload = viewModel::retryUpdateReload,
                 onToggleTargets = {
                     if (backStack.lastOrNull() is Destination.Targets) backStack.removeLastOrNull() else backStack.add(Destination.Targets)
                 },
@@ -149,7 +150,7 @@ fun AppNavHost(
                 onUpdate = { push(Destination.Update) },
                 onLater = { viewModel.support.postponeUpdate(it) },
                 onResumeSupport = viewModel::onResumeSupport,
-                onUpdatedNoticeShown = viewModel::consumeUpdatedNotice,
+                onConsumeUpdateNotice = viewModel::consumeUpdatedNotice,
             )
         }
     val slideDistance = with(LocalDensity.current) { SlideDistance.roundToPx() }

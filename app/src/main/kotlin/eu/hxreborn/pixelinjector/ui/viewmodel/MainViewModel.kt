@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
@@ -59,6 +60,7 @@ import eu.hxreborn.pixelinjector.ui.util.LauncherApp
 import eu.hxreborn.pixelinjector.ui.util.Root
 import eu.hxreborn.pixelinjector.ui.util.loadLauncherApps
 import io.github.libxposed.service.HookedTarget
+import io.github.libxposed.service.XposedService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,6 +69,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
@@ -92,6 +95,8 @@ private val fixedPackages =
 private const val PREFS_SUBSCRIPTION_TIMEOUT_MS = 5_000L
 private const val RESTART_POLLS = 10
 private const val RESTART_POLL_MS = 500L
+private const val UPDATE_TARGET_POLL_MS = 500L
+private const val UPDATE_TARGET_TIMEOUT_MS = 8_000L
 
 data class HomeApp(
     val packageName: String,
@@ -99,6 +104,34 @@ data class HomeApp(
     val supported: Boolean,
     val loaded: Boolean,
 )
+
+class UpdateNotice(
+    val retryTargets: List<UpdateNoticeTarget>,
+    internal val service: XposedService,
+)
+
+class UpdateNoticeTarget(
+    val label: String,
+    val olderVersionCode: Long?,
+    internal val target: HookedTarget,
+)
+
+private data class TargetProcess(
+    val pid: Int,
+    val uid: Int,
+    val name: String,
+)
+
+private val HookedTarget.process: TargetProcess get() = TargetProcess(pid, uid, processName)
+
+private val HookedTarget.olderVersionCode: Long?
+    get() = loadedVersionCode.takeIf { it in 1 until BuildConfig.VERSION_CODE.toLong() }
+
+private val HookedTarget.needsUpdateReload: Boolean
+    get() = state != HookedTarget.State.RELOADING && (olderVersionCode != null || state == HookedTarget.State.FAILED)
+
+private val HookedTarget.hasUpdateReloadResult: Boolean
+    get() = loadedVersionCode == BuildConfig.VERSION_CODE.toLong() || state == HookedTarget.State.FAILED
 
 class MainViewModel(
     application: Application,
@@ -301,19 +334,47 @@ class MainViewModel(
             ),
         )
 
-    private val _updatedNotice = MutableStateFlow<Pair<Int, Int>?>(null)
-    val updatedNotice: StateFlow<Pair<Int, Int>?> = _updatedNotice.asStateFlow()
-    private var updateNoticeShown = false
+    private val _updatedNotice = MutableStateFlow<UpdateNotice?>(null)
+    val updatedNotice: StateFlow<UpdateNotice?> = _updatedNotice.asStateFlow()
 
-    fun consumeUpdatedNotice() {
+    fun consumeUpdatedNotice(): Boolean {
         _updatedNotice.value = null
+        return support.consumeUpdateNotice()
     }
 
-    private fun announceUpdate(list: List<HookedTarget>) {
-        if (updateNoticeShown || support.updatedFrom == null || list.isEmpty()) return
-        updateNoticeShown = true
-        val stale = list.count { it.loadedVersionCode < BuildConfig.VERSION_CODE }
-        _updatedNotice.value = (list.size - stale) to stale
+    private suspend fun announceUpdate(service: XposedService) {
+        _updatedNotice.update { notice -> notice?.takeIf { it.service === service } }
+        if (_updatedNotice.value != null || !support.updateNoticePending) return
+        val settledTargets = awaitUpdateTargets(service)
+        val retryTargets =
+            withContext(Dispatchers.IO) {
+                settledTargets.filter { it.needsUpdateReload }.map { target ->
+                    val name =
+                        if (target.processName == SYSTEM_PROCESS) {
+                            app.getString(R.string.scope_system)
+                        } else {
+                            label(target.processName.substringBefore(':'))
+                        }
+                    UpdateNoticeTarget(name, target.olderVersionCode, target)
+                }
+            }
+        if (app.service.value !== service || !support.updateNoticePending) return
+        targets.value = settledTargets
+        _updatedNotice.value = UpdateNotice(retryTargets, service)
+    }
+
+    private suspend fun awaitUpdateTargets(service: XposedService): List<HookedTarget> {
+        val deadline = SystemClock.elapsedRealtime() + UPDATE_TARGET_TIMEOUT_MS
+        while (true) {
+            val runningTargets = withContext(Dispatchers.IO) { readTargets(service) }
+            val remaining = deadline - SystemClock.elapsedRealtime()
+            if (runningTargets != null && runningTargets.none { it.state == HookedTarget.State.RELOADING } &&
+                (remaining <= 0 || runningTargets.all { it.hasUpdateReloadResult })
+            ) {
+                return runningTargets
+            }
+            delay(if (remaining > 0) minOf(UPDATE_TARGET_POLL_MS, remaining) else UPDATE_TARGET_POLL_MS)
+        }
     }
 
     fun reportFacts(): ReportFacts {
@@ -469,13 +530,15 @@ class MainViewModel(
         refreshLauncherApps()
         refreshModuleLog()
         viewModelScope.launch {
-            app.service.collect { service ->
+            app.service.collectLatest { service ->
                 if (service == null) {
                     targets.value = emptyList()
                     scopedPackages.value = null
+                    _updatedNotice.value = null
                     reloadRunner.onServiceDied()
                 } else {
                     refreshTargets()
+                    announceUpdate(service)
                 }
             }
         }
@@ -484,17 +547,18 @@ class MainViewModel(
     fun refreshTargets() {
         val service = app.service.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            targets.value =
-                runCatching { service.runningTargets.filter { it.hasTarget() } }
-                    .onFailure { Log.w(ModuleConstants.LOG_TAG, "getRunningTargets failed reason=${it.message}", it) }
-                    .getOrDefault(emptyList())
-            announceUpdate(targets.value)
+            targets.value = readTargets(service).orEmpty()
             scopedPackages.value =
                 runCatching { service.scope.toSet() }
                     .onFailure { Log.w(ModuleConstants.LOG_TAG, "getScope failed reason=${it.message}", it) }
                     .getOrNull()
         }
     }
+
+    private fun readTargets(service: XposedService): List<HookedTarget>? =
+        runCatching { service.runningTargets.filter { it.hasTarget() } }
+            .onFailure { Log.w(ModuleConstants.LOG_TAG, "getRunningTargets failed reason=${it.message}", it) }
+            .getOrNull()
 
     fun refreshModuleLog() {
         viewModelScope.launch(Dispatchers.IO) { logLock.withLock { loadModuleLog() } }
@@ -527,6 +591,17 @@ class MainViewModel(
     }
 
     fun hotReloadPending() = hotReload(selectReloadTargets(reloadTargets.value))
+
+    fun retryUpdateReload(notice: UpdateNotice) {
+        val service = notice.service
+        viewModelScope.launch {
+            if (app.service.value !== service) return@launch
+            val runningTargets = withContext(Dispatchers.IO) { readTargets(service) } ?: return@launch
+            val retryProcesses = runningTargets.filter { it.needsUpdateReload }.mapTo(mutableSetOf()) { it.process }
+            val retryTargets = notice.retryTargets.map { it.target }.filter { it.process in retryProcesses }
+            if (app.service.value === service && retryTargets.isNotEmpty()) reloadRunner.start(service, retryTargets)
+        }
+    }
 
     fun cancelHotReload() = reloadRunner.cancel()
 

@@ -96,10 +96,18 @@ class Support(
     private val _postponedVersion = MutableStateFlow(prefs.getInt(POSTPONED_VERSION, 0))
     val postponedVersion: StateFlow<Int> = _postponedVersion.asStateFlow()
 
-    val updatedFrom: Int? =
-        prefs.getInt(LAST_RUN_VERSION, 0).takeIf { it in 1 until BuildConfig.VERSION_CODE }.also {
-            prefs.edit { putInt(LAST_RUN_VERSION, BuildConfig.VERSION_CODE) }
+    var updateNoticePending: Boolean =
+        (prefs.getInt(LAST_RUN_VERSION, 0) in 1 until BuildConfig.VERSION_CODE).also { pending ->
+            if (!pending) prefs.edit { putInt(LAST_RUN_VERSION, BuildConfig.VERSION_CODE) }
         }
+        private set
+
+    fun consumeUpdateNotice(): Boolean {
+        if (!updateNoticePending) return false
+        updateNoticePending = false
+        prefs.edit { putInt(LAST_RUN_VERSION, BuildConfig.VERSION_CODE) }
+        return true
+    }
 
     init {
         scope.launch { File(context.cacheDir, LEGACY_UPDATE_DIR).deleteRecursively() }

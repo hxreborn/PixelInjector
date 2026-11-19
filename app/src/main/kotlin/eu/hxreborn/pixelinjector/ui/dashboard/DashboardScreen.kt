@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.ui.dashboard
 
+import android.icu.text.ListFormatter
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -89,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -114,12 +116,15 @@ import eu.hxreborn.pixelinjector.ui.component.compactHeight
 import eu.hxreborn.pixelinjector.ui.component.readableGutter
 import eu.hxreborn.pixelinjector.ui.component.sectionHeader
 import eu.hxreborn.pixelinjector.ui.component.tileGroup
+import eu.hxreborn.pixelinjector.ui.component.versionLabel
 import eu.hxreborn.pixelinjector.ui.log.processKey
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.support.SupportState
 import eu.hxreborn.pixelinjector.ui.support.UpdateCard
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
+import eu.hxreborn.pixelinjector.ui.viewmodel.UpdateNotice
+import eu.hxreborn.pixelinjector.ui.viewmodel.UpdateNoticeTarget
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -214,12 +219,39 @@ private fun rows(
         )
     }
 
+@Composable
+private fun updateNoticeText(targets: List<UpdateNoticeTarget>): String {
+    if (targets.isEmpty()) return stringResource(R.string.updated_version, BuildConfig.VERSION_NAME)
+    val olderVersion = targets.map { it.olderVersionCode }.distinct().singleOrNull()
+    val labels =
+        targets.map { target ->
+            val version = target.olderVersionCode
+            if (olderVersion == null && version != null) {
+                stringResource(R.string.updated_target_version, target.label, versionLabel(version))
+            } else {
+                target.label
+            }
+        }
+    val targetList = ListFormatter.getInstance(LocalConfiguration.current.locales[0]).format(labels)
+    return if (olderVersion == null) {
+        pluralStringResource(R.plurals.updated_needs_reload, targets.size, BuildConfig.VERSION_NAME, targetList)
+    } else {
+        pluralStringResource(
+            R.plurals.updated_older_version,
+            targets.size,
+            BuildConfig.VERSION_NAME,
+            targetList,
+            versionLabel(olderVersion),
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DashboardScreen(
     state: DashboardState,
     support: SupportState,
-    updatedNotice: Pair<Int, Int>?,
+    updatedNotice: UpdateNotice?,
     targetsOpen: Boolean,
     hideUnavailable: Boolean,
     showPackages: Boolean,
@@ -236,26 +268,13 @@ fun DashboardScreen(
     }
     val snackbar = remember { SnackbarHostState() }
     val reloadLabel = stringResource(R.string.reload)
-    val updatedText =
-        updatedNotice?.let { (reloaded, stale) ->
-            if (stale > 0) {
-                pluralStringResource(
-                    R.plurals.updated_stale,
-                    stale,
-                    stale,
-                    BuildConfig.VERSION_NAME,
-                    stringResource(R.string.updated_previous),
-                )
-            } else {
-                pluralStringResource(R.plurals.updated_reloaded, reloaded, reloaded, BuildConfig.VERSION_NAME)
-            }
-        }
+    val updatedText = updatedNotice?.let { updateNoticeText(it.retryTargets) }
     val noticeScope = rememberCoroutineScope()
     LaunchedEffect(updatedNotice) {
         val notice = updatedNotice ?: return@LaunchedEffect
-        val text = updatedText.orEmpty()
-        val action = reloadLabel.takeIf { notice.second > 0 }
-        actions.onUpdatedNoticeShown()
+        val text = updatedText ?: return@LaunchedEffect
+        val action = reloadLabel.takeIf { notice.retryTargets.isNotEmpty() }
+        if (!actions.onConsumeUpdateNotice()) return@LaunchedEffect
         noticeScope.launch {
             val result =
                 snackbar.showSnackbar(
@@ -263,7 +282,7 @@ fun DashboardScreen(
                     action,
                     duration = if (action != null) SnackbarDuration.Long else SnackbarDuration.Short,
                 )
-            if (result == SnackbarResult.ActionPerformed) actions.onHotReload()
+            if (result == SnackbarResult.ActionPerformed) actions.onRetryUpdateReload(notice)
         }
     }
     val homeApp = state.homeApp

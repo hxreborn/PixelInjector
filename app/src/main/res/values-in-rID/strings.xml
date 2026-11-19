@@ -314,15 +314,16 @@
     </plurals>
     <string name="notes_less">Tampilkan lebih sedikit</string>
     <string name="fixes_your_report">Memperbaiki laporan Anda %1$s</string>
-    <plurals name="updated_reloaded">
-        <item quantity="one">Diperbarui ke %2$s. %1$d proses dimuat ulang</item>
-        <item quantity="other">Diperbarui ke %2$s. %1$d proses dimuat ulang</item>
+    <string name="updated_version">Diperbarui ke %1$s</string>
+    <string name="updated_target_version">%1$s versi %2$s</string>
+    <plurals name="updated_older_version">
+        <item quantity="one">Diperbarui ke %1$s. %2$s masih menjalankan %3$s</item>
+        <item quantity="other">Diperbarui ke %1$s. %2$s masih menjalankan %3$s</item>
     </plurals>
-    <plurals name="updated_stale">
-        <item quantity="one">Diperbarui ke %2$s. %1$d proses masih menjalankan %3$s</item>
-        <item quantity="other">Diperbarui ke %2$s. %1$d proses masih menjalankan %3$s</item>
+    <plurals name="updated_needs_reload">
+        <item quantity="one">Diperbarui ke %1$s. %2$s perlu dimuat ulang</item>
+        <item quantity="other">Diperbarui ke %1$s. %2$s perlu dimuat ulang</item>
     </plurals>
-    <string name="updated_previous">versi lama</string>
 
     <string name="status_waiting">Menunggu untuk dikirim</string>
     <string name="status_received">Diterima</string>
