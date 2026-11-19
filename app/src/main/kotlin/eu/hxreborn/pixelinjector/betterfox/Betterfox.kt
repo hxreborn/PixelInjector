@@ -28,9 +28,7 @@ class BetterfoxPref(
     val file: String,
     val line: Int,
     val about: BetterfoxAbout = BetterfoxAbout(),
-) {
-    val isStock: Boolean get() = stock == value
-}
+)
 
 class BetterfoxTag(
     val tag: String,

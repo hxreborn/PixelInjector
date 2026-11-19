@@ -42,8 +42,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Balance
 import androidx.compose.material.icons.outlined.BugReport
@@ -84,8 +82,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
@@ -133,6 +129,7 @@ import eu.hxreborn.pixelinjector.ui.component.StateChip
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileGap
 import eu.hxreborn.pixelinjector.ui.component.TileLeading
+import eu.hxreborn.pixelinjector.ui.component.TileSwitch
 import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.component.readableGutter
 import eu.hxreborn.pixelinjector.ui.component.tileShape
@@ -450,17 +447,7 @@ private fun SwitchTile(
     ) {
         TileLeading(icon)
         TileText(title, summary)
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            thumbContent = {
-                Icon(
-                    if (checked) Icons.Filled.Check else Icons.Filled.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                )
-            },
-        )
+        TileSwitch(checked)
     }
 }
 

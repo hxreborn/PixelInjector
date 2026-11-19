@@ -56,8 +56,9 @@ data class ReportEvent(
         ): List<ReportEvent> =
             array
                 ?.let { a ->
-                    List(a.length()) { a.optJSONObject(it) }.mapNotNull { json ->
-                        json?.let(::from)?.copy(note = decodeNote(json))
+                    (0 until a.length()).mapNotNull { index ->
+                        val json = a.optJSONObject(index) ?: return@mapNotNull null
+                        from(json)?.copy(note = decodeNote(json))
                     }
                 }.orEmpty()
     }

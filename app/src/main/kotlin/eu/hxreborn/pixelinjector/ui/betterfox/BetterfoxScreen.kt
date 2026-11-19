@@ -28,8 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Undo
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MoreVert
@@ -53,8 +51,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -95,6 +91,7 @@ import eu.hxreborn.pixelinjector.ui.component.SectionHeader
 import eu.hxreborn.pixelinjector.ui.component.StateChip
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileGap
+import eu.hxreborn.pixelinjector.ui.component.TileSwitch
 import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.component.readableGutter
 import eu.hxreborn.pixelinjector.ui.component.sectionHeader
@@ -515,17 +512,7 @@ private fun MasterSwitch(
         modifier = Modifier.semantics { role = Role.Switch },
     ) {
         TileText(stringResource(R.string.betterfox_use))
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            thumbContent = {
-                Icon(
-                    if (checked) Icons.Filled.Check else Icons.Filled.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                )
-            },
-        )
+        TileSwitch(checked)
     }
 }
 

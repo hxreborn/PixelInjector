@@ -29,7 +29,7 @@ private const val REQUEST = "com.android.server.wm.ActivityStarter\$Request"
 private const val RECORD = "com.android.server.wm.ActivityRecord"
 
 private val switch = Switch(Prefs.NEW_TASK)
-private val rules = Value(Prefs.NEW_TASK_RULES) { parseNewTaskRules(it) }
+private val rules = Value(Prefs.NEW_TASK_RULES, map = ::parseNewTaskRules)
 
 internal val forceNewTask =
     Tweak(
