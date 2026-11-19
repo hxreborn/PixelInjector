@@ -1,0 +1,9 @@
+<resources>
+    <string name="release_notes_features">Fitur</string>
+    <string name="release_notes_fixes">Perbaikan</string>
+    <string name="release_notes_performance">Performa</string>
+    <string name="release_notes_security">Keamanan</string>
+    <string name="release_notes_other">Lainnya</string>
+    <string name="changelog_area_dependencies">Dependensi</string>
+    <string name="changelog_area_utilities">Utilitas</string>
+</resources>

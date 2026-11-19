@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +54,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FontDownload
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Inbox
@@ -154,6 +157,7 @@ class SettingsActions(
     val onHideUnavailable: (Boolean) -> Unit,
     val onShowPackages: (Boolean) -> Unit,
     val onModuleLog: () -> Unit,
+    val onUseSystemFont: (Boolean) -> Unit,
     val onDateFormat: () -> Unit,
     val onAbout: () -> Unit,
 )
@@ -172,6 +176,7 @@ fun SettingsScreen(
     hideUnavailable: Boolean,
     showPackages: Boolean,
     dateStyle: DateStyle,
+    useSystemFont: Boolean,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
@@ -237,6 +242,17 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+            Spacer(Modifier.height(SectionGap))
+            Group(stringResource(R.string.settings_appearance), 1) { _, shape ->
+                SwitchTile(
+                    shape,
+                    Icons.Outlined.FontDownload,
+                    stringResource(R.string.use_system_font),
+                    null,
+                    useSystemFont,
+                    actions.onUseSystemFont,
+                )
             }
             Spacer(Modifier.height(SectionGap))
             Group(stringResource(R.string.settings_support), 3) { index, shape ->
@@ -354,6 +370,7 @@ fun AboutScreen(
             }
             Spacer(Modifier.height(SectionGap))
             DeviceGroup(framework)
+            ContributorsSection(actions.onOpenUrl)
         }
     }
 }
@@ -624,7 +641,7 @@ private fun IdentityCard(
                 )
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
+                Modifier.fillMaxWidth().padding(top = 4.dp).height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
             ) {
                 Button(
@@ -634,11 +651,11 @@ private fun IdentityCard(
                             ButtonGroupDefaults.connectedLeadingButtonShape,
                             ButtonGroupDefaults.connectedLeadingButtonPressShape,
                         ),
-                    modifier = Modifier.weight(1f).heightIn(min = ConnectedButtonHeight),
+                    modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = ConnectedButtonHeight),
                 ) {
                     Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.star_on_github), style = AppText.button, maxLines = 1)
+                    Text(stringResource(R.string.star_on_github), style = AppText.button)
                 }
                 FilledTonalButton(
                     onClick = { onOpenUrl(KOFI_URL) },
@@ -647,11 +664,11 @@ private fun IdentityCard(
                             ButtonGroupDefaults.connectedTrailingButtonShape,
                             ButtonGroupDefaults.connectedTrailingButtonPressShape,
                         ),
-                    modifier = Modifier.weight(1f).heightIn(min = ConnectedButtonHeight),
+                    modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = ConnectedButtonHeight),
                 ) {
                     Icon(Icons.Outlined.Coffee, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.kofi), style = AppText.button, maxLines = 1)
+                    Text(stringResource(R.string.kofi), style = AppText.button)
                 }
             }
         }

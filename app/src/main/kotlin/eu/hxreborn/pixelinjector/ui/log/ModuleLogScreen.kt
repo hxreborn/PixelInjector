@@ -157,12 +157,13 @@ fun ModuleLogScreen(
     LaunchedEffect(visible.size) { if (visible.isNotEmpty()) listState.scrollToItem(visible.lastIndex) }
     val panState = rememberScrollState()
     LaunchedEffect(wrap) { if (wrap) panState.scrollTo(0) }
+    val consoleStyle = AppText.console
     val textMeasurer = rememberTextMeasurer()
     val widestPx =
-        remember(visible, textMeasurer, wrap) {
+        remember(visible, textMeasurer, wrap, consoleStyle) {
             if (wrap) return@remember 0
             visible.maxByOrNull { it.process.length + it.body.length }?.let { longest ->
-                textMeasurer.measure("I 00:00:00  ${longest.process}   ${longest.body}", AppText.console).size.width
+                textMeasurer.measure("I 00:00:00  ${longest.process}   ${longest.body}", consoleStyle).size.width
             } ?: 0
         }
 
@@ -266,9 +267,9 @@ fun ModuleLogScreen(
 
                 else -> {
                     val bodyStyle =
-                        remember(
-                            wrap,
-                        ) { if (wrap) AppText.console.copy(textIndent = TextIndent(restLine = HangingIndent)) else AppText.console }
+                        remember(wrap, consoleStyle) {
+                            if (wrap) consoleStyle.copy(textIndent = TextIndent(restLine = HangingIndent)) else consoleStyle
+                        }
                     BoxWithConstraints(Modifier.fillMaxWidth().verticalScrollbar(listState)) {
                         val listWidth = with(LocalDensity.current) { maxOf(maxWidth, widestPx.toDp() + PanSlack) }
                         val viewportWidth = maxWidth

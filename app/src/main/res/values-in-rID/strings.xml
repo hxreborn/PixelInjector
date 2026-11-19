@@ -481,4 +481,6 @@
     <string name="now_playing_chip_color_reset">Setel ulang</string>
     <string name="now_playing_chip_opacity">Opasitas chip</string>
     <string name="now_playing_chip_opacity_value">%1$d%%</string>
+    <string name="settings_appearance">Tampilan</string>
+    <string name="use_system_font">Gunakan font sistem</string>
 </resources>

@@ -5,6 +5,8 @@ VERSION="$1"
 IFS='.' read -r MAJOR MINOR PATCH <<<"$VERSION"
 CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
 
+python3 scripts/update_contributors.py
+
 sed -i "s/^version\.name=.*/version.name=$VERSION/" gradle.properties
 sed -i "s/^version\.code=.*/version.code=$CODE/" gradle.properties
 

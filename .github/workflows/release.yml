@@ -31,6 +31,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install contributor avatar converter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
       - name: Decode keystore
         env:
           RELEASE_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE }}
