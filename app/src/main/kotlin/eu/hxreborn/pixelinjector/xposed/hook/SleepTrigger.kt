@@ -14,8 +14,7 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
-private const val KEYCODE_LOCK = 324
-private const val LOCK_THEN_SLEEP = "input keyevent $KEYCODE_LOCK ${KeyEvent.KEYCODE_SLEEP}"
+private const val ROOT_SLEEP_COMMAND = "input keyevent ${KeyEvent.KEYCODE_SLEEP}"
 
 internal class SleepTrigger(
     private val tweak: String,
@@ -33,7 +32,7 @@ internal class SleepTrigger(
             if (viaRoot) {
                 thread(name = "PixelInjector-$tweak") {
                     try {
-                        lockAndSleepWithRoot()
+                        sleepWithRoot()
                     } finally {
                         pending.set(false)
                     }
@@ -54,9 +53,9 @@ internal class SleepTrigger(
         }
     }
 
-    private fun lockAndSleepWithRoot() {
+    private fun sleepWithRoot() {
         try {
-            val (code, output) = runRootCommand(LOCK_THEN_SLEEP)
+            val (code, output) = runRootCommand(ROOT_SLEEP_COMMAND)
             if (code == 0) {
                 Logger.info("sleep path=root tweak=$tweak exit=0")
             } else {
