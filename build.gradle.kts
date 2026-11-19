@@ -1,14 +1,7 @@
 import org.gradle.api.plugins.BasePlugin
-import org.gradle.api.tasks.Delete
 
 plugins {
     base
-}
-
-tasks.named<Delete>("clean") {
-    group = BasePlugin.BUILD_GROUP
-    description = "Deletes the build directory."
-    delete(rootProject.layout.buildDirectory)
 }
 
 tasks.register("assembleDebugRelease") {

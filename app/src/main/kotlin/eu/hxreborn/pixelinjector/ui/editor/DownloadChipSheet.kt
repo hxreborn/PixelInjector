@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.BatteryFull
 import androidx.compose.material.icons.outlined.Download
@@ -34,8 +32,6 @@ import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.runtime.Composable
@@ -53,9 +49,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.ui.component.EditorSwitchTile
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.component.Tile
-import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 
@@ -111,16 +107,7 @@ fun DownloadChipSheet(
             appIcon = icon == Prefs.DOWNLOAD_CHIP_APP,
             hideStatusIcon = hideStatusIcon,
         )
-        ChipChoiceTile(
-            title = stringResource(R.string.download_chip_side),
-            options =
-                listOf(
-                    Prefs.DOWNLOAD_CHIP_LEFT to stringResource(R.string.download_chip_left),
-                    Prefs.DOWNLOAD_CHIP_RIGHT to stringResource(R.string.download_chip_right),
-                ),
-            selected = side,
-            onSelect = onSideChange,
-        )
+        ChipSideTile(side, onSideChange)
         ChipChoiceTile(
             title = stringResource(R.string.download_chip_icon),
             options =
@@ -132,16 +119,31 @@ fun DownloadChipSheet(
             onSelect = onIconChange,
         )
         Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
-            ChipSwitchTile(stringResource(R.string.download_chip_hide_locked), hideLocked, onHideLockedChange)
-            ChipSwitchTile(stringResource(R.string.download_chip_hide_heads_up), hideHeadsUp, onHideHeadsUpChange)
-            ChipSwitchTile(stringResource(R.string.download_chip_hide_status_icon), hideStatusIcon, onHideStatusIconChange)
+            EditorSwitchTile(stringResource(R.string.download_chip_hide_locked), hideLocked, onHideLockedChange)
+            EditorSwitchTile(stringResource(R.string.download_chip_hide_heads_up), hideHeadsUp, onHideHeadsUpChange)
+            EditorSwitchTile(stringResource(R.string.download_chip_hide_status_icon), hideStatusIcon, onHideStatusIconChange)
         }
     }
 }
 
+@Composable
+internal fun ChipSideTile(
+    side: String,
+    onSideChange: (String) -> Unit,
+) = ChipChoiceTile(
+    title = stringResource(R.string.download_chip_side),
+    options =
+        listOf(
+            Prefs.DOWNLOAD_CHIP_LEFT to stringResource(R.string.download_chip_left),
+            Prefs.DOWNLOAD_CHIP_RIGHT to stringResource(R.string.download_chip_right),
+        ),
+    selected = side,
+    onSelect = onSideChange,
+)
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun ChipChoiceTile(
+private fun ChipChoiceTile(
     title: String,
     options: List<Pair<String, String>>,
     selected: String,
@@ -172,33 +174,6 @@ internal fun ChipChoiceTile(
                 }
             }
         }
-    }
-}
-
-@Composable
-internal fun ChipSwitchTile(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Tile(
-        shape = TileShape,
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        modifier = Modifier.semantics { role = Role.Switch },
-    ) {
-        TileText(title)
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            thumbContent = {
-                Icon(
-                    if (checked) Icons.Filled.Check else Icons.Filled.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                )
-            },
-        )
     }
 }
 

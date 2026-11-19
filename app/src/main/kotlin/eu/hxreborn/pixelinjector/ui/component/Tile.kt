@@ -13,12 +13,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,7 +34,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -112,17 +121,50 @@ fun Tile(
                 shape = shape,
                 color = color,
                 modifier = modifier.fillMaxWidth(),
-            ) { row() }
+                content = row,
+            )
         }
 
         onClick != null -> {
-            Surface(onClick = onClick, shape = shape, color = color, modifier = modifier.fillMaxWidth()) { row() }
+            Surface(onClick = onClick, shape = shape, color = color, modifier = modifier.fillMaxWidth(), content = row)
         }
 
         else -> {
-            Surface(shape = shape, color = color, modifier = modifier.fillMaxWidth()) { row() }
+            Surface(shape = shape, color = color, modifier = modifier.fillMaxWidth(), content = row)
         }
     }
+}
+
+@Composable
+internal fun EditorSwitchTile(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Tile(
+        shape = tileOnly,
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = Modifier.semantics { role = Role.Switch },
+    ) {
+        TileText(title)
+        TileSwitch(checked)
+    }
+}
+
+@Composable
+internal fun TileSwitch(checked: Boolean) {
+    Switch(
+        checked = checked,
+        onCheckedChange = null,
+        thumbContent = {
+            Icon(
+                if (checked) Icons.Filled.Check else Icons.Filled.Close,
+                contentDescription = null,
+                modifier = Modifier.size(SwitchDefaults.IconSize),
+            )
+        },
+    )
 }
 
 @Composable

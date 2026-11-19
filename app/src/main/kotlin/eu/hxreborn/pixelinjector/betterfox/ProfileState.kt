@@ -83,12 +83,7 @@ fun restoreTouchedPrefs(
                 else -> null
             }
         }
-    val missing =
-        original
-            .filter { (name, line) ->
-                line != null && name !in written
-            }.values
-            .filterNotNull()
+    val missing = original.mapNotNull { (name, line) -> line?.takeUnless { name in written } }
     val restored =
         (kept + missing).joinToString("\n") +
             if (endsWithNewline || missing.isNotEmpty()) "\n" else ""

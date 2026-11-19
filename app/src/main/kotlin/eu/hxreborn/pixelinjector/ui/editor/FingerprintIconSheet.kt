@@ -32,15 +32,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.HideSource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -63,17 +59,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.createBitmap
 import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.icons.FingerprintStyles
+import eu.hxreborn.pixelinjector.ui.component.EditorSwitchTile
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
-import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileGap
-import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import eu.hxreborn.pixelinjector.ui.util.verticalScrollbar
 import kotlinx.coroutines.Dispatchers
@@ -89,7 +82,6 @@ private val PreviewHeight = 150.dp
 private val PreviewCircle = 76.dp
 private val PreviewIcon = 40.dp
 private val PreviewShape = RoundedCornerShape(28.dp)
-private val TileShape = RoundedCornerShape(20.dp)
 private val SectionGap = 16.dp
 private val LockScreen = Color.Black
 private val LockScreenIcon = Color.White
@@ -147,8 +139,8 @@ fun FingerprintIconSheet(
             verticalArrangement = Arrangement.spacedBy(StyleGap),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
-                SwitchTile(stringResource(R.string.fingerprint_hide_circle), hideCircle, onHideCircleChange)
-                SwitchTile(stringResource(R.string.fingerprint_tint), tint, onTintChange)
+                EditorSwitchTile(stringResource(R.string.fingerprint_hide_circle), hideCircle, onHideCircleChange)
+                EditorSwitchTile(stringResource(R.string.fingerprint_tint), tint, onTintChange)
             }
             cells.chunked(COLUMNS).forEach { row ->
                 Row(Modifier.fillMaxWidth()) {
@@ -171,33 +163,6 @@ fun FingerprintIconSheet(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SwitchTile(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Tile(
-        shape = TileShape,
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        modifier = Modifier.semantics { role = Role.Switch },
-    ) {
-        TileText(label)
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            thumbContent = {
-                Icon(
-                    if (checked) Icons.Filled.Check else Icons.Filled.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                )
-            },
-        )
     }
 }
 

@@ -14,17 +14,13 @@ sealed class PrefSpec<T : Any>(
         value: T,
     )
 
-    fun reset(editor: SharedPreferences.Editor) = write(editor, default)
-
     fun copyIfChanged(
         from: SharedPreferences,
         to: SharedPreferences,
         editor: SharedPreferences.Editor,
-    ): Boolean {
+    ) {
         val value = read(from)
-        if (read(to) == value) return false
-        write(editor, value)
-        return true
+        if (read(to) != value) write(editor, value)
     }
 }
 

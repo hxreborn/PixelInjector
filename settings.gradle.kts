@@ -19,9 +19,6 @@ dependencyResolutionManagement {
         mavenCentral()
         maven("https://jitpack.io") { content { includeGroup("com.github.topjohnwu.libsu") } }
     }
-    versionCatalogs {
-        create("libs")
-    }
 }
 
 rootProject.name = "PixelInjector"

@@ -55,15 +55,18 @@ def fetch(url):
         return response.read()
 
 
-def latest_tag():
-    out = subprocess.run(
-        ["git", "ls-remote", "--tags", "--refs", REPO_URL],
+def remote_tags(repository, *patterns):
+    return subprocess.run(
+        ["git", "ls-remote", "--tags", "--refs", repository, *patterns],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
+
+
+def latest_tag():
     tags = []
-    for line in out.splitlines():
+    for line in remote_tags(REPO_URL).splitlines():
         sha, ref = line.split("\t")
         name = ref.removeprefix("refs/tags/")
         if re.fullmatch(r"\d+(\.\d+)*", name):
@@ -75,12 +78,7 @@ def latest_tag():
 
 
 def tag_sha(tag):
-    out = subprocess.run(
-        ["git", "ls-remote", "--tags", "--refs", REPO_URL, tag],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+    out = remote_tags(REPO_URL, tag).split()
     if not out:
         sys.exit(f"no Betterfox tag {tag}")
     return out[0]
@@ -152,12 +150,11 @@ def parse_file(group, source):
             header = match.group(1)
             block = []
             continue
-        comment = COMMENT_LINE.match(line)
-        if comment and header is not None and not PREF_LINE.match(line):
-            block.append(comment.group(1))
+        if header is None:
             continue
-        match = PREF_LINE.match(line)
-        if not match or header is None:
+        if not (match := PREF_LINE.match(line)):
+            if comment := COMMENT_LINE.match(line):
+                block.append(comment.group(1))
             continue
         value = parse_value(match.group(2))
         if value is None:
@@ -314,14 +311,8 @@ def skip_reason(pref, rules):
 
 def gecko_tag(gecko):
     wanted = tuple(int(part) for part in gecko.split("."))
-    out = subprocess.run(
-        ["git", "ls-remote", "--tags", "--refs", GECKO_REPO_URL, f"FIREFOX_{wanted[0]}_*RELEASE"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
     releases = []
-    for line in out.splitlines():
+    for line in remote_tags(GECKO_REPO_URL, f"FIREFOX_{wanted[0]}_*RELEASE").splitlines():
         name = line.split("\t")[1].removeprefix("refs/tags/")
         match = re.fullmatch(r"FIREFOX_(\d+(?:_\d+)*)_RELEASE", name)
         if match:

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.ui.component.EditorSwitchTile
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.theme.AppText
@@ -75,16 +76,7 @@ fun NowPlayingChipSheet(
         verticalArrangement = Arrangement.spacedBy(SectionGap),
     ) {
         SheetHeader(stringResource(R.string.tweak_now_playing_chip))
-        ChipChoiceTile(
-            title = stringResource(R.string.download_chip_side),
-            options =
-                listOf(
-                    Prefs.DOWNLOAD_CHIP_LEFT to stringResource(R.string.download_chip_left),
-                    Prefs.DOWNLOAD_CHIP_RIGHT to stringResource(R.string.download_chip_right),
-                ),
-            selected = side,
-            onSelect = onSideChange,
-        )
+        ChipSideTile(side, onSideChange)
         Tile(shape = TileShape) {
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.now_playing_chip_width), style = AppText.tileTitle)
@@ -97,7 +89,7 @@ fun NowPlayingChipSheet(
                 )
             }
         }
-        ChipSwitchTile(stringResource(R.string.now_playing_chip_hide_shade), hideShade, onHideShadeChange)
+        EditorSwitchTile(stringResource(R.string.now_playing_chip_hide_shade), hideShade, onHideShadeChange)
         ChipColorTile(stringResource(R.string.now_playing_chip_text_color), textColor, onTextColorChange)
         ChipColorTile(stringResource(R.string.now_playing_chip_color), chipColor, onChipColorChange)
         Tile(shape = TileShape) {

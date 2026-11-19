@@ -125,8 +125,3 @@ fun statusStyle(
 fun reportTitle(report: SentReport): String =
     report.tweak?.let { key -> tweakUis.firstOrNull { it.key == key }?.let { stringResource(it.title) } ?: key }
         ?: stringResource(R.string.report_general)
-
-fun bytesLabel(bytes: Long): String {
-    val mb = bytes / 1_048_576.0
-    return if (mb >= 1) "%.1f MB".format(mb) else "%d KB".format(bytes / 1024)
-}
