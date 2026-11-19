@@ -109,12 +109,12 @@ data class Release(
             return notes
         }
 
-        private fun notes(parsed: List<Note>): JSONObject =
+        private fun notesByKind(entries: List<Note>): JSONObject =
             JSONObject().apply {
                 Note.Kind.entries.forEach { kind ->
                     put(
                         kind.key,
-                        JSONArray(parsed.filter { it.kind == kind }.map { it.text }),
+                        JSONArray(entries.filter { it.kind == kind }.map { it.text }),
                     )
                 }
             }
@@ -126,25 +126,23 @@ data class Release(
             val json = JSONObject(body)
             val tag = json.getString("tag_name")
             val entries = parseNotes(json.optString("body"))
+            val structuredNotes =
+                entries.map { note ->
+                    JSONObject()
+                        .put("kind", note.kind.key)
+                        .put("section", note.section)
+                        .put("scope", note.scope)
+                        .put("text", note.text)
+                        .put("commitUrl", note.commitUrl)
+                }
             return JSONObject()
                 .put("tag", tag)
                 .put("versionName", tag.removePrefix("v"))
                 .put("publishedAt", json.optStringOrNull("published_at"))
                 .put("url", json.optString("html_url"))
-                .put("notes", notes(entries))
-                .put(
-                    NOTE_ENTRIES,
-                    JSONArray(
-                        entries.map { note ->
-                            JSONObject()
-                                .put("kind", note.kind.key)
-                                .put("section", note.section)
-                                .put("scope", note.scope)
-                                .put("text", note.text)
-                                .put("commitUrl", note.commitUrl)
-                        },
-                    ),
-                ).toString()
+                .put("notes", notesByKind(entries))
+                .put(NOTE_ENTRIES, JSONArray(structuredNotes))
+                .toString()
         }
 
         internal fun enrichWorkerNotes(
@@ -161,10 +159,7 @@ data class Release(
             }
             val entries =
                 matchingNotes(cached, version)
-                    ?: matchingNotes(
-                        fetchGitHubNotes(fetchGitHub),
-                        version,
-                    )
+                    ?: matchingNotes(fetchGitHubNotes(fetchGitHub), version)
                     ?: return body
             return worker.put(NOTE_ENTRIES, entries).toString()
         }
@@ -217,19 +212,17 @@ data class Release(
                 val entry = optJSONObject(index) ?: return@mapNotNull null
                 val text = entry.optStringOrNull("text") ?: return@mapNotNull null
                 val section = entry.optString("section")
+                val kindKey = entry.optString("kind")
                 val kind =
-                    Note.Kind.entries.firstOrNull { it.key == entry.optString("kind") }
-                        ?: kindForSection(section)
+                    Note.Kind.entries.firstOrNull { it.key == kindKey } ?: kindForSection(section)
+                val commitUrl =
+                    entry.optStringOrNull("commitUrl")?.takeIf { it.startsWith("https://") }
                 Note(
                     kind = kind,
                     section = section,
                     scope = entry.optStringOrNull("scope"),
                     text = text,
-                    commitUrl =
-                        entry
-                            .optStringOrNull(
-                                "commitUrl",
-                            )?.takeIf { it.startsWith("https://") },
+                    commitUrl = commitUrl,
                 )
             }
 

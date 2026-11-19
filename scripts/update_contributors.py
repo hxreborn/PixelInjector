@@ -37,10 +37,6 @@ def github_json(path=""):
     raise SystemExit("GitHub returned no repository metadata.")
 
 
-def write_json(path, value):
-    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-
-
 def validate_snapshot(converter):
     rows = json.loads((SNAPSHOT / "contributors.json").read_text(encoding="utf-8"))
     if not isinstance(rows, list) or not rows:
@@ -82,9 +78,10 @@ def update():
         if not author:
             continue
         login = author["login"]
-        if login.lower() == "semantic-release-bot":
+        lowercase_login = login.lower()
+        if lowercase_login == "semantic-release-bot":
             continue
-        if author["type"] == "Bot" or login.lower().endswith(("-bot", "[bot]")):
+        if author["type"] == "Bot" or lowercase_login.endswith(("-bot", "[bot]")):
             continue
         if not GITHUB_LOGIN.fullmatch(login):
             raise ValueError(f"Invalid GitHub login: {login}")
@@ -107,7 +104,8 @@ def update():
     SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=SNAPSHOT.parent.parent) as temporary:
         staging = Path(temporary)
-        (staging / "avatars").mkdir()
+        staged_avatars = staging / "avatars"
+        staged_avatars.mkdir()
         for row in rows:
             login = row["login"]
             url = avatar_urls[login]
@@ -120,12 +118,14 @@ def update():
                     check=True,
                 )
 
-        write_json(staging / "contributors.json", rows)
-        (SNAPSHOT / "avatars").mkdir(parents=True, exist_ok=True)
-        for path in (staging / "avatars").iterdir():
-            path.replace(SNAPSHOT / "avatars" / path.name)
-        (staging / "contributors.json").replace(SNAPSHOT / "contributors.json")
-        for path in (SNAPSHOT / "avatars").glob("*.webp"):
+        staged_snapshot = staging / "contributors.json"
+        staged_snapshot.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+        snapshot_avatars = SNAPSHOT / "avatars"
+        snapshot_avatars.mkdir(parents=True, exist_ok=True)
+        for path in staged_avatars.iterdir():
+            path.replace(snapshot_avatars / path.name)
+        staged_snapshot.replace(SNAPSHOT / "contributors.json")
+        for path in snapshot_avatars.glob("*.webp"):
             if path.stem not in avatar_urls:
                 path.unlink()
 

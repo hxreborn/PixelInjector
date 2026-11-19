@@ -95,9 +95,9 @@ fun AppTheme(
     useSystemFont: Boolean,
     content: @Composable () -> Unit,
 ) {
-    val fontFamily = if (useSystemFont) systemFontFamily() else RobotoFlex
-    val textStyles = remember(fontFamily) { if (useSystemFont) AppTextStyles(fontFamily) else DefaultAppText }
-    val typography = remember(fontFamily) { if (useSystemFont) Typography(fontFamily) else AppTypography }
+    val systemFont = if (useSystemFont) systemFontFamily() else null
+    val textStyles = remember(systemFont) { systemFont?.let(::AppTextStyles) ?: DefaultAppText }
+    val typography = remember(systemFont) { systemFont?.let { Typography(it) } ?: AppTypography }
     CompositionLocalProvider(LocalAppText provides textStyles) {
         MaterialExpressiveTheme(
             colorScheme = if (isSystemInDarkTheme()) darkScheme else lightScheme,
