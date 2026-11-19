@@ -101,6 +101,7 @@ fun AppNavHost(
     val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
     val hideUnavailable by viewModel.hideUnavailable.collectAsStateWithLifecycle()
     val showPackages by viewModel.showPackages.collectAsStateWithLifecycle()
+    val useSystemFont by viewModel.useSystemFont.collectAsStateWithLifecycle()
     val dateStyle by viewModel.dateStyle.collectAsStateWithLifecycle()
     val prefs by viewModel.prefs.collectAsStateWithLifecycle()
     val targets by viewModel.reloadTargets.collectAsStateWithLifecycle()
@@ -404,6 +405,7 @@ fun AppNavHost(
                         hideUnavailable = hideUnavailable,
                         showPackages = showPackages,
                         dateStyle = dateStyle,
+                        useSystemFont = useSystemFont,
                         actions =
                             SettingsActions(
                                 onCheck = { viewModel.support.checkRelease(force = true) },
@@ -420,6 +422,7 @@ fun AppNavHost(
                                 onModuleLog = {
                                     push(Destination.ModuleLog)
                                 },
+                                onUseSystemFont = viewModel::setUseSystemFont,
                                 onDateFormat = { push(Destination.DateFormat) },
                                 onAbout = { push(Destination.About) },
                             ),

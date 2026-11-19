@@ -127,6 +127,10 @@ class MainViewModel(
 
     fun setShowPackages(show: Boolean) = app.setShowPackages(show)
 
+    val useSystemFont: StateFlow<Boolean> = app.useSystemFont
+
+    fun setUseSystemFont(enabled: Boolean) = app.setUseSystemFont(enabled)
+
     val dateStyle: StateFlow<DateStyle> = app.dateStyle
 
     fun setDateStyle(style: DateStyle) = app.setDateStyle(style)

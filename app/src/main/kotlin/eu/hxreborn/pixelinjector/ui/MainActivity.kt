@@ -31,7 +31,8 @@ class MainActivity : ComponentActivity() {
         window.isNavigationBarContrastEnforced = false
         ComposeMaterial3Flags.isCheckboxStylingFixEnabled = true
         setContent {
-            AppTheme {
+            val useSystemFont by viewModel.useSystemFont.collectAsStateWithLifecycle()
+            AppTheme(useSystemFont = useSystemFont) {
                 val dateStyle by viewModel.dateStyle.collectAsStateWithLifecycle()
                 CompositionLocalProvider(LocalDateStyle provides dateStyle) { AppNavHost(viewModel) }
             }

@@ -481,4 +481,6 @@
     <string name="now_playing_chip_color_reset">Reset</string>
     <string name="now_playing_chip_opacity">Chip opacity</string>
     <string name="now_playing_chip_opacity_value">%1$d%%</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="use_system_font">Use system font</string>
 </resources>

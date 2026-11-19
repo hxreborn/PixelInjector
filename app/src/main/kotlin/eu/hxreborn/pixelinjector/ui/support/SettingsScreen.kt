@@ -52,6 +52,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FontDownload
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Inbox
@@ -154,6 +155,7 @@ class SettingsActions(
     val onHideUnavailable: (Boolean) -> Unit,
     val onShowPackages: (Boolean) -> Unit,
     val onModuleLog: () -> Unit,
+    val onUseSystemFont: (Boolean) -> Unit,
     val onDateFormat: () -> Unit,
     val onAbout: () -> Unit,
 )
@@ -172,6 +174,7 @@ fun SettingsScreen(
     hideUnavailable: Boolean,
     showPackages: Boolean,
     dateStyle: DateStyle,
+    useSystemFont: Boolean,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
@@ -237,6 +240,17 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+            Spacer(Modifier.height(SectionGap))
+            Group(stringResource(R.string.settings_appearance), 1) { _, shape ->
+                SwitchTile(
+                    shape,
+                    Icons.Outlined.FontDownload,
+                    stringResource(R.string.use_system_font),
+                    null,
+                    useSystemFont,
+                    actions.onUseSystemFont,
+                )
             }
             Spacer(Modifier.height(SectionGap))
             Group(stringResource(R.string.settings_support), 3) { index, shape ->
