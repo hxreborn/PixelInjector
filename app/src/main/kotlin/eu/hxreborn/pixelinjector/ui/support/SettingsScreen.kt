@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -368,6 +370,7 @@ fun AboutScreen(
             }
             Spacer(Modifier.height(SectionGap))
             DeviceGroup(framework)
+            ContributorsSection(actions.onOpenUrl)
         }
     }
 }
@@ -638,7 +641,7 @@ private fun IdentityCard(
                 )
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
+                Modifier.fillMaxWidth().padding(top = 4.dp).height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
             ) {
                 Button(
@@ -648,11 +651,11 @@ private fun IdentityCard(
                             ButtonGroupDefaults.connectedLeadingButtonShape,
                             ButtonGroupDefaults.connectedLeadingButtonPressShape,
                         ),
-                    modifier = Modifier.weight(1f).heightIn(min = ConnectedButtonHeight),
+                    modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = ConnectedButtonHeight),
                 ) {
                     Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.star_on_github), style = AppText.button, maxLines = 1)
+                    Text(stringResource(R.string.star_on_github), style = AppText.button)
                 }
                 FilledTonalButton(
                     onClick = { onOpenUrl(KOFI_URL) },
@@ -661,11 +664,11 @@ private fun IdentityCard(
                             ButtonGroupDefaults.connectedTrailingButtonShape,
                             ButtonGroupDefaults.connectedTrailingButtonPressShape,
                         ),
-                    modifier = Modifier.weight(1f).heightIn(min = ConnectedButtonHeight),
+                    modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = ConnectedButtonHeight),
                 ) {
                     Icon(Icons.Outlined.Coffee, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.kofi), style = AppText.button, maxLines = 1)
+                    Text(stringResource(R.string.kofi), style = AppText.button)
                 }
             }
         }
