@@ -69,7 +69,7 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 
 ### <img src="assets/icons/home.svg" width="20" alt=""> Launcher
 
-- **Double tap to sleep**: double tap empty home screen space and the phone locks and sleeps. Pixel Launcher and Launcher3.
+- **Double tap to sleep**: double tap empty home screen space to put the phone to sleep. Pixel Launcher and Launcher3.
 - **Hide gesture pill**: makes the navigation handle transparent and keeps a chosen percent of the bottom inset under apps. A percent change restarts the launcher.
 - **Hide search bar**: hides the search bar above the hotseat and frees the row it reserves. Pixel Launcher and Launcher3.
 - **Hide app shortcuts**: a long press on an app shows only the system actions. Pixel Launcher and Launcher3.
