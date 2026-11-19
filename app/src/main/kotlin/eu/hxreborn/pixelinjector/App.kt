@@ -19,8 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 class App :
     Application(),
     XposedServiceHelper.OnServiceListener {
-    private val _service = MutableStateFlow<XposedService?>(null)
-    val service: StateFlow<XposedService?> = _service.asStateFlow()
+    private val boundService = BoundService()
+    val service: StateFlow<XposedService?> = boundService.current
 
     private val _everBound = MutableStateFlow(false)
     val everBound: StateFlow<Boolean> = _everBound.asStateFlow()
@@ -57,7 +57,7 @@ class App :
         Prefs.perBrowser.forEach { it.migrate(local) }
         prefs =
             PrefsRepository(local) {
-                runCatching { _service.value?.getRemotePreferences(Prefs.GROUP) }.getOrNull()
+                runCatching { service.value?.getRemotePreferences(Prefs.GROUP) }.getOrNull()
             }
         _everBound.value = state.getBoolean(EVER_BOUND, false)
         _hideUnavailable.value = state.getBoolean(HIDE_UNAVAILABLE, false)
@@ -75,7 +75,7 @@ class App :
             ModuleConstants.LOG_TAG,
             "service bound framework=${service.frameworkName} version=${service.frameworkVersion} api=${service.apiVersion}",
         )
-        _service.value = service
+        boundService.bind(service)
         prefs.syncToRemote()
         if (!_everBound.value) {
             state.edit { putBoolean(EVER_BOUND, true) }
@@ -105,7 +105,7 @@ class App :
 
     override fun onServiceDied(service: XposedService) {
         Log.w(ModuleConstants.LOG_TAG, "service died")
-        _service.value = null
+        boundService.release(service)
     }
 
     companion object {
