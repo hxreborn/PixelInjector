@@ -44,9 +44,9 @@ import eu.hxreborn.pixelinjector.ui.dashboard.restartOnChange
 import eu.hxreborn.pixelinjector.ui.dashboard.tweakUis
 import eu.hxreborn.pixelinjector.ui.editor.fingerprintImageFile
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogState
-import eu.hxreborn.pixelinjector.ui.log.currentInstallFailures
 import eu.hxreborn.pixelinjector.ui.log.deriveErrorLines
 import eu.hxreborn.pixelinjector.ui.log.deriveErrors
+import eu.hxreborn.pixelinjector.ui.log.installFailureBodies
 import eu.hxreborn.pixelinjector.ui.log.parseModuleLog
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.navigation.TestNavigation
@@ -145,6 +145,8 @@ class MainViewModel(
     private val fingerprintImageLock = Mutex()
 
     @Volatile private var rawLog: List<String>? = null
+
+    @Volatile private var installFailures: Map<String, Map<String, String>> = emptyMap()
 
     val prefs: StateFlow<AppPrefs> =
         app.prefs.state.stateIn(viewModelScope, SharingStarted.WhileSubscribed(PREFS_SUBSCRIPTION_TIMEOUT_MS), app.prefs.snapshot())
@@ -384,25 +386,30 @@ class MainViewModel(
         val errors = _errors.value
         val prefsNow = prefs.value
         val missesByProcess =
-            currentInstallFailures(log.entries).mapValues { (_, failures) ->
-                failures.values.filter { it.body.startsWith("target not found") }
+            installFailures.mapValues { (_, failures) ->
+                failures.filterValues { it.startsWith("target not found") }
             }
         val missing =
             missesByProcess.values
-                .flatten()
-                .map { entry ->
-                    MissingTarget(
-                        entry.tweak.orEmpty(),
-                        logField(entry.body, "member")?.trim('"')?.substringAfterLast('.')?.substringAfterLast(' '),
-                        logField(entry.body, "reason"),
-                    )
+                .flatMap { failures ->
+                    failures.map { (tweak, body) ->
+                        MissingTarget(
+                            tweak,
+                            logField(body, "member")?.trim('"')?.substringAfterLast('.')?.substringAfterLast(' '),
+                            logField(body, "reason"),
+                        )
+                    }
                 }.distinctBy { it.tweak }
         val (romCodes, unreadableRomCodes) =
-            romCodes(missesByProcess.mapValues { (_, misses) -> misses.mapNotNull { it.tweak } })
+            romCodes(missesByProcess.mapValues { (_, misses) -> misses.keys })
+        val installDiagnosticLines =
+            installFailures.flatMap { (process, failures) ->
+                failures.values.map { "install diagnostic proc=$process version=${BuildConfig.VERSION_CODE} $it" }
+            }
         return ReportFacts(
             framework = service?.let { Framework(it.frameworkName, it.frameworkVersion, it.apiVersion) },
             rootDenied = log.denied,
-            logLines = rawLog,
+            logLines = rawLog?.plus(installDiagnosticLines),
             tweaks =
                 tweakUis.associate {
                     it.key to
@@ -426,7 +433,7 @@ class MainViewModel(
         )
     }
 
-    private fun romCodes(missesByProcess: Map<String, List<String>>): Pair<Map<String, RomCode>, Map<String, String>> {
+    private fun romCodes(missesByProcess: Map<String, Set<String>>): Pair<Map<String, RomCode>, Map<String, String>> {
         if (!RomCode.wanted) return emptyMap<String, RomCode>() to emptyMap()
         val detectedKinds = mutableMapOf<String, MutableSet<String>>()
         for ((process, tweaks) in missesByProcess) {
@@ -495,8 +502,12 @@ class MainViewModel(
         _reportPreview.value = null
         reportJob =
             viewModelScope.launch(Dispatchers.IO) {
-                logLock.withLock { if (rawLog == null || _moduleLog.value.denied) loadModuleLog() }
-                _reportPreview.value = ReportBuilder.preview(reportFacts())
+                val facts =
+                    logLock.withLock {
+                        loadModuleLog()
+                        reportFacts()
+                    }
+                _reportPreview.value = ReportBuilder.preview(facts)
             }
     }
 
@@ -591,7 +602,8 @@ class MainViewModel(
             Root.LogRead.Denied -> {
                 rawLog = null
                 _moduleLog.value = ModuleLogState(loading = false, denied = true)
-                _errors.value = deriveErrors(emptyList())
+                installFailures = emptyMap()
+                _errors.value = emptyMap()
                 errorLines.value = emptyMap()
             }
 
@@ -601,7 +613,8 @@ class MainViewModel(
                 val entries = parseModuleLog(lines, read.processes)
                 _moduleLog.value = ModuleLogState(loading = false, entries = entries)
                 val current = parseModuleLog(read.lines, read.processes)
-                _errors.value = deriveErrors(entries)
+                installFailures = installFailureBodies(entries, read.installDiagnostics)
+                _errors.value = deriveErrors(installFailures)
                 errorLines.value = deriveErrorLines(current, read.processes.keys)
             }
         }

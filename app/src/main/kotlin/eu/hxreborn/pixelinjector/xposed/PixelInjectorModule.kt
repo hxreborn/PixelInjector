@@ -8,6 +8,7 @@ import android.os.Environment
 import android.os.Process
 import android.os.SystemClock
 import eu.hxreborn.pixelinjector.BuildConfig
+import eu.hxreborn.pixelinjector.InstallDiagnostics
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.resolving
@@ -32,8 +33,6 @@ private const val TIMER_JOIN_MS = 1_000L
 private val PERSISTENT_TARGETS = setOf(Target.SYSTEM, Target.SYSTEMUI)
 
 private const val SYSTEM_DIR_NAME = "system"
-private const val GUARD_FILE_PREFIX = "pixelinjector-guard-"
-private const val GUARD_FILE_SUFFIX = ".properties"
 private const val STABLE_AFTER_MS = 60_000L
 
 private class GuardSite(
@@ -82,7 +81,7 @@ class PixelInjectorModule : XposedModule() {
             param.classLoader,
             origin = "boot",
             GuardSite(
-                guardFile(systemDataDir(), process),
+                InstallDiagnostics.file(systemDataDir(), process),
                 SYSTEM_SERVER_HOST,
             ),
         )
@@ -107,7 +106,7 @@ class PixelInjectorModule : XposedModule() {
 
     private fun packageGuardSite(info: ApplicationInfo?): GuardSite? {
         val dataDir = info?.deviceProtectedDataDir ?: return null
-        return GuardSite(guardFile(File(dataDir), process), info.sourceDir.orEmpty())
+        return GuardSite(InstallDiagnostics.file(File(dataDir), process), info.sourceDir.orEmpty())
     }
 
     override fun onHotReloading(param: HotReloadingParam): Boolean {
@@ -257,7 +256,7 @@ class PixelInjectorModule : XposedModule() {
             if (systemServer) systemDataDir() else application?.deviceProtectedDataDir?.let(::File)
         val file =
             (saved[SAVED_GUARD_FILE] as? String)?.let(::File)
-                ?: dataDir?.let { guardFile(it, processName) }
+                ?: dataDir?.let { InstallDiagnostics.file(it, processName) }
                 ?: return null
         val hostApk =
             saved[SAVED_HOST_APK] as? String
@@ -278,14 +277,10 @@ class PixelInjectorModule : XposedModule() {
 
     private fun systemDataDir(): File = File(Environment.getDataDirectory(), SYSTEM_DIR_NAME)
 
-    private fun guardFile(
-        dir: File,
-        processName: String,
-    ): File = File(dir, GUARD_FILE_PREFIX + processName.replace(':', '_') + GUARD_FILE_SUFFIX)
-
     private fun openGuard(
         site: GuardSite,
         countEarlyDeaths: Boolean,
+        generation: String,
     ): CrashGuard? =
         try {
             CrashGuard
@@ -293,7 +288,7 @@ class PixelInjectorModule : XposedModule() {
                     site.file,
                     "${BuildConfig.VERSION_CODE}|${Build.FINGERPRINT}|${site.hostApk}",
                     { System.currentTimeMillis() - SystemClock.elapsedRealtime() },
-                    "${Process.myPid()}-${SystemClock.elapsedRealtimeNanos()}",
+                    generation,
                     countEarlyDeaths,
                 ).also(::logGuard)
         } catch (e: Exception) {
@@ -427,9 +422,10 @@ class PixelInjectorModule : XposedModule() {
         classLoader = cl
         installed = true
         this.process = process
+        val generation = "${Process.myPid()}-${SystemClock.elapsedRealtimeNanos()}"
         Logger.info(
             "install proc=$process pid=${Process.myPid()} api=$apiVersion " +
-                "version=${BuildConfig.VERSION_CODE} origin=$origin " +
+                "version=${BuildConfig.VERSION_CODE} origin=$origin generation=$generation " +
                 "framework=$frameworkName/$frameworkVersionCode",
         )
         val target = Target.of(process, systemServer)
@@ -440,23 +436,36 @@ class PixelInjectorModule : XposedModule() {
         }
         this.guardSite = guardSite
         val countEarlyDeaths = origin == "boot" && target in PERSISTENT_TARGETS
-        val guard = guardSite?.let { openGuard(it, countEarlyDeaths) }
+        val guard = guardSite?.let { openGuard(it, countEarlyDeaths, generation) }
+        val tweaks = tweaksFor(target)
+        val failures = mutableMapOf<String, String>()
         if (guard == null || guard.safeMode) {
             val reason = if (guard == null) "guard-unavailable" else "safe-mode"
-            for (tweak in tweaksFor(target)) skipInstall(tweak, reason)
+            Logger.captureInstallFailures(failures) {
+                for (tweak in tweaks) skipInstall(tweak, reason)
+            }
+            if (guard != null) {
+                guardWrite("proc=$process") { guard.installed(BuildConfig.VERSION_CODE, failures) }
+            }
             return
         }
-        loadRemotePrefs(target)
-        val tweaks = tweaksFor(target)
         val summary =
-            try {
-                tweaks.associate { tweak ->
-                    tweak.key to installGuarded(tweak, cl, guard, saved?.get(tweak.key))
+            Logger.captureInstallFailures(failures) {
+                try {
+                    loadRemotePrefs(target)
+                    tweaks.associate { tweak ->
+                        tweak.key to installGuarded(tweak, cl, guard, saved?.get(tweak.key))
+                    }
+                } finally {
+                    DexKit.release()
                 }
-            } finally {
-                DexKit.release()
             }
-        guardWrite("proc=$process") { guard.installed() }
+        val outcomes =
+            summary.mapValues { (tweak, installed) ->
+                failures[tweak]
+                    ?: if (installed) "installed" else "skipped"
+            }
+        guardWrite("proc=$process") { guard.installed(BuildConfig.VERSION_CODE, outcomes) }
         markStableLater(guard)
         if (saved != null) {
             for (tweak in tweaks) {

@@ -3,9 +3,23 @@ package eu.hxreborn.pixelinjector.xposed
 import android.util.Log
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.ModuleConstants
+import eu.hxreborn.pixelinjector.isInstallFailure
 
 object Logger {
     const val TAG = ModuleConstants.LOG_TAG
+    private val installFailures = ThreadLocal<MutableMap<String, String>>()
+
+    internal fun <T> captureInstallFailures(
+        failures: MutableMap<String, String>,
+        install: () -> T,
+    ): T {
+        installFailures.set(failures)
+        try {
+            return install()
+        } finally {
+            installFailures.remove()
+        }
+    }
 
     fun log(
         level: Int,
@@ -23,7 +37,13 @@ object Logger {
     fun error(
         msg: String,
         t: Throwable? = null,
-    ) = log(Log.ERROR, msg, t)
+    ) {
+        if (isInstallFailure(msg)) {
+            val tweak = msg.substringAfter("tweak=").substringBefore(' ')
+            installFailures.get()?.set(tweak, msg)
+        }
+        log(Log.ERROR, msg, t)
+    }
 
     inline fun debug(msg: () -> String) {
         if (BuildConfig.DEBUG) module.log(Log.DEBUG, TAG, msg())

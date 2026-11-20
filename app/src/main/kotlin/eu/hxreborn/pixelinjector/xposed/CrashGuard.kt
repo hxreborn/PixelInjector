@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.xposed
 
+import eu.hxreborn.pixelinjector.InstallDiagnostics
 import java.io.File
 import java.io.IOException
 import java.util.Properties
@@ -42,8 +43,12 @@ internal class CrashGuard private constructor(
     }
 
     @Synchronized
-    fun installed() {
+    fun installed(
+        version: Int? = null,
+        outcomes: Map<String, String> = emptyMap(),
+    ) {
         state.remove(KEY_INSTALLING)
+        if (version != null) InstallDiagnostics.record(state, version, outcomes)
         write(file, state, generation, bootInstant)
     }
 
@@ -99,6 +104,7 @@ internal class CrashGuard private constructor(
                 state.setProperty(KEY_SAFE_MODE_BOOT, bootId)
             }
             state.setProperty(KEY_BOOT, bootId)
+            InstallDiagnostics.clear(state)
             state.setProperty(KEY_GENERATION, generation)
             state.setProperty(KEY_STABLE, false.toString())
             state.setProperty(KEY_EARLY_DEATHS, earlyDeaths.toString())

@@ -1,6 +1,8 @@
 package eu.hxreborn.pixelinjector.ui.log
 
 import eu.hxreborn.pixelinjector.BuildConfig
+import eu.hxreborn.pixelinjector.InstallDiagnostics
+import eu.hxreborn.pixelinjector.isInstallFailure
 
 data class LogEntry(
     val time: String,
@@ -85,7 +87,7 @@ internal fun latestInstallLogs(entries: Sequence<LogEntry>): Map<String, Install
                 installs[proc] = InstallLog(entry)
             }
 
-            body.startsWith("target not found") || body.startsWith("install failed") -> {
+            isInstallFailure(body) -> {
                 val install = installs[procByPid[pid]] ?: continue
                 if (install.start.pid == pid && tweak != null) install.failures[tweak] = entry
             }
@@ -94,16 +96,29 @@ internal fun latestInstallLogs(entries: Sequence<LogEntry>): Map<String, Install
     return installs
 }
 
-internal fun currentInstallFailures(entries: List<LogEntry>): Map<String, Map<String, LogEntry>> =
-    latestInstallLogs(entries.asSequence())
-        .filterValues { field(it.start.body, "version") == BuildConfig.VERSION_CODE.toString() }
-        .mapValues { it.value.failures }
+internal fun installFailureBodies(
+    entries: List<LogEntry>,
+    diagnostics: Map<String, InstallDiagnostics>,
+): Map<String, Map<String, String>> {
+    val installs = latestInstallLogs(entries.asSequence())
+    val failures = mutableMapOf<String, Map<String, String>>()
+    for ((process, install) in installs) {
+        if (field(install.start.body, "version") != BuildConfig.VERSION_CODE.toString()) continue
+        val stored = diagnostics[process]
+        if (stored != null && field(install.start.body, "generation") != stored.generation) continue
+        failures[process] = install.failures.mapValues { it.value.body }
+    }
+    for ((process, stored) in diagnostics) {
+        failures[process] = stored.failures + failures[process].orEmpty()
+    }
+    return failures
+}
 
-fun deriveErrors(entries: List<LogEntry>): Map<String, String> =
+internal fun deriveErrors(failures: Map<String, Map<String, String>>): Map<String, String> =
     buildMap {
-        currentInstallFailures(entries).forEach { (proc, failures) ->
-            failures.forEach { (tweak, entry) ->
-                val build = field(entry.body, "build") ?: "?"
+        failures.forEach { (proc, failuresByTweak) ->
+            failuresByTweak.forEach { (tweak, body) ->
+                val build = field(body, "build") ?: "?"
                 put(tweak, build)
                 put(processKey(tweak, proc), build)
             }
