@@ -36,6 +36,7 @@ private const val NOTIFICATION_ID = 0x7570
 private val Period = 12.hours
 private val Flex = 2.hours
 const val EXTRA_OPEN_UPDATE = "eu.hxreborn.pixelinjector.extra.OPEN_UPDATE"
+const val EXTRA_UPDATE_VERSION = "eu.hxreborn.pixelinjector.extra.UPDATE_VERSION"
 private const val EXTRA_LATER_VERSION = "eu.hxreborn.pixelinjector.extra.LATER_VERSION"
 
 enum class UpdateNotificationAccess { Allowed, AppBlocked, ChannelBlocked }
@@ -164,11 +165,12 @@ class UpdateWatch : JobService() {
             val launch =
                 Intent(context, MainActivity::class.java)
                     .putExtra(EXTRA_OPEN_UPDATE, true)
+                    .putExtra(EXTRA_UPDATE_VERSION, release.versionCode)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val open =
                 PendingIntent.getActivity(
                     context,
-                    NOTIFICATION_ID,
+                    release.versionCode,
                     launch,
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )

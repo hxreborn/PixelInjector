@@ -33,6 +33,7 @@ import eu.hxreborn.pixelinjector.prefs.AppPrefs
 import eu.hxreborn.pixelinjector.prefs.PrefSpec
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.support.EXTRA_OPEN_UPDATE
+import eu.hxreborn.pixelinjector.support.EXTRA_UPDATE_VERSION
 import eu.hxreborn.pixelinjector.support.Framework
 import eu.hxreborn.pixelinjector.support.LogArchive
 import eu.hxreborn.pixelinjector.support.MissingTarget
@@ -42,7 +43,6 @@ import eu.hxreborn.pixelinjector.support.ReportPreview
 import eu.hxreborn.pixelinjector.support.RomCode
 import eu.hxreborn.pixelinjector.support.SendResult
 import eu.hxreborn.pixelinjector.support.SentReport
-import eu.hxreborn.pixelinjector.support.UpdateWatch
 import eu.hxreborn.pixelinjector.ui.betterfox.BetterfoxController
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardState
 import eu.hxreborn.pixelinjector.ui.dashboard.HookedPackages
@@ -300,7 +300,7 @@ class MainViewModel(
 
     fun handleUpdateIntent(intent: Intent) {
         if (!intent.getBooleanExtra(EXTRA_OPEN_UPDATE, false)) return
-        UpdateWatch.cancelNotification(getApplication())
+        app.support.clearUpdateNotification(intent.getIntExtra(EXTRA_UPDATE_VERSION, 0))
         _updateRequested.value = true
     }
 

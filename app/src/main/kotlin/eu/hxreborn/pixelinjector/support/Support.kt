@@ -491,6 +491,12 @@ class Support(
         )
     }
 
+    fun clearUpdateNotification(versionCode: Int) {
+        if (versionCode > 0 && versionCode == prefs.getInt(NOTIFIED_VERSION, 0)) {
+            UpdateWatch.cancelNotification(context)
+        }
+    }
+
     fun markNotified(release: Release) {
         prefs.edit { putInt(NOTIFIED_VERSION, release.versionCode) }
     }
