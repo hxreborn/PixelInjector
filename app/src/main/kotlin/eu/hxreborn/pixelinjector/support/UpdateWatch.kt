@@ -8,6 +8,7 @@ import android.app.job.JobInfo
 import android.app.job.JobParameters
 import android.app.job.JobScheduler
 import android.app.job.JobService
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -35,6 +36,7 @@ private const val NOTIFICATION_ID = 0x7570
 private val Period = 12.hours
 private val Flex = 2.hours
 const val EXTRA_OPEN_UPDATE = "eu.hxreborn.pixelinjector.extra.OPEN_UPDATE"
+private const val EXTRA_LATER_VERSION = "eu.hxreborn.pixelinjector.extra.LATER_VERSION"
 
 enum class UpdateNotificationAccess { Allowed, AppBlocked, ChannelBlocked }
 
@@ -170,18 +172,41 @@ class UpdateWatch : JobService() {
                     launch,
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
+            val later =
+                PendingIntent.getBroadcast(
+                    context,
+                    NOTIFICATION_ID,
+                    Intent(context, UpdateLaterReceiver::class.java)
+                        .putExtra(EXTRA_LATER_VERSION, release.versionCode),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+            val notes = release.notesNew + release.notesFixed + release.notesOther
             val notification =
                 NotificationCompat
                     .Builder(context, UPDATE_NOTIFICATION_CHANNEL)
                     .setSmallIcon(R.drawable.ic_launcher_foreground)
                     .setContentTitle(
                         context.getString(R.string.update_card_title, release.versionName),
-                    ).setContentIntent(open)
+                    ).setContentText(notes.firstOrNull())
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(notes.joinToString("\n")))
+                    .setContentIntent(open)
+                    .addAction(0, context.getString(R.string.update), open)
+                    .addAction(0, context.getString(R.string.later), later)
                     .setAutoCancel(true)
                     .build()
             manager.notify(NOTIFICATION_ID, notification)
             Log.i(ModuleConstants.LOG_TAG, "update notified version=${release.versionName}")
             App.from(context).support.markNotified(release)
         }
+    }
+}
+
+class UpdateLaterReceiver : BroadcastReceiver() {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
+        val versionCode = intent.getIntExtra(EXTRA_LATER_VERSION, 0)
+        if (versionCode > 0) App.from(context).support.postponeUpdate(versionCode)
     }
 }

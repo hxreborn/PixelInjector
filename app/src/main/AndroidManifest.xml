@@ -56,6 +56,10 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <receiver
+            android:name=".support.UpdateLaterReceiver"
+            android:exported="false" />
+
         <provider
             android:name=".support.UpdateFileProvider"
             android:authorities="${applicationId}.update"
