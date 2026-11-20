@@ -115,7 +115,9 @@ object ReportClient {
                     ApiResponse.Refused(
                         code,
                         runCatching {
-                            JSONObject(text).optString("message")
+                            JSONObject(
+                                text,
+                            ).run { if (isNull("message")) "" else optString("message") }
                         }.getOrNull().orEmpty().ifBlank { "http $code" },
                     )
                 }

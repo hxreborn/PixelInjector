@@ -2,6 +2,7 @@ package eu.hxreborn.pixelinjector.ui.reload
 
 import android.util.Log
 import eu.hxreborn.pixelinjector.ModuleConstants
+import eu.hxreborn.pixelinjector.util.detail
 import io.github.libxposed.service.HookedTarget
 import io.github.libxposed.service.HotReloadResult
 import io.github.libxposed.service.XposedService
@@ -66,7 +67,7 @@ class HotReloadRunner(
                         if (it is CancellationException) throw it
                         Log.w(
                             ModuleConstants.LOG_TAG,
-                            "reload log write failed reason=${it.message}",
+                            "reload log write failed reason=${it.detail()}",
                         )
                     }
                 }

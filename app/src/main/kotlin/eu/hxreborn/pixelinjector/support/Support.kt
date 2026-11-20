@@ -325,9 +325,9 @@ class Support(
                 runCatching { ReportBuilder.sealRomCode(code) }.getOrElse {
                     Log.w(
                         ModuleConstants.LOG_TAG,
-                        "rom code unsealable id=$id kind=${code.kind} reason=${it.message}",
+                        "rom code unsealable id=$id kind=${code.kind} reason=${it.detail()}",
                     )
-                    return@withLock dropRomCode(id, it.message ?: it.javaClass.simpleName)
+                    return@withLock dropRomCode(id, it.detail())
                 }
             if (envelope.size > ReportBuilder.MAX_ATTACHMENT_BYTES) {
                 Log.w(

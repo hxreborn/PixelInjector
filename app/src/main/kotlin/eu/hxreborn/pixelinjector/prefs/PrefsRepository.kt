@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
 import eu.hxreborn.pixelinjector.ModuleConstants
+import eu.hxreborn.pixelinjector.util.detail
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -31,7 +32,7 @@ class PrefsRepository(
         runCatching { remote.edit { pref.write(this, value) } }.onFailure {
             Log.w(
                 ModuleConstants.LOG_TAG,
-                "remote prefs push failed reason=${it.message}",
+                "remote prefs push failed reason=${it.detail()}",
                 it,
             )
         }
@@ -46,7 +47,7 @@ class PrefsRepository(
         }.onFailure {
             Log.w(
                 ModuleConstants.LOG_TAG,
-                "remote prefs sync failed reason=${it.message}",
+                "remote prefs sync failed reason=${it.detail()}",
                 it,
             )
         }
