@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.ui.util.Root
+import eu.hxreborn.pixelinjector.util.detail
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,7 +79,7 @@ class Support(
                     _,
                     e,
                     ->
-                    Log.e(ModuleConstants.LOG_TAG, "support task failed reason=${e.message}", e)
+                    Log.e(ModuleConstants.LOG_TAG, "support task failed reason=${e.detail()}", e)
                 },
         )
     private val reportWriteDispatcher = Dispatchers.IO.limitedParallelism(1)

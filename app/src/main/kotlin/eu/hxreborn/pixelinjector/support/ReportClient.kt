@@ -116,7 +116,7 @@ object ReportClient {
                         code,
                         runCatching {
                             JSONObject(text).optString("message")
-                        }.getOrNull().orEmpty().ifEmpty { "http $code" },
+                        }.getOrNull().orEmpty().ifBlank { "http $code" },
                     )
                 }
             }

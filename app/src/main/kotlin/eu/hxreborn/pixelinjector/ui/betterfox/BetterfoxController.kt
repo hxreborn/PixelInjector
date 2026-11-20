@@ -38,6 +38,7 @@ import eu.hxreborn.pixelinjector.ui.util.BackupFolder
 import eu.hxreborn.pixelinjector.ui.util.Root
 import eu.hxreborn.pixelinjector.ui.util.documentName
 import eu.hxreborn.pixelinjector.ui.util.readDocument
+import eu.hxreborn.pixelinjector.util.detail
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -237,10 +238,10 @@ class BetterfoxController(
                         .map { doc -> BackupEntry(doc.uri, doc.name, parseOrNull { store.read(doc.uri) }) }
                         .sortedByDescending { it.backup?.created ?: LocalDateTime.MIN }
                 } catch (e: SecurityException) {
-                    Log.w(ModuleConstants.LOG_TAG, "betterfox backups unreadable reason=${e.message}", e)
+                    Log.w(ModuleConstants.LOG_TAG, "betterfox backups unreadable reason=${e.detail()}", e)
                     emptyList()
                 } catch (e: IOException) {
-                    Log.w(ModuleConstants.LOG_TAG, "betterfox backups unreadable reason=${e.message}", e)
+                    Log.w(ModuleConstants.LOG_TAG, "betterfox backups unreadable reason=${e.detail()}", e)
                     emptyList()
                 }
         }
@@ -293,10 +294,10 @@ class BetterfoxController(
                     Log.w(ModuleConstants.LOG_TAG, "betterfox update missing url=$url status=${e.status}")
                     BetterfoxUpdateState.Missing(e.status)
                 } catch (e: IOException) {
-                    Log.w(ModuleConstants.LOG_TAG, "betterfox update failed url=$url reason=${e.message}")
+                    Log.w(ModuleConstants.LOG_TAG, "betterfox update failed url=$url reason=${e.detail()}")
                     BetterfoxUpdateState.Unreachable
                 } catch (e: IllegalArgumentException) {
-                    Log.w(ModuleConstants.LOG_TAG, "betterfox update rejected url=$url reason=${e.message}")
+                    Log.w(ModuleConstants.LOG_TAG, "betterfox update rejected url=$url reason=${e.detail()}")
                     BetterfoxUpdateState.Rejected
                 }
             Log.i(ModuleConstants.LOG_TAG, "betterfox update outcome=$outcome")
@@ -593,7 +594,7 @@ class BetterfoxController(
                         pendingMessage = null
                         throw e
                     } catch (e: Exception) {
-                        Log.w(ModuleConstants.LOG_TAG, "betterfox ${kind.name.lowercase()} failed reason=${e.message}", e)
+                        Log.w(ModuleConstants.LOG_TAG, "betterfox ${kind.name.lowercase()} failed reason=${e.detail()}", e)
                         recorder.log("failed ${e.message}", Tone.BAD)
                         _run.update { it?.copy(done = true, failed = true) }
                         pendingMessage = null

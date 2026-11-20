@@ -67,6 +67,7 @@ import eu.hxreborn.pixelinjector.ui.util.DateStyle
 import eu.hxreborn.pixelinjector.ui.util.LauncherApp
 import eu.hxreborn.pixelinjector.ui.util.Root
 import eu.hxreborn.pixelinjector.ui.util.loadLauncherApps
+import eu.hxreborn.pixelinjector.util.detail
 import io.github.libxposed.service.HookedTarget
 import io.github.libxposed.service.XposedService
 import kotlinx.coroutines.CoroutineScope
@@ -489,7 +490,7 @@ class MainViewModel(
         val codeByKind =
             kindsByTweak.values.toSet().associateWith { kind ->
                 runCatching { RomCode.find(getApplication(), kind) }
-                    .onFailure { Log.w(ModuleConstants.LOG_TAG, "rom code unreadable kind=$kind reason=${it.message}") }
+                    .onFailure { Log.w(ModuleConstants.LOG_TAG, "rom code unreadable kind=$kind reason=${it.detail()}") }
                     .getOrNull()
             }
         val codes = mutableMapOf<String, RomCode>()
@@ -572,7 +573,7 @@ class MainViewModel(
                             tweak,
                             replyTo,
                         )
-                    }.onFailure { Log.e(ModuleConstants.LOG_TAG, "report failed reason=${it.message}", it) }
+                    }.onFailure { Log.e(ModuleConstants.LOG_TAG, "report failed reason=${it.detail()}", it) }
                         .getOrElse { SendResult.Rejected(it.message ?: it.javaClass.simpleName) }
                 if (result !is SendResult.Rejected) _reportDrafts.update { it - replyTo.orEmpty() }
                 showSendResult(result)
@@ -610,14 +611,14 @@ class MainViewModel(
             targets.value = readTargets(service).orEmpty()
             scopedPackages.value =
                 runCatching { service.scope.toSet() }
-                    .onFailure { Log.w(ModuleConstants.LOG_TAG, "getScope failed reason=${it.message}", it) }
+                    .onFailure { Log.w(ModuleConstants.LOG_TAG, "getScope failed reason=${it.detail()}", it) }
                     .getOrNull()
         }
     }
 
     private fun readTargets(service: XposedService): List<HookedTarget>? =
         runCatching { service.runningTargets.filter { it.hasTarget() } }
-            .onFailure { Log.w(ModuleConstants.LOG_TAG, "getRunningTargets failed reason=${it.message}", it) }
+            .onFailure { Log.w(ModuleConstants.LOG_TAG, "getRunningTargets failed reason=${it.detail()}", it) }
             .getOrNull()
 
     fun refreshModuleLog() {

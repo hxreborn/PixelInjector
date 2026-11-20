@@ -31,6 +31,7 @@ import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.requiredMethods
 import eu.hxreborn.pixelinjector.util.resolving
+import eu.hxreborn.pixelinjector.util.typeName
 import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
@@ -1216,8 +1217,7 @@ private fun Throwable.unwrapped(): Throwable =
     (this as? InvocationTargetException)?.targetException ?: this
 
 private fun Throwable.summary() =
-    message?.takeIf { it.isNotBlank() }?.let { "${javaClass.simpleName}: $it" }
-        ?: javaClass.simpleName
+    message?.trim()?.ifEmpty { null }?.let { "${typeName()}: $it" } ?: typeName()
 
 private fun XposedModule.hookMenuRows(compose: ComposeBindings) {
     menuHook(compose.sheetHandle) { chain ->

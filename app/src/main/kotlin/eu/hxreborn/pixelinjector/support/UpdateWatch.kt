@@ -18,6 +18,7 @@ import eu.hxreborn.pixelinjector.App
 import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.ui.MainActivity
+import eu.hxreborn.pixelinjector.util.detail
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,7 +65,7 @@ class UpdateWatch : JobService() {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(ModuleConstants.LOG_TAG, "update watch failed reason=${e.message}", e)
+                    Log.w(ModuleConstants.LOG_TAG, "update watch failed reason=${e.detail()}", e)
                 }
                 jobFinished(params, false)
             }

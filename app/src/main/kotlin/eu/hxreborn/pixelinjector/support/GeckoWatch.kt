@@ -26,6 +26,7 @@ import eu.hxreborn.pixelinjector.betterfox.chooseList
 import eu.hxreborn.pixelinjector.betterfox.geckoMajor
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.ui.MainActivity
+import eu.hxreborn.pixelinjector.util.detail
 import kotlin.concurrent.thread
 import kotlin.time.Duration.Companion.hours
 
@@ -43,7 +44,7 @@ class GeckoWatch : JobService() {
             try {
                 notifyNewerGecko(this)
             } catch (e: Exception) {
-                Log.w(ModuleConstants.LOG_TAG, "gecko watch failed reason=${e.message}", e)
+                Log.w(ModuleConstants.LOG_TAG, "gecko watch failed reason=${e.detail()}", e)
             }
             jobFinished(params, false)
         }

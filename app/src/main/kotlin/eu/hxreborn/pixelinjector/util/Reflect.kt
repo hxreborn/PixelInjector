@@ -50,8 +50,9 @@ fun Method.signature(): String =
 
 fun Field.signature(): String = "${declaringClass.simpleName}#$name"
 
-fun Throwable.detail(): String =
-    message?.takeIf { it.isNotBlank() } ?: javaClass.simpleName.ifEmpty { javaClass.name }
+fun Throwable.detail(): String = message?.trim()?.ifEmpty { null } ?: typeName()
+
+fun Throwable.typeName(): String = javaClass.simpleName.ifEmpty { javaClass.name }
 
 fun Throwable.member(): String =
     (this as? ClassNotFoundException)
@@ -67,7 +68,7 @@ fun Throwable.reason(): String =
         is ClassNotFoundException -> "no-class"
         is NoSuchFieldException -> "no-field"
         is NoSuchMethodException -> "no-method"
-        else -> javaClass.simpleName
+        else -> typeName()
     }
 
 fun <T> orNullIfMissing(lookup: () -> T): T? =
