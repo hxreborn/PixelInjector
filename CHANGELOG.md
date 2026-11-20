@@ -1,3 +1,9 @@
+## [1.28.1](https://github.com/hxreborn/PixelInjector/compare/v1.28.0...v1.28.1) (2026-11-20)
+
+### Bug Fixes
+
+* **update:** hand verified updates to the system installer ([17c5aed](https://github.com/hxreborn/PixelInjector/commit/17c5aed6ffd1d626d82137df0cdf1bf2af59d71d))
+
 ## [1.28.0](https://github.com/hxreborn/PixelInjector/compare/v1.27.1...v1.28.0) (2026-11-20)
 
 ### Features
