@@ -3,6 +3,7 @@ package eu.hxreborn.pixelinjector.xposed.hook.systemui
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
@@ -77,9 +78,9 @@ private class HeadsUpBindings(
             minimum.setInt(manager, minOf(stockMinimumDisplayMs, autoDismissMs))
             Logger.info("applied tweak=$TWEAK autoDismissMs=$autoDismissMs")
         } catch (e: Exception) {
-            Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("apply failed tweak=$TWEAK reason=${e.detail()}", e)
         } catch (e: LinkageError) {
-            Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("apply failed tweak=$TWEAK reason=${e.detail()}", e)
         }
     }
 
@@ -148,9 +149,9 @@ private fun HeadsUpBindings.captureIsolated(manager: Any?) {
     try {
         manager?.let(::capture)
     } catch (e: Exception) {
-        Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.error("apply failed tweak=$TWEAK reason=${e.detail()}", e)
     } catch (e: LinkageError) {
-        Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.error("apply failed tweak=$TWEAK reason=${e.detail()}", e)
     }
 }
 

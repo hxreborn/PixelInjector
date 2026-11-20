@@ -45,6 +45,16 @@ object Logger {
         log(Log.ERROR, msg, t)
     }
 
+    fun field(
+        name: String,
+        value: Any?,
+    ): String =
+        value
+            ?.toString()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { " $name=$it" }
+            .orEmpty()
+
     inline fun debug(msg: () -> String) {
         if (BuildConfig.DEBUG) module.log(Log.DEBUG, TAG, msg())
     }

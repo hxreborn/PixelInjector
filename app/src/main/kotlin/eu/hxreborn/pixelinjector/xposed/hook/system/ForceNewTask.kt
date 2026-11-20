@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.IBinder
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalField
 import eu.hxreborn.pixelinjector.util.optionalMethod
@@ -125,9 +126,9 @@ private fun XposedModule.installForceNewTask(cl: ClassLoader): Boolean {
                 try {
                     bindings.applyMatchingRule(chain.getArg(0))
                 } catch (e: Exception) {
-                    Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("apply failed tweak=$TWEAK reason=${e.detail()}", e)
                 } catch (e: LinkageError) {
-                    Logger.error("apply failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("apply failed tweak=$TWEAK reason=${e.detail()}", e)
                 }
             }
             chain.proceed()

@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import android.view.View
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredMethod
@@ -52,7 +53,12 @@ private class StatusBarBindings(
                     detectors
                         .getOrPut(view) { doubleTapDetector(view.context) }
                         .onTouchEvent(chain.getArg(0) as MotionEvent)
-                }.onFailure { Logger.error("gesture failed tweak=$TWEAK reason=${it.message}", it) }
+                }.onFailure {
+                    Logger.error(
+                        "gesture failed tweak=$TWEAK reason=${it.detail()}",
+                        it,
+                    )
+                }
             }
             chain.proceed()
         }

@@ -3,6 +3,7 @@ package eu.hxreborn.pixelinjector.xposed.hook.systemui
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalMethod
@@ -67,7 +68,7 @@ private class RowBindings(
             if (!switch.enabled || expanded == true) return@intercept expanded
             runCatching { forceExpanded(chain.thisObject, chain.getArg(0) as Boolean) }
                 .getOrElse {
-                    Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it)
+                    Logger.error("apply failed tweak=$TWEAK reason=${it.detail()}", it)
                     expanded
                 }
         }

@@ -6,6 +6,7 @@ import android.util.SparseIntArray
 import android.view.View
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalMethod
 import eu.hxreborn.pixelinjector.util.reason
@@ -70,7 +71,7 @@ private class HotseatBindings(
             runCatching {
                 applyTo(view)
                 Logger.info("applied tweak=$TWEAK hidden=${switch.enabled}")
-            }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+            }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.detail()}", it) }
         }
     }
 
@@ -151,7 +152,7 @@ private fun XposedModule.installHideSearchBar(cl: ClassLoader): Boolean {
         hook(member).intercept { chain ->
             val result = chain.proceed()
             runCatching { chain.thisObject?.let(bindings::capture) }
-                .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+                .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.detail()}", it) }
             result
         }
     }

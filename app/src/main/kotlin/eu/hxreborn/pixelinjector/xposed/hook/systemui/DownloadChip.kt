@@ -20,6 +20,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalField
@@ -138,8 +139,8 @@ private class NotificationListenerBindings(
             if (listeners.isEmpty()) {
                 throw NoSuchMethodException(
                     "NotificationListenerService.onNotificationPosted(" +
-                        "StatusBarNotification,RankingMap) candidates=${postedCandidates.size} " +
-                        "rejected=${rejectedListeners.joinToString()}",
+                        "StatusBarNotification,RankingMap) candidates=${postedCandidates.size}" +
+                        Logger.field("rejected", rejectedListeners.joinToString()),
                 )
             }
             return NotificationListenerBindings(
@@ -462,9 +463,9 @@ private fun replay() {
     try {
         listener?.get()?.activeNotifications?.forEach(::onPosted)
     } catch (e: Exception) {
-        Logger.error("replay failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.error("replay failed tweak=$TWEAK reason=${e.detail()}", e)
     } catch (e: LinkageError) {
-        Logger.error("replay failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.error("replay failed tweak=$TWEAK reason=${e.detail()}", e)
     }
 }
 

@@ -12,6 +12,7 @@ import android.view.View
 import android.widget.TextView
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.findFieldUpward
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalMethod
@@ -86,9 +87,9 @@ private fun updateIndicationView(view: TextView) {
                 val maxLines = if (switch.enabled) Int.MAX_VALUE else stockMaxLines
                 if (view.maxLines != maxLines) view.maxLines = maxLines
             } catch (e: Exception) {
-                Logger.error("line limit failed tweak=$TWEAK reason=${e.message}", e)
+                Logger.error("line limit failed tweak=$TWEAK reason=${e.detail()}", e)
             } catch (e: LinkageError) {
-                Logger.error("line limit failed tweak=$TWEAK reason=${e.message}", e)
+                Logger.error("line limit failed tweak=$TWEAK reason=${e.detail()}", e)
             }
         }
     if (view.handler?.looper == Looper.myLooper() && Looper.myLooper() != null) {
@@ -239,10 +240,10 @@ private fun XposedModule.installChargingDetails(cl: ClassLoader): Boolean {
                     try {
                         bindings.detailed(chain.thisObject, text)
                     } catch (e: Exception) {
-                        Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                        Logger.error("details failed tweak=$TWEAK reason=${e.detail()}", e)
                         null
                     } catch (e: LinkageError) {
-                        Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                        Logger.error("details failed tweak=$TWEAK reason=${e.detail()}", e)
                         null
                     } ?: return@intercept chain.proceed()
                 val args = chain.args.toTypedArray<Any?>()
@@ -262,10 +263,10 @@ private fun XposedModule.installChargingDetails(cl: ClassLoader): Boolean {
                     if (!enabled || result !is String) return@intercept result
                     bindings.detailed(chain.thisObject, result)?.toString() ?: result
                 } catch (e: Exception) {
-                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("details failed tweak=$TWEAK reason=${e.detail()}", e)
                     result
                 } catch (e: LinkageError) {
-                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("details failed tweak=$TWEAK reason=${e.detail()}", e)
                     result
                 }
             }
@@ -281,9 +282,9 @@ private fun XposedModule.installChargingDetails(cl: ClassLoader): Boolean {
                         ?.let { bindings.detailed(chain.thisObject, it) }
                         ?.let { message.set(indication, it) }
                 } catch (e: Exception) {
-                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("details failed tweak=$TWEAK reason=${e.detail()}", e)
                 } catch (e: LinkageError) {
-                    Logger.error("details failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("details failed tweak=$TWEAK reason=${e.detail()}", e)
                 }
             }
             chain.proceed()

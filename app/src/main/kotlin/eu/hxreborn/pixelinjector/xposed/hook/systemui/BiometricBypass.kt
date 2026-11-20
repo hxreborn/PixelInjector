@@ -9,6 +9,7 @@ import android.view.View
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.sound.SystemSounds
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredMethod
@@ -203,9 +204,9 @@ private inline fun confirmSafely(action: () -> Unit) {
     try {
         action()
     } catch (e: Exception) {
-        Logger.error("confirm failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.error("confirm failed tweak=$TWEAK reason=${e.detail()}", e)
     } catch (e: LinkageError) {
-        Logger.error("confirm failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.error("confirm failed tweak=$TWEAK reason=${e.detail()}", e)
     }
 }
 
@@ -218,18 +219,18 @@ private fun playSound(context: Context) {
                 ringtone?.stop()
                 ringtone = SystemSounds.play(context, path) ?: error("no ringtone")
             } catch (e: Exception) {
-                Logger.warn("sound failed tweak=$TWEAK path=$path reason=${e.message}", e)
+                Logger.warn("sound failed tweak=$TWEAK path=$path reason=${e.detail()}", e)
             } catch (e: LinkageError) {
-                Logger.warn("sound failed tweak=$TWEAK path=$path reason=${e.message}", e)
+                Logger.warn("sound failed tweak=$TWEAK path=$path reason=${e.detail()}", e)
             } finally {
                 soundPending.set(false)
             }
         }
     } catch (e: Exception) {
         soundPending.set(false)
-        Logger.warn("sound worker failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.warn("sound worker failed tweak=$TWEAK reason=${e.detail()}", e)
     } catch (e: LinkageError) {
         soundPending.set(false)
-        Logger.warn("sound worker failed tweak=$TWEAK reason=${e.message}", e)
+        Logger.warn("sound worker failed tweak=$TWEAK reason=${e.detail()}", e)
     }
 }

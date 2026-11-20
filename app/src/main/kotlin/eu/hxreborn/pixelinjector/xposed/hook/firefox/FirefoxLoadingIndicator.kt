@@ -16,6 +16,7 @@ import android.view.ViewOutlineProvider
 import android.widget.ImageView
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalField
 import eu.hxreborn.pixelinjector.util.orNullIfMissing
@@ -153,7 +154,7 @@ private class RefreshBindings(
                 tracked.count { layout ->
                     runCatching { if (enabled) applyTracked(layout) else revertTracked(layout) }
                         .onFailure {
-                            Logger.error("$action failed tweak=$TWEAK reason=${it.message}", it)
+                            Logger.error("$action failed tweak=$TWEAK reason=${it.detail()}", it)
                         }.getOrDefault(false)
                 }
             Logger.info("${if (enabled) "applied" else "reverted"} tweak=$TWEAK layouts=$changed")
@@ -258,7 +259,7 @@ private fun XposedModule.installFirefoxLoadingIndicator(cl: ClassLoader): Boolea
         if (switch.enabled) {
             runCatching { bindings.applyTracked(layout) }
                 .onSuccess { Logger.info("applied tweak=$TWEAK") }
-                .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+                .onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.detail()}", it) }
         }
         result
     }

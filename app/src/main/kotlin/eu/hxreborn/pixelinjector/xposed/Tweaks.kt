@@ -2,6 +2,7 @@ package eu.hxreborn.pixelinjector.xposed
 
 import android.content.SharedPreferences
 import eu.hxreborn.pixelinjector.Target
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.xposed.hook.dialer.dialerDechip
 import eu.hxreborn.pixelinjector.xposed.hook.files.filesSortByDate
 import eu.hxreborn.pixelinjector.xposed.hook.firefox.firefoxBetterfox
@@ -86,9 +87,9 @@ internal fun loadHookPrefs(
         try {
             value.load(prefs, process)
         } catch (e: Exception) {
-            Logger.warn("prefs load failed key=${value.key(process)} reason=${e.message}", e)
+            Logger.warn("prefs load failed key=${value.key(process)} reason=${e.detail()}", e)
         } catch (e: LinkageError) {
-            Logger.warn("prefs load failed key=${value.key(process)} reason=${e.message}", e)
+            Logger.warn("prefs load failed key=${value.key(process)} reason=${e.detail()}", e)
         }
     }
     if (values.isNotEmpty()) {

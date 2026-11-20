@@ -1,6 +1,7 @@
 package eu.hxreborn.pixelinjector.xposed.hook
 
 import android.os.SystemClock
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.Logger
 import org.luckypray.dexkit.DexKitBridge
@@ -57,7 +58,7 @@ internal object DexKit {
     ): Method? =
         resolving { data.getMethodInstance(cl) }
             .onFailure {
-                Logger.debug { "dexkit unresolved method=${data.descriptor} reason=${it.message}" }
+                Logger.debug { "dexkit unresolved method=${data.descriptor} reason=${it.detail()}" }
             }.getOrNull()
 
     fun save(): HashMap<String, List<Method>> = HashMap(found)

@@ -8,6 +8,7 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalField
 import eu.hxreborn.pixelinjector.util.reason
@@ -107,7 +108,7 @@ private class TaskbarBindings(
                 regionDark?.set(view, null)
                 updateHandleColor.invoke(view, lastRegionDark, true)
                 Logger.info("applied tweak=$TWEAK hidePill=${hidePill.enabled}")
-            }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.message}", it) }
+            }.onFailure { Logger.error("apply failed tweak=$TWEAK reason=${it.detail()}", it) }
         }
     }
 
@@ -119,7 +120,7 @@ private class TaskbarBindings(
                 val holder = controllers.get(context) ?: return@runCatching
                 recomputeInsets.invoke(insetsController.get(holder))
                 Logger.info("applied tweak=$TWEAK navSpace=${navSpace.value}")
-            }.onFailure { Logger.error("relayout failed tweak=$TWEAK reason=${it.message}", it) }
+            }.onFailure { Logger.error("relayout failed tweak=$TWEAK reason=${it.detail()}", it) }
         }
     }
 
@@ -215,7 +216,7 @@ private fun XposedModule.installTaskbarHandle(cl: ClassLoader): Boolean {
             if (bindings.live?.get() !== view) bindings.live = WeakReference(view)
             bindings.lastRegionDark = chain.getArg(0) as Boolean
             bindings.updateHandleColors(view)
-        }.onFailure { Logger.error("paint failed tweak=$TWEAK reason=${it.message}", it) }
+        }.onFailure { Logger.error("paint failed tweak=$TWEAK reason=${it.detail()}", it) }
         chain.proceed()
     }
     hook(bindings.notifyUpdateLayoutParams).intercept { chain ->
@@ -227,7 +228,7 @@ private fun XposedModule.installTaskbarHandle(cl: ClassLoader): Boolean {
                 bindings.liveActivityContext = WeakReference(context)
             }
             bindings.scaleNavigationInsets(context)
-        }.onFailure { Logger.error("scale failed tweak=$TWEAK reason=${it.message}", it) }
+        }.onFailure { Logger.error("scale failed tweak=$TWEAK reason=${it.detail()}", it) }
         chain.proceed()
     }
     return true

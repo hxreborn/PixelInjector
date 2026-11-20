@@ -339,7 +339,9 @@ private class ChipSessions(
             render()
             val playback = hasTrack to packageName
             if (playback != lastLoggedPlayback) {
-                Logger.info("updated tweak=$TWEAK playing=$hasTrack package=$packageName")
+                Logger.info(
+                    "updated tweak=$TWEAK playing=$hasTrack" + Logger.field("package", packageName),
+                )
                 lastLoggedPlayback = playback
             }
         }

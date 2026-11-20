@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.xposed.Logger
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -59,7 +60,9 @@ internal class SleepTrigger(
             if (code == 0) {
                 Logger.info("sleep path=root tweak=$tweak exit=0")
             } else {
-                Logger.error("sleep path=root tweak=$tweak exit=$code output=$output")
+                Logger.error(
+                    "sleep path=root tweak=$tweak exit=$code" + Logger.field("output", output),
+                )
             }
         } catch (e: Exception) {
             sleepFailed(e)
@@ -87,7 +90,7 @@ internal class SleepTrigger(
     private fun sleepFailed(cause: Throwable) {
         val path = if (viaRoot) "root" else "lockNow"
         Logger.error(
-            "sleep failed path=$path tweak=$tweak reason=${cause.cause?.message ?: cause.message}",
+            "sleep failed path=$path tweak=$tweak reason=${(cause.cause ?: cause).detail()}",
             cause,
         )
     }

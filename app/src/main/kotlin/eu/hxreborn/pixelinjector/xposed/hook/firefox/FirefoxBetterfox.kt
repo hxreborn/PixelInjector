@@ -10,6 +10,7 @@ import eu.hxreborn.pixelinjector.betterfox.decodeOverrides
 import eu.hxreborn.pixelinjector.betterfox.formatPrefValue
 import eu.hxreborn.pixelinjector.betterfox.resolveBetterfox
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredMethod
@@ -79,7 +80,7 @@ private fun loadBundled(): BetterfoxList? =
             BetterfoxList.parse(zip.getInputStream(entry).use { it.readBytes().decodeToString() })
         }
     }.getOrElse {
-        Logger.error("bundled list failed tweak=$TWEAK reason=${it.message}", it)
+        Logger.error("bundled list failed tweak=$TWEAK reason=${it.detail()}", it)
         null
     }
 
@@ -115,12 +116,13 @@ private fun XposedModule.installFirefoxBetterfox(cl: ClassLoader): Boolean {
                 prepareBetterfoxProfiles(context.filesDir, extra.keys, resetRequest)
             startupPrefs = if (profileBackedUp) extra else emptyMap()
             Logger.info(
-                "profiles prepared tweak=$TWEAK enabled=$enabled reset=$resetRequest profileBackedUp=$profileBackedUp",
+                "profiles prepared tweak=$TWEAK enabled=$enabled profileBackedUp=$profileBackedUp" +
+                    Logger.field("reset", resetRequest),
             )
         } catch (e: Exception) {
-            Logger.error("profiles failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("profiles failed tweak=$TWEAK reason=${e.detail()}", e)
         } catch (e: LinkageError) {
-            Logger.error("profiles failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("profiles failed tweak=$TWEAK reason=${e.detail()}", e)
         }
         chain.proceed()
     }
@@ -136,11 +138,13 @@ private fun XposedModule.installFirefoxBetterfox(cl: ClassLoader): Boolean {
             stock
         } else {
             val replaced = extra.keys.filter { it in stock }.joinToString(",")
-            val values =
-                extra.entries.joinToString(",") { "${it.key}=${formatPrefValue(it.value)}" }
             Logger.info(
-                "applied tweak=$TWEAK prefs=${extra.size} replaced=$replaced values=$values",
+                "applied tweak=$TWEAK prefs=${extra.size}" + Logger.field("replaced", replaced),
             )
+            Logger.debug {
+                "applied tweak=$TWEAK values=" +
+                    extra.entries.joinToString(",") { "${it.key}=${formatPrefValue(it.value)}" }
+            }
             LinkedHashMap(stock).apply { putAll(extra) }
         }
     }

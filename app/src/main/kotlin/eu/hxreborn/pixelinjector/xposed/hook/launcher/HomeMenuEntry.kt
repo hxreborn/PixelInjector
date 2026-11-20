@@ -14,6 +14,7 @@ import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
@@ -313,8 +314,12 @@ private object EntryIcon {
         if (glyph == null) {
             glyph =
                 runCatching { render(context) }
-                    .onFailure { Logger.error("icon failed tweak=$TWEAK reason=${it.message}", it) }
-                    .getOrNull()
+                    .onFailure {
+                        Logger.error(
+                            "icon failed tweak=$TWEAK reason=${it.detail()}",
+                            it,
+                        )
+                    }.getOrNull()
         }
         return glyph
     }
@@ -423,7 +428,7 @@ private fun openCompanion(context: Context?): Any? {
                 ?: error("no launch intent")
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         Logger.info("opened tweak=$TWEAK")
-    }.onFailure { Logger.error("open failed tweak=$TWEAK reason=${it.message}", it) }
+    }.onFailure { Logger.error("open failed tweak=$TWEAK reason=${it.detail()}", it) }
     return null
 }
 
@@ -453,7 +458,7 @@ private fun XposedModule.installHomeMenuEntry(cl: ClassLoader): Boolean {
         try {
             bindings.withEntry(context, options)
         } catch (e: Exception) {
-            Logger.error("entry failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("entry failed tweak=$TWEAK reason=${e.detail()}", e)
             options
         }
     }

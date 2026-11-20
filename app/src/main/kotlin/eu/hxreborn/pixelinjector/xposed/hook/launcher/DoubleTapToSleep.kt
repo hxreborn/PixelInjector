@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.resolving
@@ -68,7 +69,7 @@ private fun XposedModule.installDoubleTapToSleep(cl: ClassLoader): Boolean {
             return@intercept chain.proceed()
         }
         runCatching { bindings.application()?.let(trigger::sleep) }
-            .onFailure { Logger.error("sleep failed tweak=$TWEAK reason=${it.message}", it) }
+            .onFailure { Logger.error("sleep failed tweak=$TWEAK reason=${it.detail()}", it) }
         chain.proceed()
     }
     return true

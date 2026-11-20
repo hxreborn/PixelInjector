@@ -292,7 +292,8 @@ private fun MaterialYouBindings.toggleLive(
         )
     }.onFailure {
         val action = if (enabled) "apply" else "revert"
-        Logger.error("$action failed tweak=$TWEAK reason=${it.reason()} ${it.message}", it)
+        val detail = Logger.field("detail", it.message)
+        Logger.error("$action failed tweak=$TWEAK reason=${it.reason()}$detail", it)
     }
 }
 
@@ -479,7 +480,11 @@ private fun MaterialYouBindings.recolorGradients(
             }
             copy
         }.getOrElse {
-            Logger.error("apply failed tweak=$TWEAK reason=${it.reason()} ${it.message}", it)
+            Logger.error(
+                "apply failed tweak=$TWEAK reason=${it.reason()}" +
+                    Logger.field("detail", it.message),
+                it,
+            )
             scheme
         }
     }
@@ -782,7 +787,8 @@ private fun XposedModule.installFirefoxMaterialYou(cl: ClassLoader): Boolean {
             }
         }.onFailure {
             Logger.error(
-                "apply failed tweak=$TWEAK reason=${it.reason()} ${it.message}",
+                "apply failed tweak=$TWEAK reason=${it.reason()}" +
+                    Logger.field("detail", it.message),
                 it,
             )
         }

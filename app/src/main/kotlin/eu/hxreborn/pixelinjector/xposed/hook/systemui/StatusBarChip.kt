@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.Logger
@@ -122,9 +123,9 @@ internal inline fun isolateChipCallback(
     try {
         action()
     } catch (e: Exception) {
-        Logger.error("callback failed tweak=$tweak callback=$callback reason=${e.message}", e)
+        Logger.error("callback failed tweak=$tweak callback=$callback reason=${e.detail()}", e)
     } catch (e: LinkageError) {
-        Logger.error("callback failed tweak=$tweak callback=$callback reason=${e.message}", e)
+        Logger.error("callback failed tweak=$tweak callback=$callback reason=${e.detail()}", e)
     }
 }
 

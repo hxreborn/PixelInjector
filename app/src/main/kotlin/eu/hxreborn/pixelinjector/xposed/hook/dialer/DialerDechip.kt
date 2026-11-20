@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredMethod
@@ -152,9 +153,9 @@ private fun XposedModule.installDialerDechip(cl: ClassLoader): Boolean {
                 try {
                     bindings.removeFeedbackChips(model)
                 } catch (e: Exception) {
-                    Logger.error("strip failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("strip failed tweak=$TWEAK reason=${e.detail()}", e)
                 } catch (e: LinkageError) {
-                    Logger.error("strip failed tweak=$TWEAK reason=${e.message}", e)
+                    Logger.error("strip failed tweak=$TWEAK reason=${e.detail()}", e)
                 }
             }
             model
@@ -165,7 +166,7 @@ private fun XposedModule.installDialerDechip(cl: ClassLoader): Boolean {
         if ((chain.getArg(2) as? Notification)?.channelId != FEEDBACK_CHANNEL) {
             return@intercept chain.proceed()
         }
-        Logger.info("notification skipped tweak=$TWEAK tag=${chain.getArg(0)}")
+        Logger.info("notification skipped tweak=$TWEAK" + Logger.field("tag", chain.getArg(0)))
         null
     }
     return true

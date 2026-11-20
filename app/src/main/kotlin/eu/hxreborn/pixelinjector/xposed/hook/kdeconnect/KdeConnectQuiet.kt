@@ -14,6 +14,7 @@ import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TWEAK = "KdeConnectQuiet"
 
@@ -53,9 +54,14 @@ private fun XposedModule.installKdeConnectQuiet(cl: ClassLoader): Boolean {
     Logger.info(
         "resolved tweak=$TWEAK members=${bindings.acquire.signature()},${bindings.release.signature()}",
     )
+    val acquireSkipLogged = AtomicBoolean(false)
     hook(bindings.acquire).intercept { chain ->
         if (!switch.enabled) return@intercept chain.proceed()
-        Logger.info("multicast lock acquire skipped tweak=$TWEAK")
+        if (acquireSkipLogged.compareAndSet(false, true)) {
+            Logger.info("multicast lock acquire skipped tweak=$TWEAK")
+        } else {
+            Logger.debug { "multicast lock acquire skipped tweak=$TWEAK" }
+        }
         null
     }
     hook(bindings.release).intercept { chain ->

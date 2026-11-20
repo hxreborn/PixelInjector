@@ -50,14 +50,17 @@ fun Method.signature(): String =
 
 fun Field.signature(): String = "${declaringClass.simpleName}#$name"
 
-fun Throwable.member(): String? =
+fun Throwable.detail(): String =
+    message?.takeIf { it.isNotBlank() } ?: javaClass.simpleName.ifEmpty { javaClass.name }
+
+fun Throwable.member(): String =
     (this as? ClassNotFoundException)
         ?.message
         ?.substringAfter("find class \"", "")
         ?.substringBefore('"')
         ?.substringAfterLast('.')
         ?.ifEmpty { null }
-        ?: message
+        ?: detail()
 
 fun Throwable.reason(): String =
     when (this) {

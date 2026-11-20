@@ -12,6 +12,7 @@ import eu.hxreborn.pixelinjector.InstallDiagnostics
 import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedInterface.HookHandle
@@ -65,9 +66,9 @@ class PixelInjectorModule : XposedModule() {
             try {
                 loadHookPrefs(sp, target, process, key)
             } catch (e: Exception) {
-                Logger.error("prefs reload failed reason=${e.message}", e)
+                Logger.error("prefs reload failed reason=${e.detail()}", e)
             } catch (e: LinkageError) {
-                Logger.error("prefs reload failed reason=${e.message}", e)
+                Logger.error("prefs reload failed reason=${e.detail()}", e)
             }
         }
 
@@ -184,7 +185,7 @@ class PixelInjectorModule : XposedModule() {
         attempted: List<Tweak>,
     ): Boolean {
         Logger.error(
-            "hot reload rejected reason=save-failed tweak=${tweak.key} cause=${cause.message}",
+            "hot reload rejected reason=save-failed tweak=${tweak.key} cause=${cause.detail()}",
             cause,
         )
         attempted.forEach(::resumeAfterRejection)
@@ -205,7 +206,7 @@ class PixelInjectorModule : XposedModule() {
     private fun resumeFailed(
         tweak: Tweak,
         cause: Throwable,
-    ) = Logger.error("resume failed tweak=${tweak.key} reason=${cause.message}", cause)
+    ) = Logger.error("resume failed tweak=${tweak.key} reason=${cause.detail()}", cause)
 
     private fun unhookIsolated(handle: HookHandle): Boolean =
         try {
@@ -222,7 +223,7 @@ class PixelInjectorModule : XposedModule() {
         cause: Throwable,
     ): Boolean {
         Logger.error(
-            "hot reload old hook removal failed member=${handle.executable} reason=${cause.message}",
+            "hot reload old hook removal failed member=${handle.executable} reason=${cause.detail()}",
             cause,
         )
         return false
@@ -231,7 +232,7 @@ class PixelInjectorModule : XposedModule() {
     private fun restoreFailed(
         tweak: Tweak,
         cause: Throwable,
-    ) = Logger.error("restore failed tweak=${tweak.key} reason=${cause.message}", cause)
+    ) = Logger.error("restore failed tweak=${tweak.key} reason=${cause.detail()}", cause)
 
     private fun loadRemotePrefs(target: Target) {
         try {
@@ -247,7 +248,7 @@ class PixelInjectorModule : XposedModule() {
     }
 
     private fun remotePrefsUnavailable(cause: Throwable) =
-        Logger.warn("remote prefs unavailable defaults=true reason=${cause.message}", cause)
+        Logger.warn("remote prefs unavailable defaults=true reason=${cause.detail()}", cause)
 
     private fun reloadGuardSite(
         saved: Map<*, *>,
@@ -314,8 +315,8 @@ class PixelInjectorModule : XposedModule() {
             )
         }
         Logger.info(
-            "guard proc=$process earlyDeaths=${guard.earlyDeaths} safeMode=${guard.safeMode} " +
-                "quarantined=${guard.quarantined.sorted().joinToString(",")}",
+            "guard proc=$process earlyDeaths=${guard.earlyDeaths} safeMode=${guard.safeMode}" +
+                Logger.field("quarantined", guard.quarantined.sorted().joinToString(",")),
         )
     }
 
@@ -324,7 +325,7 @@ class PixelInjectorModule : XposedModule() {
         cause: Throwable,
     ): CrashGuard? {
         Logger.error(
-            "guard unavailable proc=$process file=${file.path} reason=${cause.message}",
+            "guard unavailable proc=$process file=${file.path} reason=${cause.detail()}",
             cause,
         )
         return null
@@ -338,10 +339,10 @@ class PixelInjectorModule : XposedModule() {
             write()
             true
         } catch (e: Exception) {
-            Logger.error("guard write failed $detail reason=${e.message}", e)
+            Logger.error("guard write failed $detail reason=${e.detail()}", e)
             false
         } catch (e: LinkageError) {
-            Logger.error("guard write failed $detail reason=${e.message}", e)
+            Logger.error("guard write failed $detail reason=${e.detail()}", e)
             false
         }
 
@@ -401,7 +402,7 @@ class PixelInjectorModule : XposedModule() {
         cause: Throwable,
     ): Boolean {
         Logger.error(
-            "install failed tweak=${tweak.key} build=${Build.ID} reason=${cause.message}",
+            "install failed tweak=${tweak.key} build=${Build.ID} reason=${cause.detail()}",
             cause,
         )
         return false

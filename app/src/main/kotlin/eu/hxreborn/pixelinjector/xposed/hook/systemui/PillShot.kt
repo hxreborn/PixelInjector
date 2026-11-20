@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.UserHandle
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalMethod
 import eu.hxreborn.pixelinjector.util.orNullIfMissing
@@ -181,10 +182,10 @@ private class ScreenshotBindings(
             val owner = serviceController?.get(entryService?.get(receiver)) ?: receiver
             context.get(owner) as? Context
         } catch (e: Exception) {
-            Logger.error("context failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("context failed tweak=$TWEAK reason=${e.detail()}", e)
             null
         } catch (e: LinkageError) {
-            Logger.error("context failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("context failed tweak=$TWEAK reason=${e.detail()}", e)
             null
         }
 
@@ -192,10 +193,10 @@ private class ScreenshotBindings(
         try {
             type.getInt(shot) == TAKE_SCREENSHOT_FULLSCREEN && bitmap.get(shot) == null
         } catch (e: Exception) {
-            Logger.error("capture state failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("capture state failed tweak=$TWEAK reason=${e.detail()}", e)
             false
         } catch (e: LinkageError) {
-            Logger.error("capture state failed tweak=$TWEAK reason=${e.message}", e)
+            Logger.error("capture state failed tweak=$TWEAK reason=${e.detail()}", e)
             false
         }
 
@@ -229,10 +230,10 @@ private class ScreenshotBindings(
         try {
             stampBitmap(context, shot, captured) ?: captured
         } catch (e: Exception) {
-            Logger.error("stamp failed tweak=$TWEAK path=$path reason=${e.message}", e)
+            Logger.error("stamp failed tweak=$TWEAK path=$path reason=${e.detail()}", e)
             captured
         } catch (e: LinkageError) {
-            Logger.error("stamp failed tweak=$TWEAK path=$path reason=${e.message}", e)
+            Logger.error("stamp failed tweak=$TWEAK path=$path reason=${e.detail()}", e)
             captured
         }
 }
@@ -264,9 +265,9 @@ private fun XposedModule.installPillShot(cl: ClassLoader): Boolean {
             try {
                 bindings.stamp(context, shot)
             } catch (e: Exception) {
-                Logger.error("stamp failed tweak=$TWEAK path=entry reason=${e.message}", e)
+                Logger.error("stamp failed tweak=$TWEAK path=entry reason=${e.detail()}", e)
             } catch (e: LinkageError) {
-                Logger.error("stamp failed tweak=$TWEAK path=entry reason=${e.message}", e)
+                Logger.error("stamp failed tweak=$TWEAK path=entry reason=${e.detail()}", e)
             }
             val previousScreenshot = pendingScreenshot.get()
             pendingScreenshot.set(context to shot)
@@ -361,10 +362,10 @@ private fun XposedModule.installMotoPillShot(session: Class<*>): Boolean {
                         }
                 }
             } catch (e: Exception) {
-                Logger.error("stamp failed tweak=$TWEAK path=motorola reason=${e.message}", e)
+                Logger.error("stamp failed tweak=$TWEAK path=motorola reason=${e.detail()}", e)
                 null
             } catch (e: LinkageError) {
-                Logger.error("stamp failed tweak=$TWEAK path=motorola reason=${e.message}", e)
+                Logger.error("stamp failed tweak=$TWEAK path=motorola reason=${e.detail()}", e)
                 null
             }
         if (args == null) chain.proceed() else chain.proceed(args)

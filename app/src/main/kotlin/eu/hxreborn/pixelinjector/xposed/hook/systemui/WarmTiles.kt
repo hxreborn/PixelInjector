@@ -3,6 +3,7 @@ package eu.hxreborn.pixelinjector.xposed.hook.systemui
 import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
@@ -84,7 +85,7 @@ private class TileServicesBindings(
         val value = if (switch.enabled) cap else original ?: return
         runCatching { maxBound.set(instance, value) }
             .onSuccess { Logger.info("$verb tweak=$TWEAK mMaxBound=$value") }
-            .onFailure { Logger.error("$verb failed tweak=$TWEAK reason=${it.message}", it) }
+            .onFailure { Logger.error("$verb failed tweak=$TWEAK reason=${it.detail()}", it) }
     }
 }
 
@@ -105,7 +106,7 @@ private fun XposedModule.installWarmTiles(cl: ClassLoader): Boolean {
         val instance = chain.thisObject
         if (instance != null && bindings.live?.get() !== instance) {
             runCatching { bindings.capture(instance) }
-                .onFailure { Logger.error("capture failed tweak=$TWEAK reason=${it.message}", it) }
+                .onFailure { Logger.error("capture failed tweak=$TWEAK reason=${it.detail()}", it) }
         }
         chain.proceed()
     }

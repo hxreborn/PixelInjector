@@ -1215,7 +1215,9 @@ private fun reportFailure(
 private fun Throwable.unwrapped(): Throwable =
     (this as? InvocationTargetException)?.targetException ?: this
 
-private fun Throwable.summary() = "${javaClass.simpleName}: $message"
+private fun Throwable.summary() =
+    message?.takeIf { it.isNotBlank() }?.let { "${javaClass.simpleName}: $it" }
+        ?: javaClass.simpleName
 
 private fun XposedModule.hookMenuRows(compose: ComposeBindings) {
     menuHook(compose.sheetHandle) { chain ->
