@@ -42,6 +42,7 @@ import eu.hxreborn.pixelinjector.support.ReportPreview
 import eu.hxreborn.pixelinjector.support.RomCode
 import eu.hxreborn.pixelinjector.support.SendResult
 import eu.hxreborn.pixelinjector.support.SentReport
+import eu.hxreborn.pixelinjector.support.UpdateWatch
 import eu.hxreborn.pixelinjector.ui.betterfox.BetterfoxController
 import eu.hxreborn.pixelinjector.ui.dashboard.DashboardState
 import eu.hxreborn.pixelinjector.ui.dashboard.HookedPackages
@@ -298,7 +299,9 @@ class MainViewModel(
     val updateRequested: StateFlow<Boolean> = _updateRequested.asStateFlow()
 
     fun handleUpdateIntent(intent: Intent) {
-        if (intent.getBooleanExtra(EXTRA_OPEN_UPDATE, false)) _updateRequested.value = true
+        if (!intent.getBooleanExtra(EXTRA_OPEN_UPDATE, false)) return
+        UpdateWatch.cancelNotification(getApplication())
+        _updateRequested.value = true
     }
 
     fun consumeUpdateRequest() {

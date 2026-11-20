@@ -175,7 +175,7 @@ class UpdateWatch : JobService() {
             val later =
                 PendingIntent.getBroadcast(
                     context,
-                    NOTIFICATION_ID,
+                    release.versionCode,
                     Intent(context, UpdateLaterReceiver::class.java)
                         .putExtra(EXTRA_LATER_VERSION, release.versionCode),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,

@@ -171,6 +171,7 @@ class Support(
     }
 
     fun postponeUpdate(versionCode: Int) {
+        if (versionCode <= _postponedVersion.value) return
         prefs.edit { putInt(POSTPONED_VERSION, versionCode) }
         _postponedVersion.value = versionCode
         if (prefs.getInt(NOTIFIED_VERSION, 0) <=
