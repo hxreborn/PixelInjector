@@ -263,6 +263,7 @@ private class ChipSessions(
     private val controllers = linkedMapOf<MediaController, MediaController.Callback>()
 
     @Volatile private var closed = false
+    private var lastLoggedPlayback: Pair<Boolean, String?>? = null
     private val listener =
         MediaSessionManager.OnActiveSessionsChangedListener { active ->
             isolateChipCallback(TWEAK, "sessions") { replace(active.orEmpty()) }
@@ -325,8 +326,8 @@ private class ChipSessions(
         val title =
             metadata?.getText(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
                 ?: metadata?.getText(MediaMetadata.METADATA_KEY_TITLE)
-        val icon =
-            selected?.let { appIcon(it.packageName) }
+        val packageName = selected?.packageName
+        val icon = packageName?.let(::appIcon)
         postUi {
             if (closed) return@postUi
             hasTrack = !title.isNullOrBlank()
@@ -336,7 +337,11 @@ private class ChipSessions(
                 view.contentDescription = title
             }
             render()
-            Logger.info("updated tweak=$TWEAK playing=$hasTrack package=${selected?.packageName}")
+            val playback = hasTrack to packageName
+            if (playback != lastLoggedPlayback) {
+                Logger.info("updated tweak=$TWEAK playing=$hasTrack package=$packageName")
+                lastLoggedPlayback = playback
+            }
         }
     }
 
