@@ -9,6 +9,7 @@ data class LogEntry(
     val tweak: String?,
     val process: String,
     val body: String,
+    val raw: String,
 )
 
 data class ModuleLogState(
@@ -37,12 +38,9 @@ fun parseModuleLog(
 ): List<LogEntry> {
     val procByPid = processes.mapValuesTo(mutableMapOf()) { shortProcess(it.value) }
     return lines.mapNotNull { line ->
-        val head = logcatHead.find(line) ?: fileHead.find(line) ?: return@mapNotNull null
-        val (time, pid, level) = head.destructured
-        val body =
-            fileTag.find(line)?.let { line.substring(it.range.last + 1) }
-                ?: line.substringAfter("PixelInjector").substringAfter(": ").removePrefix("${BuildConfig.APPLICATION_ID}: ")
-        val id = pid.toInt()
+        val entry = parseModuleLogLine(line) ?: return@mapNotNull null
+        val id = entry.pid
+        val body = entry.body
         when {
             body.startsWith("reload ") || body.startsWith("service bound") -> {
                 procByPid[id] = "app"
@@ -52,8 +50,17 @@ fun parseModuleLog(
                 field(body, "proc")?.let { procByPid[id] = it.substringAfterLast('.') }
             }
         }
-        LogEntry(time, id, level[0], tweakRegex.find(body)?.groupValues?.get(1), procByPid[id] ?: pid, body)
+        entry.copy(process = procByPid[id] ?: entry.process)
     }
+}
+
+internal fun parseModuleLogLine(line: String): LogEntry? {
+    val head = logcatHead.find(line) ?: fileHead.find(line) ?: return null
+    val (time, pid, level) = head.destructured
+    val body =
+        fileTag.find(line)?.let { line.substring(it.range.last + 1) }
+            ?: line.substringAfter("PixelInjector").substringAfter(": ").removePrefix("${BuildConfig.APPLICATION_ID}: ")
+    return LogEntry(time, pid.toInt(), level[0], tweakRegex.find(body)?.groupValues?.get(1), pid, body, line)
 }
 
 private fun field(
@@ -61,35 +68,47 @@ private fun field(
     key: String,
 ): String? = Regex("""\b$key=(\S+)""").find(body)?.groupValues?.get(1)
 
-fun deriveErrors(entries: List<LogEntry>): Map<String, String> {
+internal class InstallLog(
+    val start: LogEntry,
+    val failures: MutableMap<String, LogEntry> = mutableMapOf(),
+)
+
+internal fun latestInstallLogs(entries: Sequence<LogEntry>): Map<String, InstallLog> {
     val procByPid = mutableMapOf<Int, String>()
-    val errorsByProc = mutableMapOf<String, MutableMap<String, String>>()
-    for ((_, pid, _, tweak, _, body) in entries) {
+    val installs = mutableMapOf<String, InstallLog>()
+    for (entry in entries) {
+        val (_, pid, _, tweak, _, body) = entry
         when {
             body.startsWith("install proc=") -> {
                 val proc = field(body, "proc") ?: continue
-                if (field(body, "version") == BuildConfig.VERSION_CODE.toString()) {
-                    procByPid[pid] = proc
-                    errorsByProc[proc] = mutableMapOf()
-                } else {
-                    procByPid.remove(pid)
-                }
+                procByPid[pid] = proc
+                installs[proc] = InstallLog(entry)
             }
 
             body.startsWith("target not found") || body.startsWith("install failed") -> {
-                val proc = procByPid[pid] ?: continue
-                if (tweak == null) continue
-                errorsByProc.getOrPut(proc) { mutableMapOf() }[tweak] = field(body, "build") ?: "?"
+                val install = installs[procByPid[pid]] ?: continue
+                if (install.start.pid == pid && tweak != null) install.failures[tweak] = entry
             }
         }
     }
-    return buildMap {
-        errorsByProc.forEach { (proc, errors) ->
-            putAll(errors)
-            errors.forEach { (tweak, build) -> put(processKey(tweak, proc), build) }
+    return installs
+}
+
+internal fun currentInstallFailures(entries: List<LogEntry>): Map<String, Map<String, LogEntry>> =
+    latestInstallLogs(entries.asSequence())
+        .filterValues { field(it.start.body, "version") == BuildConfig.VERSION_CODE.toString() }
+        .mapValues { it.value.failures }
+
+fun deriveErrors(entries: List<LogEntry>): Map<String, String> =
+    buildMap {
+        currentInstallFailures(entries).forEach { (proc, failures) ->
+            failures.forEach { (tweak, entry) ->
+                val build = field(entry.body, "build") ?: "?"
+                put(tweak, build)
+                put(processKey(tweak, proc), build)
+            }
         }
     }
-}
 
 fun processKey(
     tweak: String,

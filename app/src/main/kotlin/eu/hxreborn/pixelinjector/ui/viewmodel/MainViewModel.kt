@@ -44,6 +44,7 @@ import eu.hxreborn.pixelinjector.ui.dashboard.restartOnChange
 import eu.hxreborn.pixelinjector.ui.dashboard.tweakUis
 import eu.hxreborn.pixelinjector.ui.editor.fingerprintImageFile
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogState
+import eu.hxreborn.pixelinjector.ui.log.currentInstallFailures
 import eu.hxreborn.pixelinjector.ui.log.deriveErrorLines
 import eu.hxreborn.pixelinjector.ui.log.deriveErrors
 import eu.hxreborn.pixelinjector.ui.log.parseModuleLog
@@ -382,9 +383,13 @@ class MainViewModel(
         val log = _moduleLog.value
         val errors = _errors.value
         val prefsNow = prefs.value
+        val missesByProcess =
+            currentInstallFailures(log.entries).mapValues { (_, failures) ->
+                failures.values.filter { it.body.startsWith("target not found") }
+            }
         val missing =
-            log.entries
-                .filter { it.body.startsWith("target not found") && it.tweak != null && it.tweak in errors }
+            missesByProcess.values
+                .flatten()
                 .map { entry ->
                     MissingTarget(
                         entry.tweak.orEmpty(),
@@ -392,7 +397,8 @@ class MainViewModel(
                         logField(entry.body, "reason"),
                     )
                 }.distinctBy { it.tweak }
-        val (romCodes, unreadableRomCodes) = romCodes(missing)
+        val (romCodes, unreadableRomCodes) =
+            romCodes(missesByProcess.mapValues { (_, misses) -> misses.mapNotNull { it.tweak } })
         return ReportFacts(
             framework = service?.let { Framework(it.frameworkName, it.frameworkVersion, it.apiVersion) },
             rootDenied = log.denied,
@@ -420,28 +426,43 @@ class MainViewModel(
         )
     }
 
-    private fun romCodes(missing: List<MissingTarget>): Pair<Map<String, RomCode>, Map<String, String>> {
+    private fun romCodes(missesByProcess: Map<String, List<String>>): Pair<Map<String, RomCode>, Map<String, String>> {
         if (!RomCode.wanted) return emptyMap<String, RomCode>() to emptyMap()
-        val found = mutableMapOf<String, RomCode?>()
-        val unreadable = mutableMapOf<String, String>()
-        val codes =
-            missing
-                .mapNotNull { target ->
-                    val kind =
-                        when (tweakUis.firstOrNull { it.key == target.tweak }?.group) {
+        val detectedKinds = mutableMapOf<String, MutableSet<String>>()
+        for ((process, tweaks) in missesByProcess) {
+            val kind =
+                when (process.substringBefore(':')) {
+                    ModuleConstants.SYSTEMUI_PACKAGE -> RomCode.SYSTEMUI
+                    SYSTEM_PROCESS -> RomCode.SERVICES
+                    else -> continue
+                }
+            tweaks.forEach { detectedKinds.getOrPut(it, ::mutableSetOf).add(kind) }
+        }
+        val kindsByTweak =
+            tweakUis
+                .mapNotNull { tweak ->
+                    val groupKind =
+                        when (tweak.group) {
                             TweakGroup.SYSTEM_UI -> RomCode.SYSTEMUI
                             TweakGroup.SYSTEM -> RomCode.SERVICES
-                            else -> return@mapNotNull null
+                            else -> null
                         }
-                    val code =
-                        found.getOrPut(kind) {
-                            runCatching { RomCode.find(getApplication(), kind) }
-                                .onFailure { Log.w(ModuleConstants.LOG_TAG, "rom code unreadable kind=$kind reason=${it.message}") }
-                                .getOrNull()
-                        }
-                    if (code == null) unreadable[target.tweak] = kind
-                    code?.let { target.tweak to it }
+                    val detected = detectedKinds[tweak.key].orEmpty()
+                    val kind = groupKind?.takeIf(detected::contains) ?: detected.firstOrNull() ?: groupKind
+                    kind?.let { tweak.key to it }
                 }.toMap()
+        val codeByKind =
+            kindsByTweak.values.toSet().associateWith { kind ->
+                runCatching { RomCode.find(getApplication(), kind) }
+                    .onFailure { Log.w(ModuleConstants.LOG_TAG, "rom code unreadable kind=$kind reason=${it.message}") }
+                    .getOrNull()
+            }
+        val codes = mutableMapOf<String, RomCode>()
+        val unreadable = mutableMapOf<String, String>()
+        for ((tweak, kind) in kindsByTweak) {
+            val code = codeByKind[kind]
+            if (code == null) unreadable[tweak] = kind else codes[tweak] = code
+        }
         return codes to unreadable
     }
 
@@ -577,9 +598,10 @@ class MainViewModel(
             is Root.LogRead.Lines -> {
                 val lines = logArchive.merge(read.lines)
                 rawLog = lines
-                _moduleLog.value = ModuleLogState(loading = false, entries = parseModuleLog(lines, read.processes))
+                val entries = parseModuleLog(lines, read.processes)
+                _moduleLog.value = ModuleLogState(loading = false, entries = entries)
                 val current = parseModuleLog(read.lines, read.processes)
-                _errors.value = deriveErrors(current)
+                _errors.value = deriveErrors(entries)
                 errorLines.value = deriveErrorLines(current, read.processes.keys)
             }
         }

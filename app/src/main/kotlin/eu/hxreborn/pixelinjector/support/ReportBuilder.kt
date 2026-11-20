@@ -36,12 +36,16 @@ class ReportFacts(
     val unreadableRomCodes: Map<String, String> = emptyMap(),
 ) {
     fun romCodeFor(tweak: String?): RomCode? =
-        if (tweak == null) romCodes.values.firstOrNull() else romCodes[tweak]
+        if (tweak == null) {
+            missing.firstNotNullOfOrNull { romCodes[it.tweak] }
+        } else {
+            romCodes[tweak]
+        }
 
     fun unreadableRomCodeFor(tweak: String?): String? =
         when {
             romCodeFor(tweak) != null -> null
-            tweak == null -> unreadableRomCodes.values.firstOrNull()
+            tweak == null -> missing.firstNotNullOfOrNull { unreadableRomCodes[it.tweak] }
             else -> unreadableRomCodes[tweak]
         }
 }
