@@ -1,3 +1,9 @@
+## [1.28.2](https://github.com/hxreborn/PixelInjector/compare/v1.28.1...v1.28.2) (2026-11-20)
+
+### Bug Fixes
+
+* **log:** drop empty and null fields from module log lines ([c7793c6](https://github.com/hxreborn/PixelInjector/commit/c7793c647a013e640b5db116878ebe8dea4efc51))
+
 ## [1.28.1](https://github.com/hxreborn/PixelInjector/compare/v1.28.0...v1.28.1) (2026-11-20)
 
 ### Bug Fixes
