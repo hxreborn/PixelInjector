@@ -181,7 +181,6 @@ fun SettingsScreen(
     updateNotificationScheduleFailed: Boolean,
     updateNotificationChannelBlocked: Boolean,
     showAppNotificationSettings: Boolean,
-    recoveringUpdate: Boolean,
     hideUnavailable: Boolean,
     showPackages: Boolean,
     dateStyle: DateStyle,
@@ -203,7 +202,7 @@ fun SettingsScreen(
             Group(stringResource(R.string.settings_updates), if (showAppNotificationSettings) 4 else 3) { index, shape ->
                 when (index) {
                     0 -> {
-                        VersionTile(state, recoveringUpdate, shape, actions)
+                        VersionTile(state, shape, actions)
                     }
 
                     1 -> {
@@ -478,7 +477,6 @@ private enum class VersionAction { Update, Checking, Check, Retry }
 @Composable
 private fun VersionTile(
     state: SupportState,
-    recoveringUpdate: Boolean,
     shape: RoundedCornerShape,
     actions: SettingsActions,
 ) {
@@ -496,16 +494,12 @@ private fun VersionTile(
         checkRequested = true
         actions.onCheck()
     }
-    val hasUpdate = available != null || recoveringUpdate
+    val hasUpdate = available != null
     val onClick = if (hasUpdate) actions.onUpdate else onCheck
     Tile(shape = shape, onClick = onClick) {
         TileLeading(Icons.Outlined.NewReleases)
         val supporting =
             when {
-                recoveringUpdate -> {
-                    stringResource(R.string.update_staged_summary)
-                }
-
                 available != null -> {
                     stringResource(R.string.update_available_short, available.versionName)
                 }

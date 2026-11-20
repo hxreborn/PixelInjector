@@ -435,8 +435,6 @@
     <string name="update_downloading">Mengunduh %1$d%%</string>
     <string name="update_verifying">Memeriksa APK</string>
     <string name="update_confirming">Menunggu penginstal Android</string>
-    <string name="update_staged_summary">Sesi penginstalan pembaruan sebelumnya masih terbuka</string>
-    <string name="update_discard_staged">Batalkan pembaruan yang disiapkan</string>
     <string name="update_try_again">Coba lagi</string>
     <string name="update_channel">Pembaruan aplikasi</string>
     <string name="update_failed_download">Unduhan gagal</string>

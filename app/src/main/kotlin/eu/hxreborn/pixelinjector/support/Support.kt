@@ -1,8 +1,6 @@
 package eu.hxreborn.pixelinjector.support
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageInstaller
 import android.net.Network
 import android.os.Build
 import android.util.Log
@@ -96,13 +94,13 @@ class Support(
     private val _release = MutableStateFlow<ReleaseCheck>(cachedRelease())
     val release: StateFlow<ReleaseCheck> = _release.asStateFlow()
 
-    @Volatile private var installSession = prefs.getInt(INSTALL_SESSION, NO_SESSION)
-
-    private val _install = MutableStateFlow(UpdateInstall(restoreInstallState()))
+    private val _install = MutableStateFlow(UpdateInstall(InstallStep.Idle))
     val install: StateFlow<UpdateInstall> = _install.asStateFlow()
 
-    private val _installConfirm = MutableStateFlow<InstallConfirmation?>(null)
-    val installConfirm: StateFlow<InstallConfirmation?> = _installConfirm.asStateFlow()
+    private val _installHandoff = MutableStateFlow<InstallHandoff?>(null)
+    val installHandoff: StateFlow<InstallHandoff?> = _installHandoff.asStateFlow()
+    private val handoffLock = Any()
+    private var activeHandoff: Long? = null
     private var installJob: Job? = null
 
     private val _autoCheckUpdates = MutableStateFlow(prefs.getBoolean(AUTO_CHECK_UPDATES, true))
@@ -136,32 +134,7 @@ class Support(
     }
 
     init {
-        installJob = scope.launch { updater.clear() }
-    }
-
-    private fun restoreInstallState(): InstallStep {
-        if (installSession == NO_SESSION) return InstallStep.Idle
-        return if (updater.ownedSession(installSession) !=
-            null
-        ) {
-            InstallStep.Recovering
-        } else {
-            InstallStep.Idle
-        }
-    }
-
-    private fun trackInstallSession(session: Int) {
-        if (!prefs.edit().putInt(INSTALL_SESSION, session).commit()) {
-            prefs.edit { remove(INSTALL_SESSION) }
-            throw IOException("could not save install session $session")
-        }
-        installSession = session
-    }
-
-    private fun clearInstallSession() {
-        installSession = NO_SESSION
-        prefs.edit { remove(INSTALL_SESSION) }
-        _installConfirm.value = null
+        installJob = scope.launch { updater.clearStale() }
     }
 
     private fun cachedRelease(): ReleaseCheck {
@@ -657,10 +630,6 @@ class Support(
     fun startInstall(release: Release) {
         val asset = release.asset ?: return
         if (_install.value.step.busy) return
-        if (installSession != NO_SESSION) {
-            if (updater.ownedSession(installSession) != null) return
-            clearInstallSession()
-        }
         updater.preflight(release)?.let {
             failInstall(it)
             return
@@ -692,102 +661,60 @@ class Support(
                     failInstall(rejection)
                     return@launch
                 }
-                try {
-                    updater.commit(file, ::trackInstallSession)
-                } catch (e: Exception) {
-                    failInstall(e.toFailure(InstallStep.Failed.Cause.INSTALL))
+                val intent =
+                    try {
+                        updater.installIntent(file)
+                    } catch (e: Exception) {
+                        file.delete()
+                        failInstall(e.toFailure(InstallStep.Failed.Cause.INSTALL))
+                        return@launch
+                    }
+                if (intent == null) {
+                    file.delete()
+                    failInstall(
+                        InstallStep.Failed(InstallStep.Failed.Cause.INSTALL, NO_SYSTEM_INSTALLER),
+                    )
+                    return@launch
                 }
-            }
-    }
-
-    fun onInstallStatus(intent: Intent) {
-        val session = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, NO_SESSION)
-        if (session == NO_SESSION || session != installSession) {
-            Log.i(
-                ModuleConstants.LOG_TAG,
-                "update install status ignored session=$session active=$installSession",
-            )
-            return
-        }
-        val status =
-            intent.getIntExtra(
-                PackageInstaller.EXTRA_STATUS,
-                PackageInstaller.STATUS_FAILURE,
-            )
-        val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-        when (status) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                val confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-                if (confirm == null) {
-                    updateInstallStep(InstallStep.Recovering)
-                } else {
+                synchronized(handoffLock) {
+                    val attempt = System.nanoTime()
+                    activeHandoff = attempt
                     updateInstallStep(InstallStep.Confirming)
-                    _installConfirm.value = InstallConfirmation(session, confirm)
+                    _installHandoff.value = InstallHandoff(attempt, intent)
                 }
             }
-
-            PackageInstaller.STATUS_SUCCESS -> {
-                clearInstallSession()
-                updateInstallStep(InstallStep.Idle)
-            }
-
-            else -> {
-                val detail = listOfNotNull(Updater.statusName(status), message).joinToString(" ")
-                failInstall(InstallStep.Failed(InstallStep.Failed.Cause.INSTALL, detail))
-            }
-        }
     }
 
     private fun Exception.toFailure(cause: InstallStep.Failed.Cause) =
         InstallStep.Failed(cause, message ?: javaClass.simpleName)
 
-    fun takeInstallConfirm(): InstallConfirmation? = _installConfirm.getAndUpdate { null }
+    fun takeInstallHandoff(): InstallHandoff? = _installHandoff.getAndUpdate { null }
 
-    fun discardStagedUpdate() {
-        if (_install.value.step ==
-            InstallStep.Recovering
-        ) {
-            cancelInstallConfirmation(installSession, discard = true)
+    fun finishInstallHandoff(attempt: Long) {
+        synchronized(handoffLock) {
+            if (activeHandoff != attempt) return
+            activeHandoff = null
+            installJob = scope.launch { updater.clear() }
+            updateInstallStep(InstallStep.Idle)
         }
     }
 
-    fun installConfirmationUnavailable(
-        session: Int,
+    fun abandonInstallHandoff(attempt: Long) {
+        synchronized(handoffLock) {
+            if (activeHandoff != attempt) return
+            activeHandoff = null
+            updateInstallStep(InstallStep.Idle)
+        }
+    }
+
+    fun installHandoffUnavailable(
+        attempt: Long,
         detail: String?,
     ) {
-        cancelInstallConfirmation(session, discard = true)
-        if (_install.value.step == InstallStep.Idle) {
+        synchronized(handoffLock) {
+            if (activeHandoff != attempt) return
             failInstall(InstallStep.Failed(InstallStep.Failed.Cause.INSTALL, detail))
         }
-    }
-
-    fun cancelInstallConfirmation(session: Int) =
-        cancelInstallConfirmation(session, discard = false)
-
-    private fun cancelInstallConfirmation(
-        session: Int,
-        discard: Boolean,
-    ) {
-        if (session == NO_SESSION || installSession != session) return
-        val current = updater.ownedSession(session)
-        if (current == null && !discard) {
-            updateInstallStep(InstallStep.Recovering)
-            return
-        }
-        if (!discard && current != null && current.isSealed && current.isActive) return
-        try {
-            if (current != null) updater.abandon(session)
-        } catch (e: Exception) {
-            Log.w(
-                ModuleConstants.LOG_TAG,
-                "update session cancel failed id=$session reason=${e.message}",
-                e,
-            )
-            updateInstallStep(InstallStep.Recovering)
-            return
-        }
-        clearInstallSession()
-        updateInstallStep(InstallStep.Idle)
     }
 
     private fun failInstall(failure: InstallStep.Failed) {
@@ -795,8 +722,11 @@ class Support(
             ModuleConstants.LOG_TAG,
             "update install failed cause=${failure.cause} detail=${failure.detail}",
         )
-        clearInstallSession()
-        updateInstallStep(failure)
+        synchronized(handoffLock) {
+            activeHandoff = null
+            _installHandoff.value = null
+            updateInstallStep(failure)
+        }
     }
 
     private fun updateInstallStep(step: InstallStep) {
@@ -813,8 +743,7 @@ class Support(
         private const val POSTPONED_VERSION = "postponedVersion"
         private const val LAST_RUN_VERSION = "lastRunVersion"
         private const val NOTIFIED_VERSION = "notifiedVersion"
-        private const val INSTALL_SESSION = "installSession"
-        private const val NO_SESSION = -1
+        private const val NO_SYSTEM_INSTALLER = "no system app handles the APK"
         private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
         private const val UNDO_WINDOW_MS = 6_000L
         private const val MILLIS = 1000L

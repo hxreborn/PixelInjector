@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,7 +43,6 @@ fun UpdateSheet(
     fixes: Map<String, List<SentReport>>,
     install: InstallStep,
     onInstall: () -> Unit,
-    onDiscardStagedUpdate: () -> Unit,
     onOpenRelease: () -> Unit,
 ) {
     Column(
@@ -55,11 +53,6 @@ fun UpdateSheet(
             if (release == null) stringResource(R.string.update) else stringResource(R.string.update_sheet_title, release.versionName),
         )
         if (release != null) ReleaseNotes(release, fixes)
-        if (install == InstallStep.Recovering) {
-            Text(stringResource(R.string.update_staged_summary), style = MaterialTheme.typography.bodyMedium)
-            Primary(stringResource(R.string.update_discard_staged), Icons.Outlined.Close, true, onDiscardStagedUpdate)
-            return@Column
-        }
         if (!install.busy && release?.asset == null) {
             Primary(stringResource(R.string.update_open_release), Icons.AutoMirrored.Outlined.OpenInNew, true, onOpenRelease)
             return@Column
@@ -99,7 +92,7 @@ private fun installLabel(install: InstallStep): String =
             stringResource(R.string.update_confirming)
         }
 
-        InstallStep.Idle, InstallStep.Recovering -> {
+        InstallStep.Idle -> {
             stringResource(R.string.update_install)
         }
     }

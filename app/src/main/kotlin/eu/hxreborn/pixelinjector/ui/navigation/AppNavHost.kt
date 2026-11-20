@@ -1,13 +1,13 @@
 package eu.hxreborn.pixelinjector.ui.navigation
 
 import android.Manifest
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
@@ -22,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,7 +49,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.Prefs
-import eu.hxreborn.pixelinjector.support.InstallStep
 import eu.hxreborn.pixelinjector.support.ReportConfig
 import eu.hxreborn.pixelinjector.support.UPDATE_NOTIFICATION_CHANNEL
 import eu.hxreborn.pixelinjector.support.UpdateNotificationAccess
@@ -132,28 +132,32 @@ fun AppNavHost(
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     val install by viewModel.support.install.collectAsStateWithLifecycle()
-    var confirmingSession by rememberSaveable { mutableStateOf<Int?>(null) }
-    val installConfirmation =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val session = confirmingSession
-            confirmingSession = null
-            if (session != null && result.resultCode == Activity.RESULT_CANCELED) {
-                viewModel.support.cancelInstallConfirmation(session)
+    var handoffAttempt by rememberSaveable { mutableStateOf<Long?>(null) }
+    val installHandoff =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            handoffAttempt?.let(viewModel.support::finishInstallHandoff)
+            handoffAttempt = null
+        }
+    val activity = LocalActivity.current
+    DisposableEffect(activity) {
+        onDispose {
+            if (activity?.isFinishing == true) {
+                handoffAttempt?.let(viewModel.support::abandonInstallHandoff)
             }
         }
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            viewModel.support.installConfirm.filterNotNull().collect {
-                if (confirmingSession != null) return@collect
-                val confirmation = viewModel.support.takeInstallConfirm() ?: return@collect
-                confirmingSession = confirmation.session
+            viewModel.support.installHandoff.filterNotNull().collect {
+                if (handoffAttempt != null) return@collect
+                val handoff = viewModel.support.takeInstallHandoff() ?: return@collect
+                handoffAttempt = handoff.attempt
                 try {
-                    val intent = Intent(confirmation.intent).apply { removeFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                    installConfirmation.launch(intent)
+                    installHandoff.launch(handoff.intent)
                 } catch (e: ActivityNotFoundException) {
-                    confirmingSession = null
-                    viewModel.support.installConfirmationUnavailable(confirmation.session, e.message)
+                    handoffAttempt = null
+                    viewModel.support.installHandoffUnavailable(handoff.attempt, e.message)
                 }
             }
         }
@@ -482,7 +486,6 @@ fun AppNavHost(
                         updateNotificationChannelBlocked = channelBlocked,
                         showAppNotificationSettings =
                             notificationRequestUnsuccessful && notificationAccess == UpdateNotificationAccess.AppBlocked,
-                        recoveringUpdate = install.step == InstallStep.Recovering,
                         hideUnavailable = hideUnavailable,
                         showPackages = showPackages,
                         dateStyle = dateStyle,
@@ -597,7 +600,6 @@ fun AppNavHost(
                             fixes = support.fixesByLine,
                             install = install.step,
                             onInstall = { release?.let(viewModel.support::startInstall) },
-                            onDiscardStagedUpdate = viewModel.support::discardStagedUpdate,
                             onOpenRelease = {
                                 val available = release ?: return@UpdateSheet
                                 try {

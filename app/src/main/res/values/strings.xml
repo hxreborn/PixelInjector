@@ -435,8 +435,6 @@
     <string name="update_downloading">Downloading %1$d%%</string>
     <string name="update_verifying">Checking the APK</string>
     <string name="update_confirming">Waiting for Android installer</string>
-    <string name="update_staged_summary">An earlier update still has an open installer session</string>
-    <string name="update_discard_staged">Cancel staged update</string>
     <string name="update_try_again">Try again</string>
     <string name="update_channel">App updates</string>
     <string name="update_failed_download">Download failed</string>

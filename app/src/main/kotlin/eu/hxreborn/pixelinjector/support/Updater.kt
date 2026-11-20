@@ -1,13 +1,10 @@
 package eu.hxreborn.pixelinjector.support
 
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
-import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import eu.hxreborn.pixelinjector.App
+import androidx.core.content.FileProvider
 import eu.hxreborn.pixelinjector.support.ReportBuilder.toHex
 import java.io.File
 import java.io.IOException
@@ -27,10 +24,8 @@ sealed interface InstallStep {
 
     data object Confirming : InstallStep
 
-    data object Recovering : InstallStep
-
     val busy: Boolean
-        get() = this is Downloading || this == Verifying || this == Confirming || this == Recovering
+        get() = this is Downloading || this == Verifying || this == Confirming
 
     data class Failed(
         val cause: Cause,
@@ -49,33 +44,31 @@ sealed interface InstallStep {
     }
 }
 
+data class InstallHandoff(
+    val attempt: Long,
+    val intent: Intent,
+)
+
 data class UpdateInstall(
     val step: InstallStep,
     val release: Release? = null,
 )
 
-data class InstallConfirmation(
-    val session: Int,
-    val intent: Intent,
-)
-
-class UpdateInstallReceiver : BroadcastReceiver() {
-    override fun onReceive(
-        context: Context,
-        intent: Intent,
-    ) {
-        App.from(context).support.onInstallStatus(intent)
-    }
-}
+class UpdateFileProvider : FileProvider()
 
 class Updater(
     private val context: Context,
 ) {
     private val dir = File(context.cacheDir, UPDATE_DIR)
-    private val installer get() = context.packageManager.packageInstaller
+    private val authority = "${context.packageName}.update"
 
     fun clear() {
         dir.deleteRecursively()
+    }
+
+    fun clearStale() {
+        val staleBefore = System.currentTimeMillis() - STALE_AFTER_MS
+        dir.listFiles()?.filter { it.lastModified() < staleBefore }?.forEach(File::delete)
     }
 
     fun download(
@@ -198,76 +191,33 @@ class Updater(
         }
     }
 
-    fun commit(
-        file: File,
-        onSession: (Int) -> Unit,
-    ) {
-        val params =
-            PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-                setAppPackageName(context.packageName)
-                setSize(file.length())
-                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
-            }
-        var sessionId: Int? = null
-        try {
-            val createdSession = installer.createSession(params)
-            sessionId = createdSession
-            onSession(createdSession)
-            installer.openSession(createdSession).use { session ->
-                file.inputStream().use { input ->
-                    session.openWrite(APK_ENTRY, 0, file.length()).use { output ->
-                        input.copyTo(output)
-                        session.fsync(output)
-                    }
-                }
-                val callback =
-                    PendingIntent.getBroadcast(
-                        context,
-                        createdSession,
-                        Intent(context, UpdateInstallReceiver::class.java),
-                        PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                    )
-                session.commit(callback.intentSender)
-            }
-        } catch (e: Exception) {
-            sessionId?.let { runCatching { installer.abandonSession(it) } }
-            throw e
-        } finally {
-            file.delete()
-        }
-    }
-
-    fun ownedSession(session: Int): PackageInstaller.SessionInfo? =
-        installer.getSessionInfo(session)?.takeIf {
-            it.appPackageName == context.packageName &&
-                it.installerPackageName == context.packageName
-        }
-
-    fun abandon(session: Int) {
-        installer.abandonSession(session)
+    fun installIntent(file: File): Intent? {
+        val intent =
+            Intent(Intent.ACTION_VIEW)
+                .setDataAndType(FileProvider.getUriForFile(context, authority, file), APK_MIME)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val systemInstaller =
+            context.packageManager
+                .queryIntentActivities(
+                    intent,
+                    PackageManager.ResolveInfoFlags.of(
+                        (PackageManager.MATCH_SYSTEM_ONLY or PackageManager.MATCH_DEFAULT_ONLY)
+                            .toLong(),
+                    ),
+                ).firstOrNull()
+                ?.activityInfo
+                ?.packageName ?: return null
+        return intent.setPackage(systemInstaller)
     }
 
     companion object {
         private const val UPDATE_DIR = "update"
         private const val HTTPS = "https://"
         private const val DOWNLOAD_NAME = "update.apk"
-        private const val APK_ENTRY = "base.apk"
+        private const val APK_MIME = "application/vnd.android.package-archive"
         private const val TIMEOUT_MS = 30_000
         private const val BUFFER_BYTES = 64 * 1024
         private const val PROGRESS_STEP_BYTES = 256 * 1024L
-
-        fun statusName(status: Int): String =
-            when (status) {
-                PackageInstaller.STATUS_PENDING_USER_ACTION -> "STATUS_PENDING_USER_ACTION"
-                PackageInstaller.STATUS_FAILURE -> "STATUS_FAILURE"
-                PackageInstaller.STATUS_FAILURE_BLOCKED -> "STATUS_FAILURE_BLOCKED"
-                PackageInstaller.STATUS_FAILURE_ABORTED -> "STATUS_FAILURE_ABORTED"
-                PackageInstaller.STATUS_FAILURE_INVALID -> "STATUS_FAILURE_INVALID"
-                PackageInstaller.STATUS_FAILURE_CONFLICT -> "STATUS_FAILURE_CONFLICT"
-                PackageInstaller.STATUS_FAILURE_STORAGE -> "STATUS_FAILURE_STORAGE"
-                PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> "STATUS_FAILURE_INCOMPATIBLE"
-                PackageInstaller.STATUS_FAILURE_TIMEOUT -> "STATUS_FAILURE_TIMEOUT"
-                else -> "status $status"
-            }
+        private const val STALE_AFTER_MS = 24 * 60 * 60 * 1000L
     }
 }
