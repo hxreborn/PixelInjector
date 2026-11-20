@@ -50,7 +50,8 @@ fun Method.signature(): String =
 
 fun Field.signature(): String = "${declaringClass.simpleName}#$name"
 
-fun Throwable.detail(): String = message?.trim()?.ifEmpty { null } ?: typeName()
+fun Throwable.detail(): String =
+    message?.trim()?.takeUnless { it.isEmpty() || it == "null" } ?: typeName()
 
 fun Throwable.typeName(): String = javaClass.simpleName.ifEmpty { javaClass.name }
 
