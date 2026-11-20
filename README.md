@@ -9,13 +9,10 @@
 [![Release](https://img.shields.io/github/v/release/hxreborn/PixelInjector?style=flat-square)](https://github.com/hxreborn/PixelInjector/releases/latest)
 [![Android 14+](https://img.shields.io/badge/Android-14%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](#install)
 
-A modular Xposed module of Pixel tweaks, each behind its own switch. I built it for my own phone, but if a tweak is useful to you and breaks on your build, I can adapt or fix it on demand.
-
-- **One switch per tweak.** Off tweaks change nothing.
-- **Applies instantly.** Switches take effect live, and updates hot reload through libxposed API 102 with no reboot.
+Pixel tweaks for Xposed, each behind its own switch. Off tweaks change nothing. Switches apply live and updates hot reload in apps that support it.
 
 > [!NOTE]
-> I build and test it on Pixel phones. On other ROMs a tweak can miss its target. For LineageOS and other ROMs with public source, I fix the tweak from that source. A closed ROM like HyperOS, One UI or ColorOS has no source to read, so the fix needs that ROM's own SystemUI or `services.jar`.
+> Built and tested on Pixels. If a tweak breaks on your ROM, report it. Open source ROMs get fixed from their source. Closed ROMs like HyperOS, One UI and ColorOS need their SystemUI or `services.jar`, which an app report attaches when a tweak misses its target.
 
 <details>
 <summary><img src="assets/icons/photo_library.svg" width="20" alt=""> Screenshots</summary>
@@ -37,30 +34,28 @@ A modular Xposed module of Pixel tweaks, each behind its own switch. I built it 
 
 ## Install
 
-Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed API 102 (LSPosed 2.x or Vector).
-
 1. Download the APK from [Releases](https://github.com/hxreborn/PixelInjector/releases/latest) or the [Xposed Modules Repo](https://github.com/Xposed-Modules-Repo/eu.hxreborn.pixelinjector/releases).
 2. Enable PixelInjector in your Xposed manager and select the apps of the tweaks you need in its scope.
-3. Reboot once. Later updates install over the old APK and reload without a reboot.
+3. Reboot once. Later updates hot reload where supported, or load on the app's next start.
 
 ## Tweaks
 
 ### <img src="assets/icons/phone_android.svg" width="20" alt=""> System UI
 
 - **Warm Tiles**: raises the limit of [3](https://android.googlesource.com/platform/frameworks/base/+/d5a204f16e7c71ffdbc6c8307a4134dcc1efd60d/packages/SystemUI/src/com/android/systemui/qs/external/TileServices.java#37) bound tiles in Quick Settings. Same hook as <img src="assets/modules/qs-boundless-tiles.png" width="16" alt=""> [qs-boundless-tiles](https://github.com/hxreborn/qs-boundless-tiles).
-- **PillShot**: draws the app name on screenshots. Skips the selected apps or stamps only them. Revived from eXtreames/PillShot after its repo disappeared.
+- **PillShot**: draws the app name on screenshots, for every app or only the selected ones. Revived from eXtreames/PillShot.
 - **Mute screenshot sound**: skips the screenshot shutter sound.
-- **Empty shade message**: replaces the empty shade's trophy and text with your own text and one of 141 icons. Android 17 only.
+- **Empty shade message**: replaces the empty shade's trophy and text with your own. Android 17 only.
 - **Always expand notifications**: opens notifications expanded unless you collapsed one by hand.
 - **Pin ongoing notifications**: stops swiping away ongoing notifications like media and VPN.
 - **Charging details**: adds watts, volts, amps and battery temperature under the lock screen charging text.
-- **Now playing chip**: shows the playing track and source app icon in a status bar chip with custom text color, chip color and opacity.
+- **Now playing chip**: shows the playing track and app icon in a status bar chip.
 - **Download chip**: shows a download's progress as a chip in the status bar. Ported from [Iconify](https://github.com/Mahmud0808/Iconify)'s ongoing action chip.
-- **Fingerprint icon**: replaces the lock screen fingerprint icon with one of 34 icons from custom ROMs or your own image and can hide the circle behind it. Phones with an under-display fingerprint sensor.
-- **Hide shortcut circles**: removes the circle behind the lock screen shortcuts and keeps it while a shortcut is on, like the flashlight. The icons take the lock icon color on AOSP and keep their stock colors on One UI.
+- **Fingerprint icon**: replaces the lock screen fingerprint icon with a custom ROM icon or your own image. Under-display sensors only.
+- **Hide shortcut circles**: removes the circle behind the lock screen shortcuts while they're off.
 - **Heads-up duration**: sets how long a heads-up notification shows, from 1 to 15 seconds.
-- **Double tap status bar to sleep**: double tap empty status bar space and the phone sleeps.
-- **Biometric Bypass**: taps confirm on the biometric prompt after a face unlock and plays a system sound of your choice. Same hook as <img src="assets/modules/biometric-bypass.png" width="16" alt=""> [biometric-bypass](https://github.com/hxreborn/biometric-bypass).
+- **Double tap status bar to sleep**: double tap empty status bar space to sleep.
+- **Biometric Bypass**: confirms the biometric prompt after a face unlock. Same hook as <img src="assets/modules/biometric-bypass.png" width="16" alt=""> [biometric-bypass](https://github.com/hxreborn/biometric-bypass).
 
 ### <img src="assets/icons/android.svg" width="20" alt=""> System Framework
 
@@ -70,26 +65,26 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 
 ### <img src="assets/icons/home.svg" width="20" alt=""> Launcher
 
-- **Double tap to sleep**: double tap empty home screen space to put the phone to sleep. Pixel Launcher and Launcher3.
-- **Hide gesture pill**: makes the navigation handle transparent and keeps a chosen percent of the bottom inset under apps. A percent change restarts the launcher.
-- **Hide search bar**: hides the search bar above the hotseat and frees the row it reserves. Pixel Launcher and Launcher3.
+- **Double tap to sleep**: double tap empty home screen space to sleep. Pixel Launcher and Launcher3.
+- **Hide gesture pill**: makes the navigation handle transparent and shrinks the bottom inset.
+- **Hide search bar**: hides the hotseat search bar and frees its row. Pixel Launcher and Launcher3.
 - **Hide app shortcuts**: a long press on an app shows only the system actions. Pixel Launcher and Launcher3.
 - **Home menu entry**: adds PixelInjector to the home screen long press menu. Pixel Launcher and Launcher3.
 
 > [!WARNING]
-> Double tap to sleep runs `su` from Pixel Launcher. With KernelSU and APatch, grant root to Pixel Launcher by hand in the manager, not only to PixelInjector. On KernelSU it shows up after you turn on Show system apps.
+> Double tap to sleep runs `su` from the launcher. On KernelSU and APatch, grant root to your launcher in the manager (KernelSU lists it under Show system apps).
 
 ### <img src="assets/icons/keyboard.svg" width="20" alt=""> Gboard
 
-- **AMOLED black keyboard**: makes the tinted grey keyboard surfaces pure black in dark mode. Stock Gboard and the Morphe build. Toggling restarts Gboard. Same hook as <img src="assets/modules/gboard-material-expressive-black.svg" width="16" alt=""> [gboard-material-expressive-black](https://github.com/hxreborn/gboard-material-expressive-black).
+- **AMOLED black keyboard**: makes the grey keyboard surfaces pure black in dark mode. Toggling restarts Gboard. Same hook as <img src="assets/modules/gboard-material-expressive-black.svg" width="16" alt=""> [gboard-material-expressive-black](https://github.com/hxreborn/gboard-material-expressive-black).
 
 ### <img src="assets/icons/call.svg" width="20" alt=""> Phone
 
-- **Remove feedback chip**: removes the Help us improve chip from the call list and its notification after calls. The chip hook is the same as <img src="assets/modules/gdialer-dechip.png" width="16" alt=""> [gdialer-dechip](https://github.com/hxreborn/gdialer-dechip).
+- **Remove feedback chip**: removes the Help us improve chip and its after-call notification. Same chip hook as <img src="assets/modules/gdialer-dechip.png" width="16" alt=""> [gdialer-dechip](https://github.com/hxreborn/gdialer-dechip).
 
 ### <img src="assets/icons/folder.svg" width="20" alt=""> File picker
 
-- **Force sort by newest first**: opens folders newest first in the file picker and the storage browser. Same hook as <img src="assets/modules/remember-my-sort.png" width="16" alt=""> [remember-my-sort](https://github.com/hxreborn/remember-my-sort).
+- **Force sort by newest first**: opens folders newest first in the file picker. Same hook as <img src="assets/modules/remember-my-sort.png" width="16" alt=""> [remember-my-sort](https://github.com/hxreborn/remember-my-sort).
 
 ### <img src="assets/icons/devices.svg" width="20" alt=""> KDE Connect
 
@@ -101,17 +96,17 @@ Needs Android 14 or newer, arm64, root and an Xposed framework with libxposed AP
 
 ### <img src="assets/icons/public.svg" width="20" alt=""> Firefox
 
-- **Material You colors**: uses your wallpaper colors in Iceraven and Firefox (stable, Beta and Nightly). Private browsing takes dark red surfaces and the red error accent.
-- **Material 3 loading indicator**: shows pull to refresh as the shape morphing Material 3 indicator in your wallpaper colors.
-- **Menu style: Classic popup**: opens the three-dot menu as a popup laid out like Chrome's overflow menu, with the navigation buttons on top, in place of the bottom sheet. Also in IronFox.
-- **Betterfox**: sets the [Betterfox](https://github.com/yokoffing/Betterfox) prefs that the Android engine reads, per browser, with each group and pref switchable. Toggling restarts the browser.
+- **Material You colors**: uses your wallpaper colors in Iceraven and Firefox. Private browsing turns dark red.
+- **Material 3 loading indicator**: shows pull to refresh as the shape morphing Material 3 indicator.
+- **Menu style: Classic popup**: opens the three-dot menu as a Chrome style popup instead of the bottom sheet. Also in IronFox.
+- **Betterfox**: applies [Betterfox](https://github.com/yokoffing/Betterfox) prefs per browser, each one switchable. Toggling restarts the browser.
 
 ## Report a bug
 
-Report from the app or on [GitHub](https://github.com/hxreborn/PixelInjector/issues/new/choose), whichever you prefer. App reports are opt-in and end-to-end encrypted. Nothing leaves the phone until you tap Send. On a phone that isn't a Pixel and doesn't run an open source ROM such as LineageOS, a report about a System UI or System Framework tweak also sends that ROM's SystemUI or `services.jar` code, encrypted with the report.
+Report from the app or on [GitHub](https://github.com/hxreborn/PixelInjector/issues/new/choose). App reports are end-to-end encrypted and leave the phone only when you tap Send. On a closed ROM, a report about a System UI or System Framework tweak that misses its target also attaches that ROM's SystemUI or `services.jar`, encrypted.
 
-1. Open Settings, tap Report a bug, say what happened and send.
-2. Follow it in Your reports. My questions and the GitHub issue show there.
+1. Settings, Report a bug, describe it and send.
+2. Follow it in Your reports, where my questions and the GitHub issue show up.
 3. The update that fixes it says Fixes your report.
 
 Or reach me at [hxreborn@duck.com](mailto:hxreborn@duck.com) or on [Telegram](https://t.me/hxreb0rn).
