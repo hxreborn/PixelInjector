@@ -182,16 +182,13 @@ class UpdateWatch : JobService() {
                         .putExtra(EXTRA_LATER_VERSION, release.versionCode),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
-            val notes = release.notesNew + release.notesFixed + release.notesOther
             val notification =
                 NotificationCompat
                     .Builder(context, UPDATE_NOTIFICATION_CHANNEL)
                     .setSmallIcon(R.drawable.ic_launcher_foreground)
                     .setContentTitle(
                         context.getString(R.string.update_card_title, release.versionName),
-                    ).setContentText(notes.firstOrNull())
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(notes.joinToString("\n")))
-                    .setContentIntent(open)
+                    ).setContentIntent(open)
                     .addAction(0, context.getString(R.string.update), open)
                     .addAction(0, context.getString(R.string.later), later)
                     .setAutoCancel(true)
