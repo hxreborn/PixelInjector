@@ -9,6 +9,7 @@ import android.os.Process
 import android.os.SystemClock
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.InstallDiagnostics
+import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.resolving
@@ -440,7 +441,8 @@ class PixelInjectorModule : XposedModule() {
         val tweaks = tweaksFor(target)
         val failures = mutableMapOf<String, String>()
         if (guard == null || guard.safeMode) {
-            val reason = if (guard == null) "guard-unavailable" else "safe-mode"
+            val reason =
+                if (guard == null) "guard-unavailable" else ModuleConstants.SAFE_MODE_REASON
             Logger.captureInstallFailures(failures) {
                 for (tweak in tweaks) skipInstall(tweak, reason)
             }

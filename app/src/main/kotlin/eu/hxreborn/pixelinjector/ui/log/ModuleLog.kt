@@ -2,6 +2,7 @@ package eu.hxreborn.pixelinjector.ui.log
 
 import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.InstallDiagnostics
+import eu.hxreborn.pixelinjector.ModuleConstants
 import eu.hxreborn.pixelinjector.isInstallFailure
 
 data class LogEntry(
@@ -125,6 +126,16 @@ internal fun deriveErrors(failures: Map<String, Map<String, String>>): Map<Strin
         }
     }
 
+private fun isSafeModeSkip(body: String): Boolean =
+    body.startsWith("install failed tweak=") && field(body, "reason") == ModuleConstants.SAFE_MODE_REASON
+
+internal fun safeModeSkips(failures: Map<String, Map<String, String>>): Set<String> =
+    failures.values
+        .flatMap { it.entries }
+        .groupBy({ it.key }, { it.value })
+        .filterValues { outcomes -> outcomes.all(::isSafeModeSkip) }
+        .keys
+
 fun processKey(
     tweak: String,
     process: String,
@@ -149,7 +160,7 @@ fun deriveErrorLines(
                 }
             }
 
-            tweak == null || pid !in currentVersionPids -> {}
+            tweak == null || pid !in currentVersionPids || isSafeModeSkip(body) -> {}
 
             level == 'E' -> {
                 errorLinesByPid.getOrPut(pid) { mutableMapOf() }[tweak] = body

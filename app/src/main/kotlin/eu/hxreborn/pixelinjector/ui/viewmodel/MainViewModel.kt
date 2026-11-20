@@ -48,6 +48,7 @@ import eu.hxreborn.pixelinjector.ui.log.deriveErrorLines
 import eu.hxreborn.pixelinjector.ui.log.deriveErrors
 import eu.hxreborn.pixelinjector.ui.log.installFailureBodies
 import eu.hxreborn.pixelinjector.ui.log.parseModuleLog
+import eu.hxreborn.pixelinjector.ui.log.safeModeSkips
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.navigation.TestNavigation
 import eu.hxreborn.pixelinjector.ui.navigation.testBetterfoxCommand
@@ -385,6 +386,7 @@ class MainViewModel(
         val log = _moduleLog.value
         val errors = _errors.value
         val prefsNow = prefs.value
+        val skipped = safeModeSkips(installFailures)
         val missesByProcess =
             installFailures.mapValues { (_, failures) ->
                 failures.filterValues { it.startsWith("target not found") }
@@ -415,8 +417,9 @@ class MainViewModel(
                     it.key to
                         when {
                             it.prefs.none { pref -> prefsNow[pref] } -> "off"
-                            it.key in errors -> "miss"
+                            it.key in errors && it.key !in skipped -> "miss"
                             it.key in errorLines.value -> "error"
+                            it.key in skipped -> "skip"
                             else -> "ok"
                         }
                 },

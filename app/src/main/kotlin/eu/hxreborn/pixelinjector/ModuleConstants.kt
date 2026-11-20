@@ -7,6 +7,7 @@ object ModuleConstants {
     const val DIALER_PACKAGE: String = "com.google.android.dialer"
     const val KDE_CONNECT_PACKAGE: String = "org.kde.kdeconnect_tp"
     const val GITHUB_PACKAGE: String = "com.github.android"
+    const val SAFE_MODE_REASON: String = "safe-mode"
 
     val GBOARD_PACKAGES: Set<String> =
         setOf(
