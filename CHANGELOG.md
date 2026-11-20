@@ -1,3 +1,18 @@
+## [1.28.0](https://github.com/hxreborn/PixelInjector/compare/v1.27.1...v1.28.0) (2026-11-20)
+
+### Features
+
+* **update:** install updates through the system installer ([8ec9407](https://github.com/hxreborn/PixelInjector/commit/8ec94079f11061248df9fa797e9054139d32dab7))
+
+### Bug Fixes
+
+* **report:** mark safe-mode skipped tweaks as skip instead of miss ([799e291](https://github.com/hxreborn/PixelInjector/commit/799e291856f09be11b3bdc808470ffec709281b1))
+* **tweak:** log FingerprintIcon miss when keyguard shows no icon view ([b21e145](https://github.com/hxreborn/PixelInjector/commit/b21e145d3dbab04e4e1ef3f9de70df996c39b55c))
+
+### Dependencies
+
+* **deps:** bump org.jetbrains.kotlinx:kotlinx-serialization-core ([9b6e3ef](https://github.com/hxreborn/PixelInjector/commit/9b6e3ef8ce16430ba4ceec96cb2a83b7fa8b0d1c))
+
 ## [1.27.1](https://github.com/hxreborn/PixelInjector/compare/v1.27.0...v1.27.1) (2026-11-20)
 
 ### Bug Fixes
