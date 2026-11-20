@@ -36,6 +36,8 @@ internal class CrashGuard private constructor(
     val quarantined: Set<String>,
     val safeMode: Boolean,
 ) {
+    private var pendingFailures: MutableMap<String, String>? = mutableMapOf()
+
     @Synchronized
     fun installing(tweak: String) {
         state.setProperty(KEY_INSTALLING, tweak)
@@ -48,7 +50,25 @@ internal class CrashGuard private constructor(
         outcomes: Map<String, String> = emptyMap(),
     ) {
         state.remove(KEY_INSTALLING)
-        if (version != null) InstallDiagnostics.record(state, version, outcomes)
+        if (version != null) {
+            InstallDiagnostics.record(state, version, outcomes + pendingFailures.orEmpty())
+        }
+        pendingFailures = null
+        write(file, state, generation, bootInstant)
+    }
+
+    @Synchronized
+    fun recordDeferredFailure(
+        version: Int,
+        tweak: String,
+        message: String,
+    ) {
+        val pending = pendingFailures
+        if (pending != null) {
+            pending[tweak] = message
+            return
+        }
+        InstallDiagnostics.record(state, version, mapOf(tweak to message))
         write(file, state, generation, bootInstant)
     }
 

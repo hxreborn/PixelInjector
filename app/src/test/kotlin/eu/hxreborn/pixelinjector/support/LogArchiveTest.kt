@@ -90,6 +90,31 @@ class LogArchiveTest {
     }
 
     @Test
+    fun deferredFailuresSurviveInstallCompletionAndTheStableWrite() {
+        val file = InstallDiagnostics.file(folder.root, "system")
+        val guard = CrashGuard.open(file, "test", { 50_000L }, "101-2000", false)
+        val version = BuildConfig.VERSION_CODE
+        val fingerprintMiss =
+            "target not found tweak=FingerprintIcon member=DeviceEntryIconView build=TEST reason=no-view"
+        guard.installing("CrtScreenOff")
+        guard.recordDeferredFailure(version, "FingerprintIcon", fingerprintMiss)
+        assertNull(readDiagnostics(file.readText()))
+        val outcomes = mapOf("FingerprintIcon" to "installed", "CrtScreenOff" to "installed")
+        guard.installed(version, outcomes)
+        assertEquals(
+            mapOf("FingerprintIcon" to fingerprintMiss),
+            readDiagnostics(file.readText())?.failures,
+        )
+
+        guard.stable()
+        guard.recordDeferredFailure(version, "CrtScreenOff", missBody)
+        assertEquals(
+            mapOf("FingerprintIcon" to fingerprintMiss, "CrtScreenOff" to missBody),
+            readDiagnostics(file.readText())?.failures,
+        )
+    }
+
+    @Test
     fun successfulReloadSupersedesEarlierArchivedFailure() {
         val file = InstallDiagnostics.file(folder.root, "system")
         val bootInstant = 50_000L

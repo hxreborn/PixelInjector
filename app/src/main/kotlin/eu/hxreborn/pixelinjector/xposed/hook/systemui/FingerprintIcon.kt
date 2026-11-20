@@ -1,6 +1,11 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.ActivityManager
+import android.app.KeyguardManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.BitmapFactory
@@ -14,6 +19,7 @@ import android.graphics.drawable.DrawableWrapper
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.UserManager
 import android.util.StateSet
 import android.view.View
 import android.view.ViewGroup
@@ -46,6 +52,7 @@ private const val ICON_VIEW = "com.android.systemui.keyguard.ui.view.DeviceEntry
 private const val UDFPS_VIEW = "com.android.systemui.biometrics.UdfpsKeyguardView"
 private const val SAMSUNG_LOCK_ICON_VIEW = "com.android.keyguard.SecLockIconView"
 private const val ACCENT_ATTR = "wallpaperTextColorAccent"
+private const val NO_ICON_VIEW_REASON = "keyguard-shown-without-DeviceEntryIconView"
 private const val OPAQUE = 255
 private const val MAX_CUSTOM_ICON_SIZE_PX = 1024
 private const val MAX_CUSTOM_SOURCE_SIZE_PX = 32768
@@ -251,6 +258,7 @@ private class CachedIcon(
 
 private class FingerprintBindings(
     val target: IconTarget,
+    private val currentApplication: Method,
 ) {
     val views: MutableSet<View> =
         Collections.synchronizedSet(
@@ -262,12 +270,22 @@ private class FingerprintBindings(
     private val iconLoads = mutableMapOf<String, Thread>()
     private var retired = false
 
+    private var viewSeen = false
+    private var keyguardChecked = false
+    private var keyguardWatch: KeyguardWatch? = null
+
     @Synchronized
     fun register(
         view: View,
         carriedStock: Drawable? = null,
     ) {
         if (retired) return
+        if (!viewSeen) {
+            viewSeen = true
+            if (keyguardWatch != null) {
+                Handler(Looper.getMainLooper()).post(::stopWatchingUnlock)
+            }
+        }
         views += view
         view.post {
             synchronized(this) {
@@ -282,6 +300,7 @@ private class FingerprintBindings(
     @Synchronized
     fun carry(): HashMap<View, Drawable?> {
         retired = true
+        stopWatchingUnlock()
         iconLoads.values.forEach(Thread::interrupt)
         val savedViews = synchronized(views) { views.toList() }
         return savedViews.associateWithTo(HashMap()) { target.stock(it) }
@@ -291,6 +310,7 @@ private class FingerprintBindings(
     fun resume() {
         retired = false
         updateAll()
+        watchUnlock()
     }
 
     @Synchronized
@@ -310,10 +330,100 @@ private class FingerprintBindings(
             val found = roots.filterIsInstance<View>().flatMap { iconViewsIn(it) }
             found.forEach(::register)
             Logger.info("attached tweak=$TWEAK views=${found.size}")
+            watchUnlock()
         } catch (e: Exception) {
             Logger.error("attached failed tweak=$TWEAK reason=${e.message}", e)
         } catch (e: LinkageError) {
             Logger.error("attached failed tweak=$TWEAK reason=${e.message}", e)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Synchronized
+    private fun watchUnlock() {
+        if (retired || viewSeen || keyguardChecked || target !is DeviceEntryTarget) return
+        if (keyguardWatch != null) return
+        val context = currentApplication.invoke(null) as? Context ?: return
+        if (context.getSystemService(UserManager::class.java)?.isSystemUser != true) return
+        if (context.checkSelfPermission(Manifest.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            Logger.debug { "keyguard watch unavailable tweak=$TWEAK reason=no-permission" }
+            return
+        }
+        val keyguard = context.getSystemService(KeyguardManager::class.java) ?: return
+        val watch = KeyguardWatch(keyguard)
+        keyguard.addKeyguardLockedStateListener(context.mainExecutor, watch)
+        keyguardWatch = watch
+    }
+
+    private fun reportMissingIcon() {
+        keyguardChecked = true
+        stopWatchingUnlock()
+        val message =
+            "target not found tweak=$TWEAK member=${target.viewClass.simpleName} " +
+                "build=${Build.ID} reason=$NO_ICON_VIEW_REASON"
+        module.recordDeferredInstallFailure(TWEAK, message)
+        Logger.error(message)
+    }
+
+    @Synchronized
+    private fun stopWatchingUnlock() {
+        val watch = keyguardWatch ?: return
+        keyguardWatch = null
+        try {
+            watch.stop()
+        } catch (e: Exception) {
+            keyguardWatchFailed(e)
+        } catch (e: LinkageError) {
+            keyguardWatchFailed(e)
+        }
+    }
+
+    private fun keyguardWatchFailed(cause: Throwable) {
+        Logger.error("keyguard watch failed tweak=$TWEAK reason=${cause.message}", cause)
+    }
+
+    private inner class KeyguardWatch(
+        private val keyguard: KeyguardManager,
+    ) : KeyguardManager.KeyguardLockedStateListener {
+        private val getCurrentUser = ActivityManager::class.java.getMethod("getCurrentUser")
+        private val isDeviceSecure =
+            KeyguardManager::class.java.getMethod(
+                "isDeviceSecure",
+                Int::class.javaPrimitiveType,
+            )
+        private var secureLockUser =
+            if (keyguard.isKeyguardLocked) secureUser(currentUser()) else null
+
+        override fun onKeyguardLockedStateChanged(locked: Boolean) {
+            synchronized(this@FingerprintBindings) {
+                if (this !== keyguardWatch || viewSeen) return
+                val lockedUser = secureLockUser
+                secureLockUser = null
+                try {
+                    val user = currentUser()
+                    if (locked) {
+                        secureLockUser = secureUser(user)
+                    } else if (lockedUser == user) {
+                        reportMissingIcon()
+                    }
+                } catch (e: Exception) {
+                    keyguardWatchFailed(e)
+                } catch (e: LinkageError) {
+                    keyguardWatchFailed(e)
+                }
+            }
+        }
+
+        private fun currentUser(): Int = getCurrentUser.invoke(null) as Int
+
+        private fun secureUser(user: Int): Int? =
+            user.takeIf { isDeviceSecure.invoke(keyguard, it) == true }
+
+        @SuppressLint("MissingPermission")
+        fun stop() {
+            keyguard.removeKeyguardLockedStateListener(this)
         }
     }
 
@@ -494,6 +604,9 @@ private class FingerprintBindings(
                 } catch (_: ClassNotFoundException) {
                     udfps(cl)
                 },
+                Class
+                    .forName("android.app.ActivityThread", false, cl)
+                    .getMethod("currentApplication"),
             )
 
         private fun deviceEntry(cl: ClassLoader): DeviceEntryTarget {

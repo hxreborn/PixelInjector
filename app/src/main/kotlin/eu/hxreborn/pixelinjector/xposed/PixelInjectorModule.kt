@@ -56,7 +56,9 @@ class PixelInjectorModule : XposedModule() {
     @Volatile private var installInProgress = false
     private var guardSite: GuardSite? = null
     private var stableTimer: Thread? = null
-    private var stableGuard: CrashGuard? = null
+
+    @Volatile private var activeGuard: CrashGuard? = null
+
     private val prefsListener =
         SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
             val target = target ?: return@OnSharedPreferenceChangeListener
@@ -186,7 +188,7 @@ class PixelInjectorModule : XposedModule() {
             cause,
         )
         attempted.forEach(::resumeAfterRejection)
-        stableGuard?.let(::markStableLater)
+        activeGuard?.let(::markStableLater)
         return false
     }
 
@@ -371,8 +373,17 @@ class PixelInjectorModule : XposedModule() {
         return false
     }
 
+    internal fun recordDeferredInstallFailure(
+        tweak: String,
+        message: String,
+    ) {
+        val guard = activeGuard ?: return
+        guardWrite("proc=$process") {
+            guard.recordDeferredFailure(BuildConfig.VERSION_CODE, tweak, message)
+        }
+    }
+
     private fun markStableLater(guard: CrashGuard) {
-        stableGuard = guard
         stableTimer =
             thread(isDaemon = true, name = "PixelInjector-guard") {
                 try {
@@ -451,6 +462,7 @@ class PixelInjectorModule : XposedModule() {
             }
             return
         }
+        activeGuard = guard
         val summary =
             Logger.captureInstallFailures(failures) {
                 try {
