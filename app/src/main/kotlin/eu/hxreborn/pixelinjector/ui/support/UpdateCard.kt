@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.NewReleases
@@ -118,7 +118,7 @@ fun UpdateCard(
                         ),
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Outlined.OpenInNew,
+                        Icons.Outlined.Download,
                         contentDescription = null,
                         modifier = Modifier.size(ButtonDefaults.IconSize),
                     )

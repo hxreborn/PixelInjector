@@ -14,7 +14,15 @@ data class Release(
     val notesFixed: List<String>,
     val notesOther: List<String>,
     val notes: List<Note> = emptyList(),
+    val asset: Asset? = null,
 ) {
+    data class Asset(
+        val name: String,
+        val size: Long,
+        val sha256: String?,
+        val url: String,
+    )
+
     data class Note(
         val kind: Kind,
         val section: String,
@@ -119,6 +127,8 @@ data class Release(
                 }
             }
 
+        fun apkName(versionName: String): String = "pixelinjector-v$versionName-arm64-v8a.apk"
+
         private fun releaseUrl(versionName: String): String =
             "https://github.com/${ReportConfig.repo}/releases/tag/v$versionName"
 
@@ -135,6 +145,13 @@ data class Release(
                         .put("text", note.text)
                         .put("commitUrl", note.commitUrl)
                 }
+            val apkName = apkName(tag.removePrefix("v"))
+            val asset =
+                json.optJSONArray("assets")?.let { array ->
+                    (0 until array.length())
+                        .map(array::getJSONObject)
+                        .firstOrNull { it.getString("name") == apkName }
+                }
             return JSONObject()
                 .put("tag", tag)
                 .put("versionName", tag.removePrefix("v"))
@@ -142,7 +159,16 @@ data class Release(
                 .put("url", json.optString("html_url"))
                 .put("notes", notesByKind(entries))
                 .put(NOTE_ENTRIES, JSONArray(structuredNotes))
-                .toString()
+                .put(
+                    "asset",
+                    asset?.let {
+                        JSONObject()
+                            .put("name", it.getString("name"))
+                            .put("size", it.getLong("size"))
+                            .put("sha256", it.optStringOrNull("digest")?.removePrefix("sha256:"))
+                            .put("url", it.getString("browser_download_url"))
+                    },
+                ).toString()
         }
 
         internal fun enrichWorkerNotes(
@@ -256,7 +282,24 @@ data class Release(
                 notesFixed = linesByKind.getValue(Note.Kind.FIXED),
                 notesOther = linesByKind.getValue(Note.Kind.OTHER),
                 notes = entries + legacyNotes,
+                asset =
+                    json.optJSONObject("asset")?.let {
+                        Asset(
+                            it.getString("name"),
+                            it.getLong("size"),
+                            it.optStringOrNull("sha256"),
+                            it.getString("url"),
+                        )
+                    },
             )
         }
     }
 }
+
+internal fun Release?.releaseToNotify(
+    postponedVersionCode: Int,
+    notifiedVersionCode: Int,
+): Release? =
+    this?.takeIf {
+        it.newer && it.versionCode > postponedVersionCode && it.versionCode > notifiedVersionCode
+    }

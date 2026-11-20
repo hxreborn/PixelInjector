@@ -68,6 +68,7 @@ class App :
                 ?: DateStyle.SYSTEM
         XposedServiceHelper.registerListener(this)
         GeckoWatch.schedule(this)
+        Support.scheduleSavedUpdateNotifications(this)
     }
 
     override fun onServiceBind(service: XposedService) {

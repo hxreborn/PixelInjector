@@ -6,13 +6,18 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.DEFAULT_ARGS_KEY
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.MutableCreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import eu.hxreborn.pixelinjector.App
@@ -27,6 +32,7 @@ import eu.hxreborn.pixelinjector.icons.FingerprintStyles
 import eu.hxreborn.pixelinjector.prefs.AppPrefs
 import eu.hxreborn.pixelinjector.prefs.PrefSpec
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.support.EXTRA_OPEN_UPDATE
 import eu.hxreborn.pixelinjector.support.Framework
 import eu.hxreborn.pixelinjector.support.LogArchive
 import eu.hxreborn.pixelinjector.support.MissingTarget
@@ -66,6 +72,7 @@ import io.github.libxposed.service.XposedService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -76,6 +83,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -87,6 +95,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
+private const val TEST_NAVIGATION_INTENT = "testNavigationIntent"
 private const val SYSTEM_PROCESS = "system"
 private const val FINGERPRINT_IMAGE_PX = 512
 private val fixedPackages =
@@ -137,6 +146,7 @@ private val HookedTarget.hasUpdateReloadResult: Boolean
 
 class MainViewModel(
     application: Application,
+    private val savedState: SavedStateHandle,
 ) : AndroidViewModel(application) {
     private val app = App.from(application)
     private val reloadRunner = HotReloadRunner(viewModelScope, application.filesDir)
@@ -266,17 +276,32 @@ class MainViewModel(
 
     val betterfox = BetterfoxController(application, viewModelScope, ::restartApps)
 
-    private val _testNavigation = MutableStateFlow<TestNavigation?>(null)
+    private val _testNavigation = MutableStateFlow(testNavigation(savedState.get<Any>(TEST_NAVIGATION_INTENT) as? Intent))
     val testNavigation: StateFlow<TestNavigation?> = _testNavigation.asStateFlow()
+    private val testDestinations = Channel<List<Destination>>(Channel.CONFLATED)
+    val testNavigationRequests = testDestinations.receiveAsFlow()
 
     fun handleTestIntent(intent: Intent?) {
         testNavigation(intent)?.let { navigation ->
             navigation.destinations.filterIsInstance<Destination.BetterfoxEditor>().lastOrNull()?.let {
                 betterfox.onOpen(it.packageName)
             }
+            savedState[TEST_NAVIGATION_INTENT] = intent
             _testNavigation.value = navigation
+            testDestinations.trySend(navigation.destinations)
         }
         testBetterfoxCommand(intent)?.let(betterfox::runCommand)
+    }
+
+    private val _updateRequested = MutableStateFlow(false)
+    val updateRequested: StateFlow<Boolean> = _updateRequested.asStateFlow()
+
+    fun handleUpdateIntent(intent: Intent) {
+        if (intent.getBooleanExtra(EXTRA_OPEN_UPDATE, false)) _updateRequested.value = true
+    }
+
+    fun consumeUpdateRequest() {
+        _updateRequested.value = false
     }
 
     private val _moduleLog = MutableStateFlow(ModuleLogState())
@@ -751,7 +776,13 @@ class MainViewModel(
     companion object {
         val Factory: ViewModelProvider.Factory =
             viewModelFactory {
-                initializer { MainViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!) }
+                initializer {
+                    val savedStateExtras = MutableCreationExtras(this).apply { this[DEFAULT_ARGS_KEY] = Bundle.EMPTY }
+                    MainViewModel(
+                        this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!,
+                        savedStateExtras.createSavedStateHandle(),
+                    )
+                }
             }
     }
 }

@@ -52,6 +52,7 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Coffee
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.FontDownload
@@ -63,6 +64,7 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.outlined.Smartphone
@@ -154,6 +156,8 @@ class SettingsActions(
     val onSendReport: () -> Unit,
     val onReports: () -> Unit,
     val onAutoCheckUpdates: (Boolean) -> Unit,
+    val onUpdateNotifications: (Boolean) -> Unit,
+    val onOpenNotificationSettings: () -> Unit,
     val onHideUnavailable: (Boolean) -> Unit,
     val onShowPackages: (Boolean) -> Unit,
     val onModuleLog: () -> Unit,
@@ -173,6 +177,11 @@ class AboutActions(
 @Composable
 fun SettingsScreen(
     state: SupportState,
+    updateNotifications: Boolean,
+    updateNotificationScheduleFailed: Boolean,
+    updateNotificationChannelBlocked: Boolean,
+    showAppNotificationSettings: Boolean,
+    recoveringUpdate: Boolean,
     hideUnavailable: Boolean,
     showPackages: Boolean,
     dateStyle: DateStyle,
@@ -191,18 +200,56 @@ fun SettingsScreen(
                 .padding(padding)
                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
         ) {
-            Group(stringResource(R.string.settings_updates), 2) { index, shape ->
-                if (index == 0) {
-                    VersionTile(state, shape, actions)
-                } else {
-                    SwitchTile(
-                        shape,
-                        Icons.Outlined.Autorenew,
-                        stringResource(R.string.auto_check_updates),
-                        null,
-                        state.autoCheckUpdates,
-                        actions.onAutoCheckUpdates,
-                    )
+            Group(stringResource(R.string.settings_updates), if (showAppNotificationSettings) 4 else 3) { index, shape ->
+                when (index) {
+                    0 -> {
+                        VersionTile(state, recoveringUpdate, shape, actions)
+                    }
+
+                    1 -> {
+                        SwitchTile(
+                            shape,
+                            Icons.Outlined.Autorenew,
+                            stringResource(R.string.auto_check_updates),
+                            null,
+                            state.autoCheckUpdates,
+                            actions.onAutoCheckUpdates,
+                        )
+                    }
+
+                    2 if !updateNotificationChannelBlocked -> {
+                        SwitchTile(
+                            shape,
+                            Icons.Outlined.Notifications,
+                            stringResource(R.string.update_notifications),
+                            stringResource(
+                                if (updateNotificationScheduleFailed) {
+                                    R.string.update_notifications_schedule_failed
+                                } else {
+                                    R.string.update_notifications_summary
+                                },
+                            ),
+                            updateNotifications,
+                            actions.onUpdateNotifications,
+                        )
+                    }
+
+                    else -> {
+                        Tile(shape = shape, onClick = actions.onOpenNotificationSettings) {
+                            TileLeading(Icons.Outlined.Notifications)
+                            TileText(
+                                stringResource(R.string.update_notifications_open_settings),
+                                if (updateNotificationChannelBlocked) {
+                                    stringResource(
+                                        R.string.update_notifications_channel_blocked,
+                                    )
+                                } else {
+                                    null
+                                },
+                            )
+                            Chevron()
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(SectionGap))
@@ -431,6 +478,7 @@ private enum class VersionAction { Update, Checking, Check, Retry }
 @Composable
 private fun VersionTile(
     state: SupportState,
+    recoveringUpdate: Boolean,
     shape: RoundedCornerShape,
     actions: SettingsActions,
 ) {
@@ -448,11 +496,16 @@ private fun VersionTile(
         checkRequested = true
         actions.onCheck()
     }
-    val onClick = if (available != null) actions.onUpdate else onCheck
+    val hasUpdate = available != null || recoveringUpdate
+    val onClick = if (hasUpdate) actions.onUpdate else onCheck
     Tile(shape = shape, onClick = onClick) {
         TileLeading(Icons.Outlined.NewReleases)
         val supporting =
             when {
+                recoveringUpdate -> {
+                    stringResource(R.string.update_staged_summary)
+                }
+
                 available != null -> {
                     stringResource(R.string.update_available_short, available.versionName)
                 }
@@ -474,20 +527,20 @@ private fun VersionTile(
                     stringResource(R.string.update_never_checked)
                 }
             }
-        val failed = release is ReleaseCheck.Failed && available == null
+        val failed = release is ReleaseCheck.Failed && !hasUpdate
         TileText(
             stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
             supporting,
             supportingColor =
                 when {
                     failed -> MaterialTheme.colorScheme.error
-                    available != null -> MaterialTheme.colorScheme.primary
+                    hasUpdate -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
         )
         val action =
             when {
-                available != null -> VersionAction.Update
+                hasUpdate -> VersionAction.Update
                 release is ReleaseCheck.Checking -> VersionAction.Checking
                 failed -> VersionAction.Retry
                 else -> VersionAction.Check
@@ -510,7 +563,7 @@ private fun VersionTile(
                         modifier = Modifier.clearAndSetSemantics { },
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Outlined.OpenInNew,
+                            Icons.Outlined.Download,
                             contentDescription = null,
                             modifier = Modifier.size(ButtonDefaults.IconSize),
                         )

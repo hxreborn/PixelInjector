@@ -1,6 +1,8 @@
 package eu.hxreborn.pixelinjector.ui.navigation
 
 import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -22,8 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -32,15 +37,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.support.InstallStep
 import eu.hxreborn.pixelinjector.support.ReportConfig
+import eu.hxreborn.pixelinjector.support.UPDATE_NOTIFICATION_CHANNEL
+import eu.hxreborn.pixelinjector.support.UpdateNotificationAccess
+import eu.hxreborn.pixelinjector.support.UpdateWatch
 import eu.hxreborn.pixelinjector.ui.betterfox.BackupEntry
 import eu.hxreborn.pixelinjector.ui.betterfox.BetterfoxActions
 import eu.hxreborn.pixelinjector.ui.betterfox.BetterfoxBackupSheet
@@ -76,6 +88,7 @@ import eu.hxreborn.pixelinjector.ui.support.UpdateSheet
 import eu.hxreborn.pixelinjector.ui.support.WhatsNewSheet
 import eu.hxreborn.pixelinjector.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.withContext
 
 private val SlideDistance = 30.dp
@@ -92,10 +105,11 @@ fun AppNavHost(
 ) {
     val backStack = rememberNavBackStack(Destination.Dashboard)
     val testNavigation by viewModel.testNavigation.collectAsStateWithLifecycle()
-    LaunchedEffect(testNavigation) {
-        val navigation = testNavigation ?: return@LaunchedEffect
-        backStack.retainAll(listOf(Destination.Dashboard))
-        backStack.addAll(navigation.destinations)
+    LaunchedEffect(viewModel) {
+        viewModel.testNavigationRequests.collect { destinations ->
+            backStack.retainAll(listOf(Destination.Dashboard))
+            backStack.addAll(destinations)
+        }
     }
     val sheetStrategy = remember { BottomSheetSceneStrategy<NavKey>() }
     val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
@@ -117,9 +131,43 @@ fun AppNavHost(
     val updatedNotice by viewModel.updatedNotice.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+    val install by viewModel.support.install.collectAsStateWithLifecycle()
+    var confirmingSession by rememberSaveable { mutableStateOf<Int?>(null) }
+    val installConfirmation =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val session = confirmingSession
+            confirmingSession = null
+            if (session != null && result.resultCode == Activity.RESULT_CANCELED) {
+                viewModel.support.cancelInstallConfirmation(session)
+            }
+        }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.support.installConfirm.filterNotNull().collect {
+                if (confirmingSession != null) return@collect
+                val confirmation = viewModel.support.takeInstallConfirm() ?: return@collect
+                confirmingSession = confirmation.session
+                try {
+                    val intent = Intent(confirmation.intent).apply { removeFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    installConfirmation.launch(intent)
+                } catch (e: ActivityNotFoundException) {
+                    confirmingSession = null
+                    viewModel.support.installConfirmationUnavailable(confirmation.session, e.message)
+                }
+            }
+        }
+    }
 
     fun push(destination: NavKey) {
         if (backStack.lastOrNull() != destination) backStack.add(destination)
+    }
+
+    val updateRequested by viewModel.updateRequested.collectAsStateWithLifecycle()
+    LaunchedEffect(updateRequested) {
+        if (!updateRequested) return@LaunchedEffect
+        viewModel.consumeUpdateRequest()
+        push(Destination.Update)
     }
 
     fun openReport(destination: Destination.Report) {
@@ -401,8 +449,40 @@ fun AppNavHost(
                     }
                 }
                 entry<Destination.Settings> {
+                    val updateNotifications by viewModel.support.updateNotifications.collectAsStateWithLifecycle()
+                    val updateNotificationScheduleFailed by
+                        viewModel.support.updateNotificationScheduleFailed.collectAsStateWithLifecycle()
+                    var notificationAccess by remember(context) { mutableStateOf(UpdateWatch.notificationAccess(context)) }
+                    var notificationRequestUnsuccessful by rememberSaveable { mutableStateOf(false) }
+                    LifecycleResumeEffect(context) {
+                        notificationAccess = UpdateWatch.notificationAccess(context)
+                        onPauseOrDispose { }
+                    }
+                    val notificationSettings =
+                        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+                            notificationAccess = UpdateWatch.notificationAccess(context)
+                            if (notificationAccess == UpdateNotificationAccess.Allowed) {
+                                notificationRequestUnsuccessful = false
+                                viewModel.support.setUpdateNotifications(true)
+                            }
+                        }
+                    val notificationPermission =
+                        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                            notificationAccess = UpdateWatch.notificationAccess(context)
+                            notificationRequestUnsuccessful = !granted
+                            if (granted && notificationAccess == UpdateNotificationAccess.Allowed) {
+                                viewModel.support.setUpdateNotifications(true)
+                            }
+                        }
+                    val channelBlocked = notificationAccess == UpdateNotificationAccess.ChannelBlocked
                     SettingsScreen(
                         state = support,
+                        updateNotifications = updateNotifications && notificationAccess == UpdateNotificationAccess.Allowed,
+                        updateNotificationScheduleFailed = updateNotificationScheduleFailed,
+                        updateNotificationChannelBlocked = channelBlocked,
+                        showAppNotificationSettings =
+                            notificationRequestUnsuccessful && notificationAccess == UpdateNotificationAccess.AppBlocked,
+                        recoveringUpdate = install.step == InstallStep.Recovering,
                         hideUnavailable = hideUnavailable,
                         showPackages = showPackages,
                         dateStyle = dateStyle,
@@ -418,6 +498,34 @@ fun AppNavHost(
                                     push(Destination.Reports)
                                 },
                                 onAutoCheckUpdates = viewModel.support::setAutoCheckUpdates,
+                                onUpdateNotifications = { enabled ->
+                                    notificationAccess = UpdateWatch.notificationAccess(context)
+                                    if (!enabled || notificationAccess == UpdateNotificationAccess.Allowed) {
+                                        viewModel.support.setUpdateNotifications(enabled)
+                                    } else if (notificationAccess == UpdateNotificationAccess.AppBlocked) {
+                                        if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                                            PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        } else {
+                                            notificationRequestUnsuccessful = true
+                                        }
+                                    }
+                                },
+                                onOpenNotificationSettings = {
+                                    if (channelBlocked) {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                                .putExtra(Settings.EXTRA_CHANNEL_ID, UPDATE_NOTIFICATION_CHANNEL),
+                                        )
+                                    } else {
+                                        notificationSettings.launch(
+                                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                                        )
+                                    }
+                                },
                                 onHideUnavailable = viewModel::setHideUnavailable,
                                 onShowPackages = viewModel::setShowPackages,
                                 onModuleLog = {
@@ -480,20 +588,24 @@ fun AppNavHost(
                     )
                 }
                 entry<Destination.Update>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
-                    val release = support.available
-                    if (release == null) {
+                    val release = if (install.step.busy) install.release else support.available
+                    if (release == null && !install.step.busy) {
                         LaunchedEffect(Unit) { backStack.remove(Destination.Update) }
                     } else {
                         UpdateSheet(
                             release = release,
                             fixes = support.fixesByLine,
+                            install = install.step,
+                            onInstall = { release?.let(viewModel.support::startInstall) },
+                            onDiscardStagedUpdate = viewModel.support::discardStagedUpdate,
                             onOpenRelease = {
+                                val available = release ?: return@UpdateSheet
                                 try {
-                                    uriHandler.openUri(release.url)
+                                    uriHandler.openUri(available.url)
                                 } catch (_: IllegalArgumentException) {
                                     context
                                         .getSystemService(ClipboardManager::class.java)
-                                        .setPrimaryClip(ClipData.newPlainText(release.versionName, release.url))
+                                        .setPrimaryClip(ClipData.newPlainText(available.versionName, available.url))
                                 }
                             },
                         )

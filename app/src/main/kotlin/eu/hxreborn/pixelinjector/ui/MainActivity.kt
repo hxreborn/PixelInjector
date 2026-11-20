@@ -37,11 +37,15 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalDateStyle provides dateStyle) { AppNavHost(viewModel) }
             }
         }
-        if (savedInstanceState == null) viewModel.handleTestIntent(intent)
+        if (savedInstanceState == null) {
+            viewModel.handleTestIntent(intent)
+            viewModel.handleUpdateIntent(intent)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         viewModel.handleTestIntent(intent)
+        viewModel.handleUpdateIntent(intent)
     }
 }

@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.support
 
+import android.net.Network
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -56,9 +57,18 @@ object ReportClient {
         headers: Map<String, String> = emptyMap(),
         body: ByteArray? = null,
         contentType: String = "application/octet-stream",
+        network: Network? = null,
     ): ApiResponse {
-        val connection = url(path).openConnection() as HttpURLConnection
+        val url = url(path)
+        var opened: HttpURLConnection? = null
         return try {
+            val connection =
+                (
+                    network?.openConnection(
+                        url,
+                    ) ?: url.openConnection()
+                ) as HttpURLConnection
+            opened = connection
             connection.requestMethod = method
             connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = READ_TIMEOUT_MS
@@ -113,7 +123,7 @@ object ReportClient {
         } catch (e: IOException) {
             ApiResponse.Retryable(e.javaClass.simpleName + (e.message?.let { ": $it" } ?: ""), null)
         } finally {
-            connection.disconnect()
+            opened?.disconnect()
         }
     }
 
@@ -191,9 +201,13 @@ object ReportClient {
         deleteToken: String,
     ): ApiResponse = request("DELETE", "/reports/$id", mapOf("X-Delete-Token" to deleteToken))
 
-    fun fetchRelease(): ApiResponse = request("GET", "/release")
+    fun fetchRelease(network: Network? = null): ApiResponse =
+        request("GET", "/release", network = network)
 
-    fun fetchGitHubRelease(etag: String?): ApiResponse =
+    fun fetchGitHubRelease(
+        etag: String?,
+        network: Network? = null,
+    ): ApiResponse =
         request(
             "GET",
             "https://api.github.com/repos/${ReportConfig.repo}/releases/latest",
@@ -201,6 +215,7 @@ object ReportClient {
                 put("Accept", "application/vnd.github+json")
                 etag?.let { put("If-None-Match", it) }
             },
+            network = network,
         )
 
     fun parseStatuses(body: String): List<JSONObject> {

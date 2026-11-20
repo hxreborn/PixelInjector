@@ -300,6 +300,11 @@
     </plurals>
     <string name="reports_none">No reports</string>
     <string name="auto_check_updates">Check for updates automatically</string>
+    <string name="update_notifications">Notify about updates</string>
+    <string name="update_notifications_summary">Notify when automatic checks find a new version</string>
+    <string name="update_notifications_schedule_failed">Android could not schedule update notifications</string>
+    <string name="update_notifications_open_settings">Open notification settings</string>
+    <string name="update_notifications_channel_blocked">Android blocked the App updates channel</string>
     <string name="star_on_github">Star on GitHub</string>
 
     <string name="update_card_title">Version %1$s is available</string>
@@ -426,6 +431,22 @@
 
     <string name="update_sheet_title">Version %1$s</string>
     <string name="update_open_release">Open release page</string>
+    <string name="update_install">Install update</string>
+    <string name="update_downloading">Downloading %1$d%%</string>
+    <string name="update_verifying">Checking the APK</string>
+    <string name="update_confirming">Waiting for Android installer</string>
+    <string name="update_staged_summary">An earlier update still has an open installer session</string>
+    <string name="update_discard_staged">Cancel staged update</string>
+    <string name="update_try_again">Try again</string>
+    <string name="update_channel">App updates</string>
+    <string name="update_failed_download">Download failed</string>
+    <string name="update_failed_asset">The release has no matching APK</string>
+    <string name="update_failed_no_checksum">The release lists no SHA-256 for the APK</string>
+    <string name="update_failed_checksum">The APK SHA-256 does not match the release</string>
+    <string name="update_failed_package">The APK has another package name</string>
+    <string name="update_failed_version">The APK version does not match the release</string>
+    <string name="update_failed_signer">The APK is signed with another key than this app</string>
+    <string name="update_failed_install">Android did not install the update</string>
     <string name="report">Report</string>
     <string name="about_tagline">Always-on Pixel fixes in one Xposed module</string>
     <string name="kofi">Donate on Ko-fi</string>
