@@ -1,3 +1,11 @@
+## [1.27.1](https://github.com/hxreborn/PixelInjector/compare/v1.27.0...v1.27.1) (2026-11-20)
+
+### Bug Fixes
+
+* **report:** preserve install diagnostics across log rotation ([72671a1](https://github.com/hxreborn/PixelInjector/commit/72671a12b611c76afc56140266d0221efcc86dfa))
+* **report:** retain hook failures and attach ROM code ([2090648](https://github.com/hxreborn/PixelInjector/commit/2090648cfd2d6ca84020994dab79957c9ffd36a9))
+* **tweak:** log NowPlayingChip playback transitions ([faab5b9](https://github.com/hxreborn/PixelInjector/commit/faab5b9d36197a58b2ab747e7da065e7ef5803c5))
+
 ## [1.27.0](https://github.com/hxreborn/PixelInjector/compare/v1.26.0...v1.27.0) (2026-11-20)
 
 ### Features
