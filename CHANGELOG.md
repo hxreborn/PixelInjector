@@ -1,3 +1,26 @@
+## [1.27.0](https://github.com/hxreborn/PixelInjector/compare/v1.26.0...v1.27.0) (2026-11-20)
+
+### Features
+
+* **tweak:** add CrtScreenOff screen-off animation ([e69e1c5](https://github.com/hxreborn/PixelInjector/commit/e69e1c571d4b46c9dc4265a24d44eb3c45e5b8b1))
+* **ui:** add categorized changelog icons ([34d7d40](https://github.com/hxreborn/PixelInjector/commit/34d7d40523ee03dfba59728528f00ca0824059cd))
+* **ui:** add contributors to About ([7702cbd](https://github.com/hxreborn/PixelInjector/commit/7702cbd0c53cbb920ef0bead5daeff8d44185099))
+* **ui:** add system font setting ([0f5e95f](https://github.com/hxreborn/PixelInjector/commit/0f5e95fed24d2d7e29fd8c2d0b7a6500a73a4296))
+
+### Bug Fixes
+
+* **hook:** prevent launcher double-tap keyguard flash ([ed0ba00](https://github.com/hxreborn/PixelInjector/commit/ed0ba004fe0694802588abab7cb9020479ec00da))
+* **reload:** wait for automatic reload before update notice ([fb6be1f](https://github.com/hxreborn/PixelInjector/commit/fb6be1fa5cba1c9e250e6587b8f050f7d5c80503))
+* **service:** keep current service when a replaced one dies ([fe481b3](https://github.com/hxreborn/PixelInjector/commit/fe481b3d3655a96f9a0a1cca69844e4fa39a8056))
+
+### Refactor
+
+* simplify release notes, fonts and contributor snapshots ([78e35ed](https://github.com/hxreborn/PixelInjector/commit/78e35edcd8f13380b95ae3f1d3178621f993c8d8))
+
+### Dependencies
+
+* **deps:** bump gradle-wrapper from 9.9.0 to 9.9.1 ([d3a3f76](https://github.com/hxreborn/PixelInjector/commit/d3a3f768a5b14e909f65fde30dc9fbb06ad2c614))
+
 ## [1.26.0](https://github.com/hxreborn/PixelInjector/compare/v1.25.2...v1.26.0) (2026-11-18)
 
 ### Features
