@@ -27,9 +27,15 @@ internal class CrtUiCoordination(
         )
 
     @Volatile private var alwaysOnSetting: Boolean? = null
+    private val alwaysOnLock = Any()
+    private var alwaysOnGeneration = 0L
     private val alwaysOnObserver =
         object : ContentObserver(null) {
             override fun onChange(selfChange: Boolean) {
+                synchronized(alwaysOnLock) {
+                    alwaysOnGeneration++
+                    alwaysOnSetting = null
+                }
                 connection.dispatch(::readAlwaysOn)
             }
         }
@@ -79,9 +85,12 @@ internal class CrtUiCoordination(
     }
 
     private fun readAlwaysOn() {
+        val generation = synchronized(alwaysOnLock) { alwaysOnGeneration }
         try {
-            alwaysOnSetting =
-                Settings.Secure.getInt(context.contentResolver, DOZE_ALWAYS_ON, 1) != 0
+            val enabled = Settings.Secure.getInt(context.contentResolver, DOZE_ALWAYS_ON, 1) != 0
+            synchronized(alwaysOnLock) {
+                if (alwaysOnGeneration == generation) alwaysOnSetting = enabled
+            }
         } catch (e: Exception) {
             alwaysOnSetting = null
             Logger.warn("crt aod setting read failed tweak=CrtScreenOff reason=${e.message}")
