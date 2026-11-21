@@ -2,20 +2,37 @@ package eu.hxreborn.pixelinjector.xposed.hook.system
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import eu.hxreborn.pixelinjector.crtipc.CrtConnection
 import eu.hxreborn.pixelinjector.crtipc.CrtProtocol
 import eu.hxreborn.pixelinjector.xposed.Logger
 
 internal class CrtUiCoordination(
-    context: Context,
+    private val context: Context,
     private val revealReady: () -> Boolean,
     private val releaseReveal: ((() -> Unit)?) -> Unit,
 ) {
     private val main = Handler(Looper.getMainLooper())
-    private val connection = CrtConnection(context, CrtProtocol.SYSTEM_UI, ::onEvent)
+    private val connection =
+        CrtConnection(
+            context,
+            CrtProtocol.SYSTEM_UI,
+            ::onEvent,
+            ::observeAlwaysOn,
+            ::stopObservingAlwaysOn,
+        )
+
+    @Volatile private var alwaysOnSetting: Boolean? = null
+    private val alwaysOnObserver =
+        object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                connection.dispatch(::readAlwaysOn)
+            }
+        }
     private var connected = false
     private var generation = 0L
     private var pending = false
@@ -28,6 +45,50 @@ internal class CrtUiCoordination(
 
     fun start() {
         connection.start()
+    }
+
+    fun alwaysOnSetting(): Boolean? = alwaysOnSetting
+
+    private fun observeAlwaysOn() {
+        try {
+            context.contentResolver.registerContentObserver(
+                Settings.Secure.getUriFor(DOZE_ALWAYS_ON),
+                false,
+                alwaysOnObserver,
+            )
+            readAlwaysOn()
+        } catch (e: Exception) {
+            Logger.warn("crt aod setting observer failed tweak=CrtScreenOff reason=${e.message}")
+        } catch (e: LinkageError) {
+            Logger.warn("crt aod setting observer failed tweak=CrtScreenOff reason=${e.message}")
+        }
+    }
+
+    private fun stopObservingAlwaysOn() {
+        try {
+            context.contentResolver.unregisterContentObserver(alwaysOnObserver)
+        } catch (e: Exception) {
+            Logger.warn(
+                "crt aod setting observer removal failed tweak=CrtScreenOff reason=${e.message}",
+            )
+        } catch (e: LinkageError) {
+            Logger.warn(
+                "crt aod setting observer removal failed tweak=CrtScreenOff reason=${e.message}",
+            )
+        }
+    }
+
+    private fun readAlwaysOn() {
+        try {
+            alwaysOnSetting =
+                Settings.Secure.getInt(context.contentResolver, DOZE_ALWAYS_ON, 1) != 0
+        } catch (e: Exception) {
+            alwaysOnSetting = null
+            Logger.warn("crt aod setting read failed tweak=CrtScreenOff reason=${e.message}")
+        } catch (e: LinkageError) {
+            alwaysOnSetting = null
+            Logger.warn("crt aod setting read failed tweak=CrtScreenOff reason=${e.message}")
+        }
     }
 
     fun arm(): Boolean {
@@ -151,6 +212,7 @@ internal class CrtUiCoordination(
     }
 
     private companion object {
+        const val DOZE_ALWAYS_ON = "doze_always_on"
         const val START_TIMEOUT_MS = 300L
         const val CRT_DURATION_MS = 500L
         const val FINISH_GRACE_MS = 2_000L

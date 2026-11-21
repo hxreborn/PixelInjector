@@ -2,10 +2,12 @@ package eu.hxreborn.pixelinjector.xposed.hook.system
 
 import android.animation.ObjectAnimator
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.view.Display
 import eu.hxreborn.pixelinjector.util.optionalField
 import eu.hxreborn.pixelinjector.util.orNullIfMissing
+import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.resolving
@@ -54,7 +56,8 @@ internal fun XposedModule.installCrtDozeEntry(
     enabled: () -> Boolean,
     effectiveDozeState: (Any, Any) -> Int,
     ownsFade: (Any) -> Boolean,
-) {
+): Boolean {
+    var installed = false
     listOf(
         "com.android.server.display.DisplayPowerController",
         "com.android.server.display.DisplayPowerController2",
@@ -65,8 +68,11 @@ internal fun XposedModule.installCrtDozeEntry(
             } catch (_: ClassNotFoundException) {
                 return@forEach
             }
-        installCrtDozeController(cl, controller, enabled, effectiveDozeState, ownsFade)
+        if (installCrtDozeController(cl, controller, enabled, effectiveDozeState, ownsFade)) {
+            installed = true
+        }
     }
+    return installed
 }
 
 private fun XposedModule.installCrtDozeController(
@@ -75,7 +81,7 @@ private fun XposedModule.installCrtDozeController(
     enabled: () -> Boolean,
     effectiveDozeState: (Any, Any) -> Int,
     ownsFade: (Any) -> Boolean,
-) {
+): Boolean {
     val resolved =
         resolving {
             val request =
@@ -129,8 +135,11 @@ private fun XposedModule.installCrtDozeController(
                 )
             Triple(bindings, stateChange, Pair(brightness, update))
         }.getOrElse {
-            Logger.warn("crt doze unavailable tweak=CrtScreenOff reason=${it.message}")
-            return
+            Logger.warn(
+                "target not found tweak=CrtScreenOff member=${controller.name} " +
+                    "build=${Build.ID} reason=${it.reason()}",
+            )
+            return false
         }
     val (bindings, stateChange, methods) = resolved
     val transitions = WeakHashMap<Any, DozeTransition>()
@@ -338,6 +347,7 @@ private fun XposedModule.installCrtDozeController(
         }
         result
     }
+    return true
 }
 
 internal fun isCrtDozeTarget(

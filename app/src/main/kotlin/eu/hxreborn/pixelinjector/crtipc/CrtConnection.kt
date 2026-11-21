@@ -16,6 +16,8 @@ internal class CrtConnection(
     private val context: Context,
     private val role: Int,
     private val onEvent: (Int, Long, Long) -> Unit,
+    private val onStart: () -> Unit = {},
+    private val onStop: () -> Unit = {},
 ) {
     private val uri =
         Uri
@@ -51,6 +53,7 @@ internal class CrtConnection(
     private val worker =
         thread(start = false, name = "PixelInjector-CrtConnection") {
             try {
+                onStart()
                 while (!closed) {
                     if (relay == null) connect()
                     val action =
@@ -71,11 +74,16 @@ internal class CrtConnection(
                 }
             } catch (_: InterruptedException) {
             } finally {
+                onStop()
                 unregister()
             }
         }
 
     fun start() = worker.start()
+
+    fun dispatch(action: () -> Unit) {
+        if (!closed) queue.offer(action)
+    }
 
     fun send(
         event: Int,

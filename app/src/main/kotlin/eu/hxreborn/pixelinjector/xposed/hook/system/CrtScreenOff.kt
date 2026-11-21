@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.os.PowerManager
-import android.provider.Settings
 import android.util.Pair
 import android.util.SparseArray
 import android.view.Display
@@ -36,6 +35,7 @@ import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Collections
 import java.util.WeakHashMap
+import java.util.concurrent.FutureTask
 import kotlin.math.ceil
 
 private const val TWEAK = "CrtScreenOff"
@@ -49,7 +49,6 @@ private const val SCREEN_TURNING_ON = 0
 private const val SCREEN_TURNED_OFF = 3
 private const val STARTED_WAKING_UP = 4
 private const val STARTED_GOING_TO_SLEEP = 6
-private const val DOZE_ALWAYS_ON = "doze_always_on"
 private const val FULL_REVEAL = 1f
 private const val NATURAL_SURFACE_LAYOUT = "$COLOR_FADE\$NaturalSurfaceLayout"
 private const val DISPLAY_MANAGER_INTERNAL = "android.hardware.display.DisplayManagerInternal"
@@ -706,10 +705,14 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
         }
     }
     installHooksOnEnable {
-        installCrtDozeEntry(cl, {
-            switch.enabled && !reloading
-        }, stateBindings::effectiveDozeState) { fade ->
-            crt.ownedSurface(fade) != null
+        val aodInstalled =
+            installCrtDozeEntry(cl, {
+                switch.enabled && !reloading
+            }, stateBindings::effectiveDozeState) { fade ->
+                crt.ownedSurface(fade) != null
+            }
+        if (!aodInstalled) {
+            Logger.warn("crt aod unavailable tweak=$TWEAK build=${Build.ID}")
         }
         hook(draw).intercept { chain ->
             val colorFade = chain.thisObject!!
@@ -1029,11 +1032,11 @@ private class ScreenOffRevealHold(
     fun onLifecycleMessage(what: Int) {
         when (what) {
             STARTED_GOING_TO_SLEEP -> {
-                val alwaysOn = alwaysOnDisplay?.isEnabled() == true
+                val alwaysOn = alwaysOnDisplay?.isEnabled() ?: uiCoordination?.alwaysOnSetting()
                 synchronized(lifecycleLock) {
                     if (!reloading && switch.enabled) {
-                        holdingAod = alwaysOn && uiCoordination?.arm() == true
-                        if (!alwaysOn || holdingAod) holdingReveal = true
+                        holdingAod = alwaysOn == true && uiCoordination?.arm() == true
+                        if (alwaysOn == false || holdingAod) holdingReveal = true
                     }
                 }
             }
@@ -1099,10 +1102,8 @@ private class ScreenOffRevealHold(
             return false
         }
         if (holdingAod) return true
-        val aodEnabled =
-            alwaysOnDisplay?.isEnabled()
-                ?: (Settings.Secure.getInt(scrim.context.contentResolver, DOZE_ALWAYS_ON, 1) != 0)
-        return !aodEnabled
+        val aodEnabled = alwaysOnDisplay?.isEnabled() ?: uiCoordination?.alwaysOnSetting()
+        return aodEnabled == false
     }
 
     private fun releaseHeldAmounts(committed: (() -> Unit)? = null) {
@@ -1116,11 +1117,12 @@ private class ScreenOffRevealHold(
                 Logger.info("crt aod reveal amounts tweak=$TWEAK amounts=${amounts.values}")
             }
             if (amounts.isEmpty()) committed?.invoke()
-            val callbacks = ArrayList<Triple<View, ViewTreeObserver, Runnable>>()
+            val callbacks = ArrayList<Triple<View, ViewTreeObserver, FutureTask<Unit>>>()
             val handler = Handler(Looper.getMainLooper())
             var timeout: Runnable? = null
             var timedOut = false
             var registrationFailed = false
+            var reservationReleased = false
             val commitGeneration =
                 if (committed != null && amounts.isNotEmpty()) {
                     pendingRevealCommits++
@@ -1129,29 +1131,28 @@ private class ScreenOffRevealHold(
                         Runnable {
                             synchronized(lifecycleLock) {
                                 timedOut = true
-                                val iterator = callbacks.iterator()
-                                while (iterator.hasNext()) {
-                                    val (view, original, callback) = iterator.next()
-                                    val removed =
-                                        guarded(false) {
-                                            val current = view.viewTreeObserver
-                                            val fromOriginal =
-                                                original.isAlive &&
-                                                    original.unregisterFrameCommitCallback(callback)
-                                            val fromCurrent =
-                                                current !== original && current.isAlive &&
-                                                    current.unregisterFrameCommitCallback(callback)
-                                            fromOriginal || fromCurrent
+                                callbacks.forEach { (view, original, callback) ->
+                                    callback.cancel(false)
+                                    guarded(Unit) {
+                                        val current = view.viewTreeObserver
+                                        if (original.isAlive) {
+                                            original
+                                                .unregisterFrameCommitCallback(
+                                                    callback,
+                                                )
                                         }
-                                    if (removed) iterator.remove()
-                                }
-                                if (callbacks.isEmpty()) {
-                                    pendingRevealCommits--
-                                    if (revealCommitGeneration ==
-                                        generation
-                                    ) {
-                                        revealCommitGeneration++
+                                        if (current !== original && current.isAlive) {
+                                            current.unregisterFrameCommitCallback(callback)
+                                        }
                                     }
+                                }
+                                callbacks.clear()
+                                if (!reservationReleased) {
+                                    reservationReleased = true
+                                    pendingRevealCommits--
+                                }
+                                if (revealCommitGeneration == generation) {
+                                    revealCommitGeneration++
                                 }
                             }
                         }
@@ -1166,25 +1167,33 @@ private class ScreenOffRevealHold(
                     guarded(false) {
                         if (committed != null) {
                             val observer = scrim.viewTreeObserver
-                            lateinit var callback: Runnable
+                            lateinit var callback: FutureTask<Unit>
                             callback =
-                                Runnable {
-                                    val current =
-                                        synchronized(lifecycleLock) {
-                                            callbacks.removeAll { it.third === callback }
-                                            if (callbacks.isEmpty()) {
-                                                timeout?.let(handler::removeCallbacks)
-                                                pendingRevealCommits--
-                                                val current =
-                                                    revealCommitGeneration == commitGeneration
-                                                if (timedOut && current) revealCommitGeneration++
-                                                current && !timedOut && !registrationFailed
-                                            } else {
-                                                false
+                                FutureTask(
+                                    Runnable {
+                                        val current =
+                                            synchronized(lifecycleLock) {
+                                                callbacks.removeAll { it.third === callback }
+                                                if (callbacks.isEmpty() && !reservationReleased) {
+                                                    reservationReleased = true
+                                                    timeout?.let(handler::removeCallbacks)
+                                                    pendingRevealCommits--
+                                                    val current =
+                                                        revealCommitGeneration == commitGeneration
+                                                    if (timedOut &&
+                                                        current
+                                                    ) {
+                                                        revealCommitGeneration++
+                                                    }
+                                                    current && !timedOut && !registrationFailed
+                                                } else {
+                                                    false
+                                                }
                                             }
-                                        }
-                                    if (current) committed()
-                                }
+                                        if (current) committed()
+                                    },
+                                    Unit,
+                                )
                             observer.registerFrameCommitCallback(callback)
                             callbacks.add(Triple(scrim, observer, callback))
                         }
