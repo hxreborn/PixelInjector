@@ -1,3 +1,17 @@
+## [1.30.0](https://github.com/hxreborn/PixelInjector/compare/v1.29.1...v1.30.0) (2026-11-21)
+
+### Features
+
+* **update:** add an install action to the update notification ([d520632](https://github.com/hxreborn/PixelInjector/commit/d520632461820b65d9119c278a10e6a9d83fd410))
+
+### Bug Fixes
+
+* **hook:** quarantine a tweak only after two install deaths in a boot ([4f92297](https://github.com/hxreborn/PixelInjector/commit/4f92297ba09f1f336ea6d524b14d008cc4d54ae8))
+* **report:** send ROM code without resources.arsc over the size limit ([06ec8f1](https://github.com/hxreborn/PixelInjector/commit/06ec8f106f3fa9e16ef1ff304f159fdbd7932941)), closes [#92](https://github.com/hxreborn/PixelInjector/issues/92)
+* **tweak:** add CrtScreenOff support for OxygenOS 16 ([d1408c6](https://github.com/hxreborn/PixelInjector/commit/d1408c6b0f2cf1a55f091cf6dc116b3d07cca965)), closes [#92](https://github.com/hxreborn/PixelInjector/issues/92)
+* **tweak:** add FingerprintIcon support for OxygenOS 16 ([3707193](https://github.com/hxreborn/PixelInjector/commit/37071938f184facb6ac920331152466b6096249f)), closes [#92](https://github.com/hxreborn/PixelInjector/issues/92)
+* **tweak:** play CrtScreenOff with always-on display ([4f4a1cd](https://github.com/hxreborn/PixelInjector/commit/4f4a1cd87b893f489fa0dd5ad529b8fdaf7a1a63)), closes [#93](https://github.com/hxreborn/PixelInjector/issues/93)
+
 ## [1.29.1](https://github.com/hxreborn/PixelInjector/compare/v1.29.0...v1.29.1) (2026-11-21)
 
 ### Bug Fixes
