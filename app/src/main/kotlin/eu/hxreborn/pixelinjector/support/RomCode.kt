@@ -17,6 +17,9 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 private val CODE_ENTRY = Regex("""classes\d*\.dex|resources\.arsc|AndroidManifest\.xml""")
+private const val RESOURCES_ENTRY = "resources.arsc"
+private const val RESOURCES_OMITTED =
+    "resources.arsc omitted: the full zip exceeds the attachment limit"
 private const val SERVICES_JAR = "/system/framework/services.jar"
 private const val BUFFER_BYTES = 1 shl 16
 private val AOSP_ROM_PROPERTIES =
@@ -47,7 +50,7 @@ class RomCode(
 
     fun toStoredJson(): JSONObject = toJson().put("path", path)
 
-    fun zip(): ByteArray {
+    fun zip(includeResources: Boolean = true): ByteArray {
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             fun add(
@@ -59,13 +62,18 @@ class RomCode(
                 zip.closeEntry()
             }
             ZipFile(path).use { source ->
-                val code = source.entries().toList().filter { CODE_ENTRY.matches(it.name) }
+                val code =
+                    source.entries().toList().filter {
+                        CODE_ENTRY.matches(it.name) &&
+                            (includeResources || it.name != RESOURCES_ENTRY)
+                    }
                 code.forEach { add(it.name, source.getInputStream(it)) }
                 if (code.none { it.name.endsWith(".dex") }) {
                     val vdex = vdex() ?: error("no dex and no vdex for $path")
                     add(vdex.name, vdex.inputStream())
                 }
             }
+            if (!includeResources) zip.setComment(RESOURCES_OMITTED)
         }
         return out.toByteArray()
     }

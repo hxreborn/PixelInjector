@@ -109,12 +109,14 @@ object ReportBuilder {
 
     fun sealRomCode(code: RomCode): ByteArray {
         val header = envelopeHeader()
+        val zipLimit = MAX_ATTACHMENT_BYTES - header.size - Hpke.SEALED_OVERHEAD
+        val zip = code.zip().takeIf { it.size <= zipLimit } ?: code.zip(includeResources = false)
         val hpke =
             Hpke.seal(
                 ReportConfig.publicKey,
                 attachmentInfo,
                 header + code.sha256.toByteArray(),
-                code.zip(),
+                zip,
             )
         return header + hpke.enc + hpke.ciphertext
     }

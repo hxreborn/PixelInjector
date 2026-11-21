@@ -21,6 +21,7 @@ object Hpke {
     private const val NONCE_LENGTH = 12
     private const val TAG_BITS = 128
     private const val RAW_KEY_LENGTH = 32
+    const val SEALED_OVERHEAD = RAW_KEY_LENGTH + TAG_BITS / Byte.SIZE_BITS
     private val spkiPrefix = decodeHex("302a300506032b656e032100")
     private val version = "HPKE-v1".toByteArray()
     private val kemSuite = "KEM".toByteArray() + u16(KEM_ID)
