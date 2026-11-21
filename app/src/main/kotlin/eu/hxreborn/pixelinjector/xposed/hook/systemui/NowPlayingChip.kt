@@ -2,6 +2,7 @@ package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadata
@@ -20,6 +21,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import eu.hxreborn.pixelinjector.Target
+import eu.hxreborn.pixelinjector.prefs.NowPlayingChipFont
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.reason
@@ -75,6 +77,12 @@ private val titleWidth =
         postUi(::place)
     }) { it.coerceIn(Prefs.NOW_PLAYING_WIDTH_MIN, Prefs.NOW_PLAYING_WIDTH_MAX) }
 private val hideShade = Switch(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE) { postUi(::render) }
+private val titleFont =
+    Value(
+        Prefs.NOW_PLAYING_CHIP_FONT,
+        onLoad = { postUi(::setTitleTypeface) },
+        map = NowPlayingChipFont::fromPreference,
+    )
 private val textColor =
     Value(Prefs.NOW_PLAYING_CHIP_TEXT_COLOR, onLoad = { postUi(::applyTint) }) { it }
 private val chipColor =
@@ -94,6 +102,7 @@ internal val nowPlayingChip =
                 rightSide,
                 titleWidth,
                 hideShade,
+                titleFont,
                 textColor,
                 chipColor,
                 chipOpacity,
@@ -203,6 +212,7 @@ private fun attach(view: ViewGroup) {
                 ),
             )
         }
+    setTitleTypeface()
     place()
     applyTint()
     updateSessions()
@@ -214,6 +224,13 @@ private fun place() {
     val statusBar = bar ?: return
     view.titleView.maxWidth = view.context.dp(titleWidth.value)
     placeStatusBarChip(statusBar, view, rightSide.value, ViewGroup.LayoutParams.WRAP_CONTENT, TWEAK)
+}
+
+private fun setTitleTypeface() {
+    val title = chip?.titleView ?: return
+    val defaultTypeface = title.tag as? Typeface ?: title.typeface ?: Typeface.DEFAULT
+    title.tag = defaultTypeface
+    title.typeface = titleFont.value.typeface(defaultTypeface)
 }
 
 private fun applyTint() {

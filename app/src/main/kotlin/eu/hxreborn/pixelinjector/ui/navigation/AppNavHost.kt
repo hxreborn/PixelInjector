@@ -48,6 +48,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import eu.hxreborn.pixelinjector.R
+import eu.hxreborn.pixelinjector.prefs.NowPlayingChipFont
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.support.ReportConfig
 import eu.hxreborn.pixelinjector.support.UPDATE_NOTIFICATION_CHANNEL
@@ -311,12 +312,14 @@ fun AppNavHost(
                         side = prefs[Prefs.NOW_PLAYING_CHIP_SIDE],
                         width = prefs[Prefs.NOW_PLAYING_CHIP_WIDTH],
                         hideShade = prefs[Prefs.NOW_PLAYING_CHIP_HIDE_SHADE],
+                        titleFont = NowPlayingChipFont.fromPreference(prefs[Prefs.NOW_PLAYING_CHIP_FONT]),
                         textColor = prefs[Prefs.NOW_PLAYING_CHIP_TEXT_COLOR],
                         chipColor = prefs[Prefs.NOW_PLAYING_CHIP_COLOR],
                         opacity = prefs[Prefs.NOW_PLAYING_CHIP_OPACITY],
                         onSideChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_SIDE, it) },
                         onWidthChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_WIDTH, it) },
                         onHideShadeChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE, it) },
+                        onTitleFontChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_FONT, it.preferenceValue) },
                         onTextColorChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_TEXT_COLOR, it) },
                         onChipColorChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_COLOR, it) },
                         onOpacityChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_OPACITY, it) },

@@ -498,6 +498,12 @@
     <string name="now_playing_chip_width">Lebar judul maksimum</string>
     <string name="now_playing_chip_width_value">%1$d dp</string>
     <string name="now_playing_chip_hide_shade">Sembunyikan saat panel notifikasi terbuka</string>
+    <string name="now_playing_chip_font">Font judul</string>
+    <string name="now_playing_chip_font_default">Bawaan</string>
+    <string name="now_playing_chip_font_medium">Sans serif sedang</string>
+    <string name="now_playing_chip_font_condensed">Ramping</string>
+    <string name="now_playing_chip_font_serif">Serif</string>
+    <string name="now_playing_chip_font_monospace">Monospace</string>
     <string name="now_playing_chip_text_color">Warna teks</string>
     <string name="now_playing_chip_color">Warna chip</string>
     <string name="now_playing_chip_color_follows">Bilah status</string>

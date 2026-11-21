@@ -55,6 +55,11 @@ object Prefs {
             NOW_PLAYING_WIDTH_DEFAULT,
         ).register()
     val NOW_PLAYING_CHIP_HIDE_SHADE = BoolPref("systemui.nowPlayingChip.hideShade", true).register()
+    val NOW_PLAYING_CHIP_FONT =
+        StringPref(
+            "systemui.nowPlayingChip.font",
+            NowPlayingChipFont.DEFAULT.preferenceValue,
+        ).register()
     val NOW_PLAYING_CHIP_TEXT_COLOR =
         IntPref(
             "systemui.nowPlayingChip.textColor",

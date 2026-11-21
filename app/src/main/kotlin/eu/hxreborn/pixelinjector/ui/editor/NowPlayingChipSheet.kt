@@ -14,8 +14,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,12 +37,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import eu.hxreborn.pixelinjector.R
+import eu.hxreborn.pixelinjector.prefs.NowPlayingChipFont
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.component.Tile
+import eu.hxreborn.pixelinjector.ui.component.TileText
 import eu.hxreborn.pixelinjector.ui.theme.AppText
 import kotlin.math.roundToInt
 
@@ -56,12 +66,14 @@ fun NowPlayingChipSheet(
     side: String,
     width: Int,
     hideShade: Boolean,
+    titleFont: NowPlayingChipFont,
     textColor: Int,
     chipColor: Int,
     opacity: Int,
     onSideChange: (String) -> Unit,
     onWidthChange: (Int) -> Unit,
     onHideShadeChange: (Boolean) -> Unit,
+    onTitleFontChange: (NowPlayingChipFont) -> Unit,
     onTextColorChange: (Int) -> Unit,
     onChipColorChange: (Int) -> Unit,
     onOpacityChange: (Int) -> Unit,
@@ -97,6 +109,7 @@ fun NowPlayingChipSheet(
                 )
             }
         }
+        ChipFontTile(titleFont, onTitleFontChange)
         ChipSwitchTile(stringResource(R.string.now_playing_chip_hide_shade), hideShade, onHideShadeChange)
         ChipColorTile(stringResource(R.string.now_playing_chip_text_color), textColor, onTextColorChange)
         ChipColorTile(stringResource(R.string.now_playing_chip_color), chipColor, onChipColorChange)
@@ -109,6 +122,44 @@ fun NowPlayingChipSheet(
                     onValueChange = { chipOpacity = it },
                     onValueChangeFinished = { onOpacityChange(chipOpacity.roundToInt()) },
                     valueRange = Prefs.NOW_PLAYING_OPACITY_MIN.toFloat()..Prefs.NOW_PLAYING_OPACITY_MAX.toFloat(),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ChipFontTile(
+    font: NowPlayingChipFont,
+    onSelect: (NowPlayingChipFont) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val options = NowPlayingChipFont.entries
+    Box {
+        Tile(shape = TileShape, onClick = { open = true }) {
+            TileText(
+                title = stringResource(R.string.now_playing_chip_font),
+                supporting = stringResource(font.labelRes),
+                supportingStyle = AppText.tileSupporting.copy(fontFamily = remember(font) { FontFamily(font.typeface()) }),
+            )
+            Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEachIndexed { index, option ->
+                SelectableDropdownMenuItem(
+                    selected = option == font,
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                    },
+                    text = {
+                        Text(
+                            stringResource(option.labelRes),
+                            fontFamily = remember(option) { FontFamily(option.typeface()) },
+                        )
+                    },
+                    shapes = MenuDefaults.itemShape(index, options.size),
                 )
             }
         }
