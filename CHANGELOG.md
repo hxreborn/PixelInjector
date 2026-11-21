@@ -1,3 +1,9 @@
+## [1.29.1](https://github.com/hxreborn/PixelInjector/compare/v1.29.0...v1.29.1) (2026-11-21)
+
+### Bug Fixes
+
+* **ui:** draw the notification icon at full size ([59a9609](https://github.com/hxreborn/PixelInjector/commit/59a9609ee1b292c8caaba8291a9255a15741f8fd))
+
 ## [1.29.0](https://github.com/hxreborn/PixelInjector/compare/v1.28.2...v1.29.0) (2026-11-21)
 
 ### Features
