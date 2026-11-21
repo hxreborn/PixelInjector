@@ -63,6 +63,7 @@ private const val PROXIMITY_CONTROLLER =
     "com.android.server.display.DisplayPowerProximityStateController"
 private const val POWER_REQUEST =
     "android.hardware.display.DisplayManagerInternal\$DisplayPowerRequest"
+private const val OPLUS_SECONDARY_DISPLAY_ARG = 5
 private const val POLICY_DOZE = 1
 private const val POLICY_DIM = 2
 private const val POLICY_BRIGHT = 3
@@ -514,12 +515,23 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
             .getOrElse { return missing("DisplayStateController", it) }
     val updateDisplayState =
         resolving {
-            stateController.requiredMethod(
-                "updateDisplayState",
-                cl.loadClass(POWER_REQUEST),
-                Boolean::class.javaPrimitiveType,
-                Boolean::class.javaPrimitiveType,
-            )
+            val request = cl.loadClass(POWER_REQUEST)
+            val flag = Boolean::class.javaPrimitiveType
+            val int = Int::class.javaPrimitiveType
+            // OxygenOS 16 services.jar BP2A.250605.015
+            orNullIfMissing {
+                stateController.requiredMethod(
+                    "updateDisplayState",
+                    request,
+                    flag,
+                    flag,
+                    int,
+                    int,
+                    flag,
+                    String::class.java,
+                    flag,
+                )
+            } ?: stateController.requiredMethod("updateDisplayState", request, flag, flag)
         }.getOrElse { return missing("DisplayStateController#updateDisplayState", it) }
     val stateBindings =
         resolving {
@@ -581,9 +593,11 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
                     awakeDisplayStates.remove(controller)
                     val isDisplayEnabled = chain.getArg(1) as Boolean
                     val isDisplayInTransition = chain.getArg(2) as Boolean
+                    val isSecondaryDisplayEnabled =
+                        chain.args.getOrNull(OPLUS_SECONDARY_DISPLAY_ARG) == true
                     if (!reloading && !skip && state == Display.STATE_OFF &&
                         dozeState == Display.STATE_OFF &&
-                        isDisplayEnabled && !isDisplayInTransition &&
+                        isDisplayEnabled && !isDisplayInTransition && !isSecondaryDisplayEnabled &&
                         !stateBindings.isScreenOffBecauseOfProximity(controller)
                     ) {
                         stateBindings.performScreenOffTransition.setBoolean(controller, true)
