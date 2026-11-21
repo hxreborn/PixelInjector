@@ -16,11 +16,13 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.DrawableWrapper
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.UserManager
 import android.util.StateSet
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -52,6 +54,8 @@ private const val TWEAK = "FingerprintIcon"
 private const val ICON_VIEW = "com.android.systemui.keyguard.ui.view.DeviceEntryIconView"
 private const val UDFPS_VIEW = "com.android.systemui.biometrics.UdfpsKeyguardView"
 private const val SAMSUNG_LOCK_ICON_VIEW = "com.android.keyguard.SecLockIconView"
+private const val OPLUS_ICON_VIEW =
+    "com.oplus.systemui.biometrics.finger.udfps.OnScreenFingerprintIcon"
 private const val ACCENT_ATTR = "wallpaperTextColorAccent"
 private const val NO_ICON_VIEW_REASON = "keyguard-shown-without-DeviceEntryIconView"
 private const val OPAQUE = 255
@@ -233,23 +237,60 @@ private class UdfpsTarget(
     ): Boolean {
         val bg = bgProtection.get(view) as? ImageView ?: return false
         fingerprints.map { it.get(view) as ImageView }.forEach { fingerprint ->
-            val swap = replacement()
-            fingerprint.imageAlpha = if (swap != null || hidden) 0 else OPAQUE
-            fingerprint.foreground =
-                swap?.let {
-                    FingerprintSwap(
-                        ColorDrawable(Color.TRANSPARENT),
-                        listOf(StateSet.WILD_CARD),
-                    ).apply {
-                        this.accentColor = accentColor
-                        this.replacement = it
-                    }
-                }
+            fingerprint.drawAsForeground(replacement(), accentColor, hidden)
         }
         bg.scaleX = circleScale
         bg.scaleY = circleScale
         return true
     }
+}
+
+private class OnScreenIconTarget(
+    override val refresh: Method,
+) : IconTarget {
+    override val viewClass: Class<*> = refresh.declaringClass
+    override val members = refresh.signature()
+
+    override fun apply(
+        view: View,
+        replacement: () -> Drawable?,
+        accentColor: (() -> Int?)?,
+        hidden: Boolean,
+        circleScale: Float,
+    ): Boolean {
+        val icon = view as ImageView
+        val stock = icon.drawable
+        icon.foregroundGravity = Gravity.CENTER
+        icon.drawAsForeground(
+            swap = stock?.let { replacement() },
+            accentColor = accentColor,
+            hidden = hidden,
+            sizeSource =
+                GradientDrawable().apply {
+                    stock?.let { setSize(it.intrinsicWidth, it.intrinsicHeight) }
+                },
+        )
+        return true
+    }
+}
+
+private fun ImageView.drawAsForeground(
+    swap: Drawable?,
+    accentColor: (() -> Int?)?,
+    hidden: Boolean,
+    sizeSource: Drawable = ColorDrawable(Color.TRANSPARENT),
+) {
+    imageAlpha = if (swap != null || hidden) 0 else OPAQUE
+    foreground =
+        swap?.let {
+            FingerprintSwap(
+                sizeSource,
+                listOf(StateSet.WILD_CARD),
+            ).apply {
+                this.accentColor = accentColor
+                this.replacement = it
+            }
+        }
 }
 
 private class CachedIcon(
@@ -600,15 +641,29 @@ private class FingerprintBindings(
     companion object {
         fun resolve(cl: ClassLoader): FingerprintBindings =
             FingerprintBindings(
-                try {
-                    deviceEntry(cl)
-                } catch (_: ClassNotFoundException) {
-                    udfps(cl)
-                },
+                onScreenIcon(cl)
+                    ?: try {
+                        deviceEntry(cl)
+                    } catch (_: ClassNotFoundException) {
+                        udfps(cl)
+                    },
                 Class
                     .forName("android.app.ActivityThread", false, cl)
                     .getMethod("currentApplication"),
             )
+
+        // OxygenOS 16 SystemUI 16.00.12 BP2A.250605.015
+        private fun onScreenIcon(cl: ClassLoader): OnScreenIconTarget? {
+            val view =
+                try {
+                    cl.loadClass(OPLUS_ICON_VIEW)
+                } catch (_: ClassNotFoundException) {
+                    return null
+                }
+            return OnScreenIconTarget(
+                view.requiredMethod("setVisibility", Int::class.javaPrimitiveType),
+            )
+        }
 
         private fun deviceEntry(cl: ClassLoader): DeviceEntryTarget {
             val view = cl.loadClass(ICON_VIEW)
