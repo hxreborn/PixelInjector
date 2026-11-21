@@ -37,6 +37,7 @@ private val Period = 12.hours
 private val Flex = 2.hours
 const val EXTRA_OPEN_UPDATE = "eu.hxreborn.pixelinjector.extra.OPEN_UPDATE"
 const val EXTRA_UPDATE_VERSION = "eu.hxreborn.pixelinjector.extra.UPDATE_VERSION"
+const val ACTION_INSTALL_UPDATE = "eu.hxreborn.pixelinjector.action.INSTALL_UPDATE"
 private const val EXTRA_LATER_VERSION = "eu.hxreborn.pixelinjector.extra.LATER_VERSION"
 
 enum class UpdateNotificationAccess { Allowed, AppBlocked, ChannelBlocked }
@@ -182,15 +183,25 @@ class UpdateWatch : JobService() {
                         .putExtra(EXTRA_LATER_VERSION, release.versionCode),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
+            val install =
+                PendingIntent.getActivity(
+                    context,
+                    release.versionCode,
+                    Intent(launch).setAction(ACTION_INSTALL_UPDATE),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
             val notification =
                 NotificationCompat
                     .Builder(context, UPDATE_NOTIFICATION_CHANNEL)
                     .setSmallIcon(R.drawable.ic_notification)
-                    .setContentTitle(
+                    .setContentTitle(context.getString(R.string.update_notification_title))
+                    .setContentText(
                         context.getString(R.string.update_card_title, release.versionName),
                     ).setContentIntent(open)
-                    .addAction(0, context.getString(R.string.update), open)
+                    .addAction(0, context.getString(R.string.update_install), install)
                     .addAction(0, context.getString(R.string.later), later)
+                    .setAllowSystemGeneratedContextualActions(false)
+                    .setOnlyAlertOnce(true)
                     .setAutoCancel(true)
                     .build()
             manager.notify(NOTIFICATION_ID, notification)

@@ -437,6 +437,7 @@
     <string name="update_confirming">Waiting for Android installer</string>
     <string name="update_try_again">Try again</string>
     <string name="update_channel">App updates</string>
+    <string name="update_notification_title">Update available</string>
     <string name="update_failed_download">Download failed</string>
     <string name="update_failed_asset">The release has no matching APK</string>
     <string name="update_failed_no_checksum">The release lists no SHA-256 for the APK</string>

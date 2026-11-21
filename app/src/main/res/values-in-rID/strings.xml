@@ -437,6 +437,7 @@
     <string name="update_confirming">Menunggu penginstal Android</string>
     <string name="update_try_again">Coba lagi</string>
     <string name="update_channel">Pembaruan aplikasi</string>
+    <string name="update_notification_title">Pembaruan tersedia</string>
     <string name="update_failed_download">Unduhan gagal</string>
     <string name="update_failed_asset">Rilis tidak memiliki APK yang cocok</string>
     <string name="update_failed_no_checksum">Rilis tidak mencantumkan SHA-256 untuk APK</string>
