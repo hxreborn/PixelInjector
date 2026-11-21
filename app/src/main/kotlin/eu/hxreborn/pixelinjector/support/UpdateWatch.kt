@@ -185,7 +185,7 @@ class UpdateWatch : JobService() {
             val notification =
                 NotificationCompat
                     .Builder(context, UPDATE_NOTIFICATION_CHANNEL)
-                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setSmallIcon(R.drawable.ic_notification)
                     .setContentTitle(
                         context.getString(R.string.update_card_title, release.versionName),
                     ).setContentIntent(open)

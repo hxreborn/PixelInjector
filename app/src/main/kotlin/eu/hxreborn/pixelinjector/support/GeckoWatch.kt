@@ -135,7 +135,7 @@ class GeckoWatch : JobService() {
             val notification =
                 NotificationCompat
                     .Builder(context, CHANNEL)
-                    .setSmallIcon(R.drawable.ic_launcher_foreground)
+                    .setSmallIcon(R.drawable.ic_notification)
                     .setContentTitle(title)
                     .setContentText(context.getString(R.string.betterfox_gecko_list, listGecko))
                     .setContentIntent(open)
