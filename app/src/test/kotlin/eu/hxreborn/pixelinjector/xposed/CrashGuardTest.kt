@@ -62,6 +62,11 @@ class CrashGuardTest {
 
     private fun cleanStart(boot: String = BOOT): CrashGuard = start(boot).also { it.installed() }
 
+    private fun dieInstallingTwice(
+        tweak: String,
+        countEarlyDeaths: Boolean = true,
+    ) = repeat(2) { start(countEarlyDeaths = countEarlyDeaths).installing(tweak) }
+
     @Test
     fun firstStartQuarantinesNothing() {
         val guard = cleanStart()
@@ -72,17 +77,86 @@ class CrashGuardTest {
     }
 
     @Test
-    fun deathDuringInstallQuarantinesThatTweakOnly() {
+    fun oneDeathDuringInstallOnlyMarksTheTweak() {
         start().installing("DownloadChip")
         val next = start()
+        assertEquals("DownloadChip", next.interruptedDuringInstall)
+        assertNull(next.crashedDuringInstall)
+        assertEquals(emptySet<String>(), next.quarantined)
+    }
+
+    @Test
+    fun secondDeathDuringTheSameInstallQuarantinesThatTweakOnly() {
+        dieInstallingTwice("DownloadChip")
+        val next = start()
         assertEquals("DownloadChip", next.crashedDuringInstall)
+        assertNull(next.interruptedDuringInstall)
         assertEquals(setOf("DownloadChip"), next.quarantined)
         assertFalse(next.safeMode)
     }
 
     @Test
-    fun quarantineSurvivesRebootAndCleanStarts() {
+    fun completedInstallForgetsTheFirstDeath() {
         start().installing("DownloadChip")
+        cleanStart()
+        start().installing("DownloadChip")
+        val next = start()
+        assertNull(next.crashedDuringInstall)
+        assertEquals(emptySet<String>(), next.quarantined)
+    }
+
+    @Test
+    fun rebootForgetsTheFirstDeath() {
+        start().installing("DownloadChip")
+        start().installing("WarmTiles")
+        start(boot = OTHER_BOOT).installing("DownloadChip")
+        val next = start(boot = OTHER_BOOT)
+        assertNull(next.crashedDuringInstall)
+        assertEquals("DownloadChip", next.interruptedDuringInstall)
+        assertEquals(emptySet<String>(), next.quarantined)
+    }
+
+    @Test
+    fun deathInAnotherTweakKeepsTheFirstStrike() {
+        start().installing("DownloadChip")
+        start().installing("ChargingDetails")
+        start().installing("DownloadChip")
+        val next = start()
+        assertEquals("DownloadChip", next.crashedDuringInstall)
+        assertEquals(setOf("DownloadChip"), next.quarantined)
+    }
+
+    @Test
+    fun stableForgetsTheFirstDeath() {
+        start().installing("DownloadChip")
+        start().stable()
+        start().installing("DownloadChip")
+        val next = start()
+        assertNull(next.crashedDuringInstall)
+        assertEquals(emptySet<String>(), next.quarantined)
+    }
+
+    @Test
+    fun installDeathDoesNotCountTowardTheRuntimeLoop() {
+        start().installing("DownloadChip")
+        cleanStart()
+        val second = cleanStart()
+        assertFalse(second.safeMode)
+        assertTrue(start().safeMode)
+    }
+
+    @Test
+    fun deathsInDifferentTweaksDoNotQuarantine() {
+        start().installing("DownloadChip")
+        start().installing("ChargingDetails")
+        val next = start()
+        assertEquals("ChargingDetails", next.interruptedDuringInstall)
+        assertEquals(emptySet<String>(), next.quarantined)
+    }
+
+    @Test
+    fun quarantineSurvivesRebootAndCleanStarts() {
+        dieInstallingTwice("DownloadChip")
         start().also {
             it.installing("WarmTiles")
             it.installed()
@@ -148,12 +222,14 @@ class CrashGuardTest {
     fun clockJitterWithinTheBootStaysTheSameBoot() {
         start().installing("DownloadChip")
         wallMs += CLOCK_JITTER_MS
+        start().installing("DownloadChip")
+        wallMs += CLOCK_JITTER_MS
         assertEquals("DownloadChip", start().crashedDuringInstall)
     }
 
     @Test
     fun clockStepWithinTheBootCountsAsANewBootAndKeepsQuarantine() {
-        start().installing("DownloadChip")
+        dieInstallingTwice("DownloadChip")
         start().also {
             it.installing("WarmTiles")
             it.installed()
@@ -166,11 +242,11 @@ class CrashGuardTest {
 
     @Test
     fun eachTweakThatKillsInstallIsQuarantinedInTurn() {
-        start().installing("DownloadChip")
-        start().installing("ChargingDetails")
+        dieInstallingTwice("DownloadChip")
+        dieInstallingTwice("ChargingDetails")
         val third = start()
         assertEquals(setOf("DownloadChip", "ChargingDetails"), third.quarantined)
-        assertFalse(third.safeMode)
+        assertTrue(third.safeMode)
     }
 
     @Test
@@ -210,7 +286,7 @@ class CrashGuardTest {
 
     @Test
     fun appInstallDeathStillQuarantines() {
-        start(countEarlyDeaths = false).installing("GboardBlack")
+        dieInstallingTwice("GboardBlack", countEarlyDeaths = false)
         assertEquals(setOf("GboardBlack"), start(countEarlyDeaths = false).quarantined)
     }
 
@@ -233,7 +309,7 @@ class CrashGuardTest {
 
     @Test
     fun newIdentityClearsQuarantineAndSafeMode() {
-        start().installing("DownloadChip")
+        dieInstallingTwice("DownloadChip")
         cleanStart()
         cleanStart()
         val updated = start(identity = "12501|$IDENTITY")
@@ -244,7 +320,7 @@ class CrashGuardTest {
 
     @Test
     fun updatedHostApkClearsQuarantine() {
-        start(countEarlyDeaths = false).installing("HideSearchBar")
+        dieInstallingTwice("HideSearchBar", countEarlyDeaths = false)
         assertEquals(
             emptySet<String>(),
             start(identity = "$IDENTITY.updated", countEarlyDeaths = false).quarantined,
@@ -270,7 +346,7 @@ class CrashGuardTest {
     @Test
     fun hotReloadThatDiesDuringInstallQuarantines() {
         cleanStart().stable()
-        start(countEarlyDeaths = false).installing("HeadsUpDuration")
+        dieInstallingTwice("HeadsUpDuration", countEarlyDeaths = false)
         assertEquals(setOf("HeadsUpDuration"), start().quarantined)
     }
 

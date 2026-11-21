@@ -12,8 +12,10 @@ private const val KEY_BOOT_INSTANT = "bootInstantMs"
 private const val KEY_GENERATION = "generation"
 private const val KEY_STABLE = "stable"
 private const val KEY_EARLY_DEATHS = "earlyDeaths"
+private const val KEY_RUNTIME_DEATHS = "runtimeDeaths"
 private const val KEY_INSTALLING = "installing"
 private const val KEY_QUARANTINED = "quarantined"
+private const val KEY_INTERRUPTED = "interrupted"
 private const val KEY_SAFE_MODE_BOOT = "safeModeBoot"
 private const val RUNTIME_DEATHS_FOR_SAFE_MODE = 2
 private const val ANY_DEATHS_FOR_SAFE_MODE = 4
@@ -22,8 +24,10 @@ private const val SAME_BOOT_TOLERANCE_MS = 10_000L
 
 private fun Properties.markStable() {
     remove(KEY_INSTALLING)
+    remove(KEY_INTERRUPTED)
     setProperty(KEY_STABLE, true.toString())
     setProperty(KEY_EARLY_DEATHS, "0")
+    setProperty(KEY_RUNTIME_DEATHS, "0")
 }
 
 internal class CrashGuard private constructor(
@@ -32,6 +36,7 @@ internal class CrashGuard private constructor(
     private val generation: String,
     private val bootInstant: () -> Long,
     val crashedDuringInstall: String?,
+    val interruptedDuringInstall: String?,
     val earlyDeaths: Int,
     val quarantined: Set<String>,
     val safeMode: Boolean,
@@ -50,6 +55,7 @@ internal class CrashGuard private constructor(
         outcomes: Map<String, String> = emptyMap(),
     ) {
         state.remove(KEY_INSTALLING)
+        state.remove(KEY_INTERRUPTED)
         if (version != null) {
             InstallDiagnostics.record(state, version, outcomes + pendingFailures.orEmpty())
         }
@@ -104,22 +110,42 @@ internal class CrashGuard private constructor(
                     } == true
             val bootId = storedBoot.takeIf { sameBoot } ?: generation
             val crashed = state.getProperty(KEY_INSTALLING)?.takeIf { sameBoot && it.isNotEmpty() }
+            val diedBefore = if (sameBoot) tweakList(state, KEY_INTERRUPTED) else emptyList()
             state.remove(KEY_INSTALLING)
-            if (crashed != null) {
-                val quarantined = (quarantinedTweaks(state) + crashed).distinct()
+            val quarantine = crashed?.takeIf { it in diedBefore }
+            val interrupted = crashed?.takeIf { it !in diedBefore }
+            if (quarantine != null) {
+                val quarantined = (tweakList(state, KEY_QUARANTINED) + quarantine).distinct()
                 state.setProperty(KEY_QUARANTINED, quarantined.joinToString(","))
             }
-            val storedDeaths =
-                state.getProperty(KEY_EARLY_DEATHS)?.toIntOrNull()?.takeIf { sameBoot } ?: 0
+            val stillInterrupted =
+                (diedBefore - setOfNotNull(quarantine)) + listOfNotNull(interrupted)
+            if (stillInterrupted.isEmpty()) {
+                state.remove(KEY_INTERRUPTED)
+            } else {
+                state.setProperty(KEY_INTERRUPTED, stillInterrupted.joinToString(","))
+            }
             val diedEarly =
                 countEarlyDeaths && sameBoot && state.getProperty(KEY_STABLE) == false.toString()
             val earlyDeaths =
-                when {
-                    diedEarly -> storedDeaths + 1
-                    countEarlyDeaths -> 0
-                    else -> storedDeaths
-                }
-            val runtimeLoop = crashed == null && earlyDeaths >= RUNTIME_DEATHS_FOR_SAFE_MODE
+                deathCount(
+                    state,
+                    KEY_EARLY_DEATHS,
+                    sameBoot,
+                    countEarlyDeaths,
+                    diedEarly,
+                    counted = true,
+                )
+            val runtimeDeaths =
+                deathCount(
+                    state,
+                    KEY_RUNTIME_DEATHS,
+                    sameBoot,
+                    countEarlyDeaths,
+                    diedEarly,
+                    counted = crashed == null,
+                )
+            val runtimeLoop = runtimeDeaths >= RUNTIME_DEATHS_FOR_SAFE_MODE
             if (diedEarly && (runtimeLoop || earlyDeaths >= ANY_DEATHS_FOR_SAFE_MODE)) {
                 state.setProperty(KEY_SAFE_MODE_BOOT, bootId)
             }
@@ -128,6 +154,7 @@ internal class CrashGuard private constructor(
             state.setProperty(KEY_GENERATION, generation)
             state.setProperty(KEY_STABLE, false.toString())
             state.setProperty(KEY_EARLY_DEATHS, earlyDeaths.toString())
+            state.setProperty(KEY_RUNTIME_DEATHS, runtimeDeaths.toString())
             deleteStaleStaging(file, generation)
             write(file, state, generation, bootInstant)
             return CrashGuard(
@@ -135,16 +162,36 @@ internal class CrashGuard private constructor(
                 state,
                 generation,
                 bootInstant,
-                crashed,
+                quarantine,
+                interrupted,
                 earlyDeaths,
-                quarantinedTweaks(state).toSet(),
+                tweakList(state, KEY_QUARANTINED).toSet(),
                 state.getProperty(KEY_SAFE_MODE_BOOT) == bootId,
             )
         }
 
-        private fun quarantinedTweaks(state: Properties): List<String> =
+        private fun deathCount(
+            state: Properties,
+            key: String,
+            sameBoot: Boolean,
+            countEarlyDeaths: Boolean,
+            diedEarly: Boolean,
+            counted: Boolean,
+        ): Int {
+            val stored = state.getProperty(key)?.toIntOrNull()?.takeIf { sameBoot } ?: 0
+            return when {
+                diedEarly && counted -> stored + 1
+                diedEarly || !countEarlyDeaths -> stored
+                else -> 0
+            }
+        }
+
+        private fun tweakList(
+            state: Properties,
+            key: String,
+        ): List<String> =
             state
-                .getProperty(KEY_QUARANTINED)
+                .getProperty(key)
                 .orEmpty()
                 .split(',')
                 .filter { it.isNotEmpty() }

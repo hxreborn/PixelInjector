@@ -303,6 +303,11 @@ class PixelInjectorModule : XposedModule() {
 
     private fun logGuard(guard: CrashGuard) {
         val build = Build.ID
+        guard.interruptedDuringInstall?.let {
+            Logger.warn(
+                "install interrupted tweak=$it proc=$process build=$build reason=died-during-install",
+            )
+        }
         guard.crashedDuringInstall?.let {
             Logger.error(
                 "quarantined tweak=$it proc=$process build=$build reason=crashed-during-install",
