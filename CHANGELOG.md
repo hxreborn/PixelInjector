@@ -1,3 +1,18 @@
+## [1.29.0](https://github.com/hxreborn/PixelInjector/compare/v1.28.2...v1.29.0) (2026-11-21)
+
+### Features
+
+* **update:** add update and later actions to the update notification ([28f70a2](https://github.com/hxreborn/PixelInjector/commit/28f70a226ec002b9c1f8372c7e3722d4b5b653ba))
+
+### Bug Fixes
+
+* **log:** name the exception in companion log reasons ([f7fc49e](https://github.com/hxreborn/PixelInjector/commit/f7fc49eb3339da711756880bf43e9d6c3dd85015))
+* **log:** name the exception when a log reason has no message ([c60f494](https://github.com/hxreborn/PixelInjector/commit/c60f4941091c5a959caf4b35e687578b4c3a92b0))
+* **log:** treat a literal null exception message as missing ([f922e9f](https://github.com/hxreborn/PixelInjector/commit/f922e9f803189c7784f8839056b469f3200b7f46))
+* **update:** dismiss only the notified version on update ([51d2377](https://github.com/hxreborn/PixelInjector/commit/51d2377e0d86f156674e6af1fbed68a33ea43b6d))
+* **update:** keep the newest postponed version and close on update ([e5e1024](https://github.com/hxreborn/PixelInjector/commit/e5e102437f8fd6b524a701adff522045339da4e7))
+* **update:** show only the version in the update notification ([2adc965](https://github.com/hxreborn/PixelInjector/commit/2adc965296a4c616dac1d23a9cd89d3aaa334735))
+
 ## [1.28.2](https://github.com/hxreborn/PixelInjector/compare/v1.28.1...v1.28.2) (2026-11-20)
 
 ### Bug Fixes
