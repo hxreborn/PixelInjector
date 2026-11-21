@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
+        <package android:name="com.android.systemui" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -59,6 +60,11 @@
         <receiver
             android:name=".support.UpdateLaterReceiver"
             android:exported="false" />
+
+        <provider
+            android:name=".crtipc.CrtBroker"
+            android:authorities="${applicationId}.crt"
+            android:exported="true" />
 
         <provider
             android:name=".support.UpdateFileProvider"

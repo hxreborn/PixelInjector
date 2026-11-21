@@ -4,6 +4,7 @@ import android.animation.ObjectAnimator
 import android.content.Context
 import android.graphics.Rect
 import android.os.Build
+import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.os.PowerManager
@@ -13,6 +14,7 @@ import android.util.SparseArray
 import android.view.Display
 import android.view.SurfaceControl
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.view.animation.LinearInterpolator
 import eu.hxreborn.pixelinjector.Target
@@ -88,6 +90,17 @@ private var pendingHookRegistration: (() -> Unit)? = null
 private var registeringHooks = false
 private var preparingSurface = false
 private var holdingReveal = false
+private var pendingRevealCommits = 0
+private var revealCommitGeneration = 0L
+private var dozeWork = 0
+
+@Volatile private var uiCoordination: CrtUiCoordination? = null
+
+@Volatile internal var systemCoordination: CrtSystemCoordination? = null
+internal var crtSystemHost: Any? = null
+private var crtUiContext: Context? = null
+private var restoreUiCoordination: (() -> Unit)? = null
+internal val restoreSystemCoordinations = mutableListOf<() -> Unit>()
 
 @Volatile private var reloading = false
 
@@ -109,18 +122,80 @@ internal val crtScreenOff =
         install = XposedModule::installCrtScreenOff,
     )
 
-private fun prepareForReload(): Map<Any, Any> =
+private fun prepareForReload(): Map<Any, Any> {
+    val state =
+        synchronized(lifecycleLock) {
+            check(!registeringHooks) { "CRT hook registration in progress" }
+            check(!preparingSurface && crtSurfaces.isEmpty()) { "CRT surface in use" }
+            check(!holdingReveal) { "CRT reveal hold in progress" }
+            check(pendingRevealCommits == 0) { "CRT reveal frame in progress" }
+            check(dozeWork == 0) { "CRT doze hook in progress" }
+            check(systemCoordination?.isStartPending() != true) { "CRT start grant in progress" }
+            reloading = true
+            HashMap<Any, Any>().apply {
+                put("awake", awakeDisplayStates)
+                crtSystemHost?.let { put("systemHost", it) }
+                crtUiContext?.let { put("uiContext", it) }
+            }
+        }
+    val oldUiCoordination = uiCoordination
+    oldUiCoordination?.close()
+    uiCoordination = null
+    val oldSystemCoordination = systemCoordination
+    oldSystemCoordination?.close()
+    systemCoordination = null
+    return state
+}
+
+internal fun beginCrtDozeWork(): Boolean =
     synchronized(lifecycleLock) {
-        check(!registeringHooks) { "CRT hook registration in progress" }
-        check(!preparingSurface && crtSurfaces.isEmpty()) { "CRT surface in use" }
-        check(!holdingReveal) { "CRT reveal hold in progress" }
-        reloading = true
-        awakeDisplayStates
+        if (reloading) return false
+        dozeWork++
+        true
+    }
+
+internal fun endCrtDozeWork() {
+    synchronized(lifecycleLock) { dozeWork-- }
+}
+
+internal fun crtSystemCoordination(
+    host: Any,
+    create: () -> CrtSystemCoordination,
+): CrtSystemCoordination? =
+    synchronized(lifecycleLock) {
+        if (reloading) return null
+        systemCoordination ?: create().also {
+            crtSystemHost = host
+            systemCoordination = it
+            it.start()
+        }
     }
 
 private fun resumeAfterRejectedReload() {
     synchronized(lifecycleLock) { reloading = false }
     installEnabledHooks()
+    val ui = uiCoordination
+    if (ui?.isClosed() == true) {
+        ui.whenStopped {
+            synchronized(lifecycleLock) {
+                if (uiCoordination === ui) uiCoordination = null
+                if (!reloading) restoreUiCoordination?.invoke()
+            }
+        }
+    } else {
+        restoreUiCoordination?.invoke()
+    }
+    val system = systemCoordination
+    if (system?.isClosed() == true) {
+        system.whenStopped {
+            synchronized(lifecycleLock) {
+                if (systemCoordination === system) systemCoordination = null
+                if (!reloading) restoreSystemCoordinations.forEach { it() }
+            }
+        }
+    } else {
+        restoreSystemCoordinations.forEach { it() }
+    }
 }
 
 private fun installHooksOnEnable(register: () -> Unit) {
@@ -418,10 +493,22 @@ private val crtSurfaces: MutableMap<Any, CrtSurface> = Collections.synchronizedM
 
 private var awakeDisplayStates: MutableMap<Any, Any> =
     Collections.synchronizedMap(WeakHashMap())
+private val awakeAodStates: MutableMap<Any, Any> = Collections.synchronizedMap(WeakHashMap())
 
 @Suppress("UNCHECKED_CAST")
 private fun restoreAwakeDisplayStates(saved: Any?) {
-    if (saved is MutableMap<*, *>) awakeDisplayStates = saved as MutableMap<Any, Any>
+    if (saved is MutableMap<*, *>) {
+        val awake = saved["awake"]
+        awakeDisplayStates = (awake as? MutableMap<Any, Any>) ?: saved as MutableMap<Any, Any>
+        crtSystemHost = saved["systemHost"]
+        crtUiContext = saved["uiContext"] as? Context
+    }
+}
+
+internal fun consumeCrtAwakeState(controller: Any): Boolean {
+    val awake = awakeDisplayStates.remove(controller) != null
+    val aod = awakeAodStates.remove(controller) != null
+    return awake || aod
 }
 
 private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
@@ -569,6 +656,7 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
             val state = stateBindings.displayState(result!!)
             when (policy) {
                 POLICY_DIM, POLICY_BRIGHT -> {
+                    awakeAodStates.remove(controller)
                     if (state == Display.STATE_ON) {
                         awakeDisplayStates[controller] = result
                     } else {
@@ -589,6 +677,11 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
                         dozeState == Display.STATE_UNKNOWN
                     ) {
                         return@guarded if (reloading) result else awakeResult
+                    }
+                    if (!skip && state != Display.STATE_OFF &&
+                        (systemCoordination?.armedGeneration() ?: 0L) != 0L
+                    ) {
+                        awakeAodStates[controller] = awakeResult
                     }
                     awakeDisplayStates.remove(controller)
                     val isDisplayEnabled = chain.getArg(1) as Boolean
@@ -612,6 +705,11 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
         }
     }
     installHooksOnEnable {
+        installCrtDozeEntry(cl, {
+            switch.enabled && !reloading
+        }, stateBindings::effectiveDozeState) { fade ->
+            crt.ownedSurface(fade) != null
+        }
         hook(draw).intercept { chain ->
             val colorFade = chain.thisObject!!
             val surface = crt.ownedSurface(colorFade) ?: return@intercept chain.proceed()
@@ -714,6 +812,7 @@ private class CrtColorFade(
         if (!drawn) {
             surface.drawFailed = true
             guarded(Unit) { surface.showBlack(surfaces.setColor) }
+            systemCoordination?.failedAfterBlack()
             guarded(Unit) { if (surface.animator.isStarted) surface.animator.end() }
         }
         return drawn
@@ -839,6 +938,8 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
             null
         }
     val revealHold = ScreenOffRevealHold(setRevealAmount, alwaysOnDisplay)
+    restoreUiCoordination = { crtUiContext?.let { revealHold.ensureCoordination(it) } }
+    crtUiContext?.let { revealHold.ensureCoordination(it) }
     Logger.info(
         "resolved tweak=$TWEAK members=${setRevealAmount.signature()}," +
             handleLifecycleMessage.signature(),
@@ -902,28 +1003,27 @@ private class ScreenOffRevealHold(
     private val alwaysOnDisplay: AlwaysOnDisplayBindings?,
 ) {
     private val requestedAmounts = WeakHashMap<View, Float>()
+    private var holdingAod = false
 
     fun onLifecycleMessage(what: Int) {
         when (what) {
             STARTED_GOING_TO_SLEEP -> {
                 val alwaysOn = alwaysOnDisplay?.isEnabled() == true
                 synchronized(lifecycleLock) {
-                    if (!reloading && switch.enabled && !alwaysOn) holdingReveal = true
-                }
-            }
-
-            SCREEN_TURNED_OFF -> {
-                synchronized(lifecycleLock) {
-                    holdingReveal = false
-                    val amounts = requestedAmounts.toMap()
-                    requestedAmounts.clear()
-                    amounts.forEach { (scrim, amount) ->
-                        guarded(Unit) { setRevealAmount.invoke(scrim, amount) }
+                    if (!reloading && switch.enabled) {
+                        holdingAod = alwaysOn && uiCoordination?.arm() == true
+                        if (!alwaysOn || holdingAod) holdingReveal = true
                     }
                 }
             }
 
+            SCREEN_TURNED_OFF -> {
+                if (!holdingAod) releaseHeldAmounts()
+            }
+
             STARTED_WAKING_UP, SCREEN_TURNING_ON -> {
+                uiCoordination?.cancel()
+                holdingAod = false
                 synchronized(lifecycleLock) { holdingReveal = false }
                 requestedAmounts.clear()
             }
@@ -935,12 +1035,35 @@ private class ScreenOffRevealHold(
         amount: Float,
     ): Boolean {
         if (Looper.myLooper() !== Looper.getMainLooper()) return false
-        if (switch.enabled && holdingReveal && guarded(false) { screenOffWithoutAod(scrim) }) {
+        ensureCoordination(scrim.context)
+        if ((switch.enabled || holdingAod) && holdingReveal &&
+            guarded(false) { screenOffWithoutAod(scrim) }
+        ) {
             requestedAmounts[scrim] = amount
+            if (holdingAod) uiCoordination?.heldAmountChanged()
             return true
         }
         requestedAmounts.remove(scrim)
         return false
+    }
+
+    fun ensureCoordination(context: Context) {
+        synchronized(lifecycleLock) {
+            if (uiCoordination == null && !reloading && switch.enabled) {
+                crtUiContext = context
+                uiCoordination =
+                    CrtUiCoordination(
+                        context,
+                        {
+                            requestedAmounts.isNotEmpty() &&
+                                requestedAmounts.values.all {
+                                    it <= 0f
+                                }
+                        },
+                        { committed -> releaseHeldAmounts(committed) },
+                    ).also { it.start() }
+            }
+        }
     }
 
     private fun screenOffWithoutAod(scrim: View): Boolean {
@@ -954,12 +1077,106 @@ private class ScreenOffRevealHold(
         ) {
             return false
         }
+        if (holdingAod) return true
         val aodEnabled =
             alwaysOnDisplay?.isEnabled()
                 ?: (Settings.Secure.getInt(scrim.context.contentResolver, DOZE_ALWAYS_ON, 1) != 0)
         return !aodEnabled
     }
+
+    private fun releaseHeldAmounts(committed: (() -> Unit)? = null) {
+        val wasHoldingAod = holdingAod
+        holdingAod = false
+        synchronized(lifecycleLock) {
+            holdingReveal = false
+            val amounts = requestedAmounts.toMap()
+            requestedAmounts.clear()
+            if (wasHoldingAod) {
+                Logger.info("crt aod reveal amounts tweak=$TWEAK amounts=${amounts.values}")
+            }
+            if (amounts.isEmpty()) committed?.invoke()
+            val callbacks = ArrayList<Triple<View, ViewTreeObserver, Runnable>>()
+            val handler = Handler(Looper.getMainLooper())
+            var timeout: Runnable? = null
+            var timedOut = false
+            var registrationFailed = false
+            val commitGeneration =
+                if (committed != null && amounts.isNotEmpty()) {
+                    pendingRevealCommits++
+                    val generation = ++revealCommitGeneration
+                    val timeoutAction =
+                        Runnable {
+                            synchronized(lifecycleLock) {
+                                timedOut = true
+                                val iterator = callbacks.iterator()
+                                while (iterator.hasNext()) {
+                                    val (view, original, callback) = iterator.next()
+                                    val removed =
+                                        guarded(false) {
+                                            val current = view.viewTreeObserver
+                                            val fromOriginal =
+                                                original.isAlive &&
+                                                    original.unregisterFrameCommitCallback(callback)
+                                            val fromCurrent =
+                                                current !== original && current.isAlive &&
+                                                    current.unregisterFrameCommitCallback(callback)
+                                            fromOriginal || fromCurrent
+                                        }
+                                    if (removed) iterator.remove()
+                                }
+                                if (callbacks.isEmpty()) {
+                                    pendingRevealCommits--
+                                    if (revealCommitGeneration ==
+                                        generation
+                                    ) {
+                                        revealCommitGeneration++
+                                    }
+                                }
+                            }
+                        }
+                    timeout = timeoutAction
+                    handler.postDelayed(timeoutAction, REVEAL_COMMIT_TIMEOUT_MS)
+                    generation
+                } else {
+                    0L
+                }
+            amounts.forEach { (scrim, amount) ->
+                val applied =
+                    guarded(false) {
+                        if (committed != null) {
+                            val observer = scrim.viewTreeObserver
+                            lateinit var callback: Runnable
+                            callback =
+                                Runnable {
+                                    val current =
+                                        synchronized(lifecycleLock) {
+                                            callbacks.removeAll { it.third === callback }
+                                            if (callbacks.isEmpty()) {
+                                                timeout?.let(handler::removeCallbacks)
+                                                pendingRevealCommits--
+                                                val current =
+                                                    revealCommitGeneration == commitGeneration
+                                                if (timedOut && current) revealCommitGeneration++
+                                                current && !timedOut && !registrationFailed
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                    if (current) committed()
+                                }
+                            observer.registerFrameCommitCallback(callback)
+                            callbacks.add(Triple(scrim, observer, callback))
+                        }
+                        setRevealAmount.invoke(scrim, amount)
+                        true
+                    }
+                if (!applied) registrationFailed = true
+            }
+        }
+    }
 }
+
+private const val REVEAL_COMMIT_TIMEOUT_MS = 1_000L
 
 private inline fun <T> guarded(
     fallback: T,
