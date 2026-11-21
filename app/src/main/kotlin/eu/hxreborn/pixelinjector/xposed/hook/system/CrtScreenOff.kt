@@ -1,6 +1,7 @@
 package eu.hxreborn.pixelinjector.xposed.hook.system
 
 import android.animation.ObjectAnimator
+import android.app.Application
 import android.content.Context
 import android.graphics.Rect
 import android.os.Build
@@ -938,13 +939,32 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
             null
         }
     val revealHold = ScreenOffRevealHold(setRevealAmount, alwaysOnDisplay)
-    restoreUiCoordination = { crtUiContext?.let { revealHold.ensureCoordination(it) } }
-    crtUiContext?.let { revealHold.ensureCoordination(it) }
+    val applicationAttach =
+        resolving {
+            Application::class.java.requiredMethod("attach", Context::class.java)
+        }.getOrNull()
+    val currentApplication =
+        resolving {
+            cl.loadClass("android.app.ActivityThread").requiredMethod("currentApplication")
+        }.getOrNull()
+    restoreUiCoordination = {
+        guarded(Unit) {
+            val context = crtUiContext ?: currentApplication?.invoke(null) as? Context
+            context?.let { revealHold.ensureCoordination(it) }
+        }
+    }
     Logger.info(
         "resolved tweak=$TWEAK members=${setRevealAmount.signature()}," +
             handleLifecycleMessage.signature(),
     )
     installHooksOnEnable {
+        applicationAttach?.let { attach ->
+            hook(attach).intercept { chain ->
+                val result = chain.proceed()
+                guarded(Unit) { revealHold.ensureCoordination(chain.thisObject as Context) }
+                result
+            }
+        }
         hook(setRevealAmount).intercept { chain ->
             val scrim = chain.thisObject as View
             val amount = chain.getArg(0) as Float
@@ -958,6 +978,7 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
             guarded(Unit) { revealHold.onLifecycleMessage(message.what) }
             chain.proceed()
         }
+        restoreUiCoordination?.invoke()
     }
     return true
 }
