@@ -508,8 +508,13 @@
     <string name="now_playing_chip_font_google_sans_flex_rounded">Google Sans Flex Rounded</string>
     <string name="now_playing_chip_text_color">Warna teks</string>
     <string name="now_playing_chip_color">Warna chip</string>
-    <string name="now_playing_chip_color_follows">Bilah status</string>
-    <string name="now_playing_chip_color_reset">Setel ulang</string>
+    <string name="now_playing_chip_color_follows">Mengikuti ikon bilah status</string>
+    <string name="now_playing_chip_color_custom">Warna kustom</string>
+    <string name="now_playing_chip_color_hue">Rona</string>
+    <string name="now_playing_chip_color_saturation">Saturasi</string>
+    <string name="now_playing_chip_color_brightness">Kecerahan</string>
+    <string name="now_playing_chip_color_hex">Kode hex</string>
+    <string name="now_playing_chip_preview_title">Judul lagu</string>
     <string name="now_playing_chip_opacity">Opasitas chip</string>
     <string name="now_playing_chip_opacity_value">%1$d%%</string>
     <string name="settings_appearance">Tampilan</string>
