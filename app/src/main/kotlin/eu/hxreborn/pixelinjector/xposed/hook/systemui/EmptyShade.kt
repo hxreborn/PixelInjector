@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Picture
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.DrawableWrapper
+import android.icu.text.MessageFormat
 import android.os.Build
 import android.view.View
 import android.widget.ImageView
@@ -33,6 +34,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.Locale
 
 private const val TWEAK = "EmptyShade"
 private const val CONTENT =
@@ -48,9 +50,12 @@ private const val ICON_MESSAGE_MODEL =
     "com.android.systemui.statusbar.notification.emptyshade.ui.shared.model.IconMessageModel"
 private const val ICON_VIEW =
     "com.android.systemui.statusbar.notification.emptyshade.ui.view.EmptyShadeIconView"
+private const val TEXT_VIEW =
+    "com.android.systemui.statusbar.notification.emptyshade.ui.view.EmptyShadeView"
 private const val RESOURCE_ICON = "com.android.systemui.common.shared.model.Icon\$Resource"
 private const val LOADED_ICON = "com.android.systemui.common.shared.model.Icon\$Loaded"
 private const val STOCK_ICON = "ic_trophy"
+private const val MODES_SHADE_TEXT = "modes_suppressing_shade_text"
 private const val DRAWABLE_TYPE = "drawable"
 private const val TEXT_ARG = 0
 private const val ICON_ARG = 1
@@ -199,12 +204,9 @@ private class StockIcon(
 
 private class ViewBindings(
     val collectorViews: Map<Method, Field>,
-    private val modelType: Class<*>,
-    private val modelMessage: Field,
-    private val modelIcon: Field,
-    private val textView: Field,
-    private val iconView: Field,
-    private val stockIcon: StockIcon,
+    private val viewType: Class<*>,
+    private val messageType: Class<*>,
+    private val renderMessage: (View, Any) -> Unit,
 ) {
     @Volatile private var live: Pair<WeakReference<View>, Any>? = null
 
@@ -213,10 +215,11 @@ private class ViewBindings(
         collector: Any,
         emitted: Any?,
     ) {
-        val model = emitted?.takeIf(modelType::isInstance) ?: return
+        val model = emitted?.takeIf(messageType::isInstance) ?: return
         val view = viewField.get(collector) as? View ?: return
+        if (!viewType.isInstance(view)) return
         live = WeakReference(view) to model
-        if (switch.enabled) apply(view, model)
+        if (switch.enabled) renderMessage(view, model)
     }
 
     fun carry(): HashMap<String, Any>? {
@@ -229,59 +232,86 @@ private class ViewBindings(
         val carried = saved as? Map<*, *> ?: return
         val view = carried[CARRIED_VIEW] as? View ?: return
         val model = carried[CARRIED_MODEL] ?: return
+        if (!viewType.isInstance(view) || !messageType.isInstance(model)) return
         live = WeakReference(view) to model
         reapply()
     }
 
     fun reapply() {
-        val (ref, model) = live ?: return
-        val view = ref.get() ?: return
+        val message = live ?: return
+        val view = message.first.get() ?: return
         view.post {
-            isolated("reapply", Unit) { apply(view, model) }
+            if (live === message) isolated("reapply", Unit) { renderMessage(view, message.second) }
         }
     }
 
-    private fun apply(
-        view: View,
-        model: Any,
-    ) {
-        if (!stockIcon.matches(modelIcon.get(model))) return
-        val enabled = switch.enabled
-        (textView.get(view) as TextView).text =
-            customText.value.takeIf { enabled && it.isNotEmpty() }
-                ?: modelMessage.get(model) as String
-        (iconView.get(view) as ImageView).setImageDrawable(
-            customIcon.value.takeIf { enabled } ?: view.context.getDrawable(stockIcon.id),
-        )
-    }
-
     companion object {
-        fun resolve(cl: ClassLoader): ViewBindings {
+        fun resolveIconView(cl: ClassLoader): ViewBindings {
             val model = cl.loadClass(ICON_MESSAGE_MODEL)
             val view = cl.loadClass(ICON_VIEW)
+            val modelMessage = model.requiredField("message")
+            val modelIcon = model.requiredField("icon")
+            val textView = view.requiredField("textView")
+            val iconView = view.requiredField("iconView")
+            val stockIcon = StockIcon.resolve(cl)
+            return ViewBindings(findCollectorViews(cl), view, model) { shade, message ->
+                if (stockIcon.matches(modelIcon.get(message))) {
+                    val enabled = switch.enabled
+                    (textView.get(shade) as TextView).text =
+                        customText.value.takeIf { enabled && it.isNotEmpty() }
+                            ?: modelMessage.get(message) as String
+                    (iconView.get(shade) as ImageView).setImageDrawable(
+                        customIcon.value.takeIf { enabled }
+                            ?: shade.context.getDrawable(stockIcon.id),
+                    )
+                }
+            }
+        }
+
+        fun resolveTextView(cl: ClassLoader): ViewBindings {
+            val view = cl.loadClass(TEXT_VIEW)
+            val textView = view.requiredField("mEmptyText")
+            val stockTextId = view.requiredField("mTextId")
             return ViewBindings(
-                collectorViews = findCollectorViews(cl),
-                modelType = model,
-                modelMessage = model.requiredField("message"),
-                modelIcon = model.requiredField("icon"),
-                textView = view.requiredField("textView"),
-                iconView = view.requiredField("iconView"),
-                stockIcon = StockIcon.resolve(cl),
-            )
+                findCollectorViews(cl),
+                view,
+                String::class.java,
+            ) { shade, message ->
+                if (matchesEmptyShadeText(shade.context, stockTextId.getInt(shade), message)) {
+                    val text = textView.get(shade) as TextView
+                    val replacement =
+                        customText.value.takeIf { switch.enabled && it.isNotEmpty() }
+                            ?: message as String
+                    if (text.text.toString() != replacement) text.text = replacement
+                }
+            }
         }
     }
 }
 
+private fun matchesEmptyShadeText(
+    context: Context,
+    stockId: Int,
+    message: Any,
+): Boolean {
+    if (message == context.getString(stockId)) return true
+    val resources = context.resources
+    val modesTextId = resources.getIdentifier(MODES_SHADE_TEXT, "string", SYSTEMUI_PACKAGE)
+    if (modesTextId == 0) return false
+    val locale = resources.configuration.locales[0] ?: Locale.getDefault()
+    val modesText = MessageFormat(resources.getString(modesTextId), locale)
+    return message == modesText.format(mapOf("count" to 0))
+}
+
 private fun findCollectorViews(cl: ClassLoader): Map<Method, Field> {
     val indices = 1..MAX_ANONYMOUS_CLASS_INDEX
+    val continuation = cl.loadClass("kotlin.coroutines.Continuation")
     return indices
         .flatMap { a -> indices.flatMap { b -> indices.map { c -> "\$bind\$$a\$$b\$$c" } } }
         .mapNotNull { orNullIfMissing { cl.loadClass(VIEW_BINDER + it) } }
         .mapNotNull { type ->
             val viewField = type.optionalField(VIEW_COLLECTOR_FIELD) ?: return@mapNotNull null
-            type.declaredMethods
-                .singleOrNull { it.name == "emit" }
-                ?.apply { isAccessible = true }
+            orNullIfMissing { type.requiredMethod("emit", Any::class.java, continuation) }
                 ?.let { it to viewField }
         }.toMap()
         .ifEmpty { throw NoSuchMethodException("$VIEW_BINDER\$bind.emit") }
@@ -380,13 +410,15 @@ private fun XposedModule.installViewPath(
     composeMiss: Throwable,
 ): Boolean {
     val bindings =
-        resolving { ViewBindings.resolve(cl) }.getOrElse { viewMiss ->
-            listOf(composeMiss, viewMiss).forEach {
-                Logger.error(
-                    "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
-                )
+        resolving { ViewBindings.resolveIconView(cl) }.getOrElse { iconViewMiss ->
+            resolving { ViewBindings.resolveTextView(cl) }.getOrElse { textViewMiss ->
+                listOf(composeMiss, iconViewMiss, textViewMiss).forEach {
+                    Logger.error(
+                        "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
+                    )
+                }
+                return false
             }
-            return false
         }
     val members = bindings.collectorViews.keys.joinToString(",") { it.signature() }
     Logger.info("resolved tweak=$TWEAK members=$members")
