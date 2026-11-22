@@ -141,17 +141,20 @@ internal class CrtUiCoordination(
 
     fun heldAmountChanged() {
         if (!pending || !finished) return
-        main.post {
-            if (pending && finished && revealReady()) finish(true)
-        }
+        main.postAtTime({
+            if (!closed && pending && finished && revealReady()) finish(true)
+        }, callbackToken, SystemClock.uptimeMillis())
     }
 
     fun close() {
         closed = true
         connected = false
-        main.removeCallbacksAndMessages(callbackToken)
         cancel()
-        connection.close()
+        try {
+            connection.close()
+        } finally {
+            main.removeCallbacksAndMessages(callbackToken)
+        }
     }
 
     fun isClosed(): Boolean = closed
@@ -163,8 +166,8 @@ internal class CrtUiCoordination(
         incoming: Long,
         value: Long,
     ) {
-        main.post {
-            if (closed) return@post
+        main.postAtTime({
+            if (closed) return@postAtTime
             Logger.info("crt aod event tweak=CrtScreenOff event=$event generation=$incoming")
             when (event) {
                 CrtProtocol.PEER_CONNECTED -> {
@@ -210,7 +213,7 @@ internal class CrtUiCoordination(
                     if (pending && generation == incoming) finish(false)
                 }
             }
-        }
+        }, callbackToken, SystemClock.uptimeMillis())
     }
 
     private fun finish(completed: Boolean) {

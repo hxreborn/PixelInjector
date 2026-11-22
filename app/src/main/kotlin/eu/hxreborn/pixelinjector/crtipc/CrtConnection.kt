@@ -42,7 +42,7 @@ internal class CrtConnection(
                 flags: Int,
             ): Boolean {
                 if (code != CrtProtocol.EVENT) return super.onTransact(code, data, reply, flags)
-                if (getCallingUid() != brokerUid) return false
+                if (closed || getCallingUid() != brokerUid) return false
                 val event = data.readInt()
                 val generation = data.readLong()
                 val value = data.readLong()
@@ -65,6 +65,7 @@ internal class CrtConnection(
                             queue.take()
                         }
                     try {
+                        if (closed) break
                         action?.invoke()
                     } catch (e: Exception) {
                         Log.w("PixelInjector", "crt connection event failed", e)
@@ -74,8 +75,11 @@ internal class CrtConnection(
                 }
             } catch (_: InterruptedException) {
             } finally {
-                onStop()
-                unregister()
+                try {
+                    onStop()
+                } finally {
+                    unregister()
+                }
             }
         }
 
@@ -112,9 +116,14 @@ internal class CrtConnection(
 
     fun close() {
         closed = true
+        queue.clear()
         worker.interrupt()
         worker.join(CLOSE_TIMEOUT_MS)
-        check(!worker.isAlive) { "CRT connection did not stop" }
+        if (worker.isAlive) {
+            val cause = IllegalStateException("CRT connection did not stop")
+            cause.stackTrace = worker.stackTrace
+            throw cause
+        }
     }
 
     fun whenStopped(action: () -> Unit) {
@@ -163,17 +172,17 @@ internal class CrtConnection(
     }
 
     private fun unregister() {
+        val service = relay ?: return
+        val data = Parcel.obtain()
         try {
-            val extras =
-                Bundle().apply {
-                    putInt(CrtProtocol.ROLE, role)
-                    putBinder(CrtProtocol.CALLBACK, callback)
-                }
-            context.contentResolver.call(uri, CrtProtocol.UNREGISTER, null, extras)
-        } catch (e: Exception) {
+            data.writeInt(role)
+            data.writeStrongBinder(callback)
+            service.transact(CrtProtocol.DISCONNECT, data, null, IBinder.FLAG_ONEWAY)
+        } catch (e: RemoteException) {
             Log.w("PixelInjector", "crt connection unregister failed", e)
         } finally {
-            relay?.let { service -> death?.let { service.unlinkToDeath(it, 0) } }
+            data.recycle()
+            death?.let { service.unlinkToDeath(it, 0) }
             relay = null
             death = null
         }

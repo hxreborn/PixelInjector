@@ -19,7 +19,8 @@ internal class CrtSystemCoordination(
 
     @Volatile private var requested = 0L
     private var granted = 0L
-    private var active = 0L
+
+    @Volatile private var active = 0L
     private var released = false
     private var failurePending = false
 
@@ -50,7 +51,9 @@ internal class CrtSystemCoordination(
     fun isGranted(generation: Long): Boolean =
         generation != 0L && granted == generation && armedGeneration() == generation
 
-    fun isStartPending(): Boolean = requested != 0L
+    fun isTransitionPending(): Boolean = requested != 0L || active != 0L
+
+    fun isDisplayThread(): Boolean = displayHandler.looper.isCurrentThread
 
     fun started(generation: Long) {
         active = generation
@@ -117,8 +120,11 @@ internal class CrtSystemCoordination(
 
     fun close() {
         closed = true
-        displayHandler.removeCallbacksAndMessages(callbackToken)
-        connection.close()
+        try {
+            connection.close()
+        } finally {
+            displayHandler.removeCallbacksAndMessages(callbackToken)
+        }
     }
 
     fun isClosed(): Boolean = closed
@@ -130,8 +136,8 @@ internal class CrtSystemCoordination(
         generation: Long,
         value: Long,
     ) {
-        displayHandler.post {
-            if (closed) return@post
+        displayHandler.postAtTime({
+            if (closed) return@postAtTime
             Logger.info("crt aod event tweak=CrtScreenOff event=$event generation=$generation")
             when (event) {
                 CrtProtocol.PEER_CONNECTED -> {
@@ -177,7 +183,7 @@ internal class CrtSystemCoordination(
                     }
                 }
             }
-        }
+        }, callbackToken, SystemClock.uptimeMillis())
     }
 
     private companion object {

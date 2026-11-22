@@ -1,6 +1,7 @@
 package eu.hxreborn.pixelinjector.xposed.hook.system
 
 import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Application
 import android.content.Context
 import android.graphics.Rect
@@ -9,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Message
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Pair
 import android.util.SparseArray
 import android.view.Choreographer
@@ -83,6 +85,9 @@ private const val MODE_COOL_DOWN = 1
 private const val MODE_FADE = 2
 private const val COLOR_FADE_LAYER = 0x40000001
 private const val CRT_DURATION_MS = 500L
+private const val RELOAD_DRAIN_GRACE_MS = 1_500L
+private const val RELOAD_DRAIN_MAX_MS = 7_000L
+private const val RELOAD_DRAIN_POLL_MS = 16L
 private const val TYPE_NOTIFICATION_SHADE = 2040
 private const val DENSITY_DEFAULT_DPI = 160f
 private const val PIXEL_CENTER = 0.5f
@@ -133,15 +138,9 @@ internal val crtScreenOff =
     )
 
 private fun prepareForReload(): Map<Any, Any> {
+    reserveForReload()
     val state =
         synchronized(lifecycleLock) {
-            check(!registeringHooks) { "CRT hook registration in progress" }
-            check(!preparingSurface && crtSurfaces.isEmpty()) { "CRT surface in use" }
-            check(!holdingReveal) { "CRT reveal hold in progress" }
-            check(pendingRevealCommits == 0) { "CRT reveal frame in progress" }
-            check(dozeWork == 0) { "CRT doze hook in progress" }
-            check(systemCoordination?.isStartPending() != true) { "CRT start grant in progress" }
-            reloading = true
             HashMap<Any, Any>().apply {
                 put("awake", awakeDisplayStates)
                 crtSystemHost?.let { put("systemHost", it) }
@@ -156,6 +155,45 @@ private fun prepareForReload(): Map<Any, Any> {
     systemCoordination = null
     return state
 }
+
+private fun reserveForReload() {
+    val animationMillis =
+        (CRT_DURATION_MS * ValueAnimator.getDurationScale())
+            .toLong()
+            .coerceIn(0L, RELOAD_DRAIN_MAX_MS - RELOAD_DRAIN_GRACE_MS)
+    val deadline = SystemClock.uptimeMillis() + animationMillis + RELOAD_DRAIN_GRACE_MS
+    var loggedWait = false
+    while (true) {
+        val blocker =
+            synchronized(lifecycleLock) {
+                reloadBlocker() ?: run {
+                    reloading = true
+                    return
+                }
+            }
+        val remaining = deadline - SystemClock.uptimeMillis()
+        check(
+            remaining > 0 && Looper.myLooper() !== Looper.getMainLooper() &&
+                systemCoordination?.isDisplayThread() != true,
+        ) { blocker }
+        if (!loggedWait) {
+            Logger.info("waiting for CRT before reload tweak=$TWEAK reason=$blocker")
+            loggedWait = true
+        }
+        Thread.sleep(minOf(remaining, RELOAD_DRAIN_POLL_MS))
+    }
+}
+
+private fun reloadBlocker(): String? =
+    when {
+        registeringHooks -> "CRT hook registration in progress"
+        preparingSurface || crtSurfaces.isNotEmpty() -> "CRT surface in use"
+        holdingReveal -> "CRT reveal hold in progress"
+        pendingRevealCommits != 0 -> "CRT reveal frame in progress"
+        dozeWork != 0 -> "CRT doze hook in progress"
+        systemCoordination?.isTransitionPending() == true -> "CRT AOD transition in progress"
+        else -> null
+    }
 
 internal fun beginCrtDozeWork(): Boolean =
     synchronized(lifecycleLock) {

@@ -20,6 +20,7 @@ internal object CrtProtocol {
     const val SYSTEM = 1
     const val SYSTEM_UI = 2
     const val EVENT = IBinder.FIRST_CALL_TRANSACTION
+    const val DISCONNECT = IBinder.FIRST_CALL_TRANSACTION + 1
     const val PEER_CONNECTED = 1
     const val PEER_DISCONNECTED = 2
     const val ARMED = 4
@@ -47,18 +48,24 @@ class CrtBroker : ContentProvider() {
                 reply: Parcel?,
                 flags: Int,
             ): Boolean {
-                if (code != CrtProtocol.EVENT) return super.onTransact(code, data, reply, flags)
+                if (code != CrtProtocol.EVENT && code != CrtProtocol.DISCONNECT) {
+                    return super.onTransact(code, data, reply, flags)
+                }
                 val role = data.readInt()
                 val callback = data.readStrongBinder()
-                val event = data.readInt()
-                val generation = data.readLong()
-                val value = data.readLong()
                 synchronized(clients) {
                     val client = clients[role]
                     if (client?.uid != getCallingUid() || client.callback != callback) {
                         return false
                     }
-                    clients[peerOf(role)]?.callback?.let { send(it, event, generation, value) }
+                    if (code == CrtProtocol.DISCONNECT) {
+                        remove(role, client.callback)
+                    } else {
+                        val event = data.readInt()
+                        val generation = data.readLong()
+                        val value = data.readLong()
+                        clients[peerOf(role)]?.callback?.let { send(it, event, generation, value) }
+                    }
                 }
                 return true
             }
