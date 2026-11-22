@@ -13,6 +13,7 @@ import eu.hxreborn.pixelinjector.xposed.Logger
 
 internal class CrtUiCoordination(
     private val context: Context,
+    private val samsungAodSetting: Boolean,
     private val revealReady: () -> Boolean,
     private val releaseReveal: ((() -> Unit)?) -> Unit,
 ) {
@@ -57,8 +58,14 @@ internal class CrtUiCoordination(
 
     private fun observeAlwaysOn() {
         try {
+            val uri =
+                if (samsungAodSetting) {
+                    Settings.System.getUriFor(SAMSUNG_AOD_MODE)
+                } else {
+                    Settings.Secure.getUriFor(DOZE_ALWAYS_ON)
+                }
             context.contentResolver.registerContentObserver(
-                Settings.Secure.getUriFor(DOZE_ALWAYS_ON),
+                uri,
                 false,
                 alwaysOnObserver,
             )
@@ -87,7 +94,13 @@ internal class CrtUiCoordination(
     private fun readAlwaysOn() {
         val generation = synchronized(alwaysOnLock) { alwaysOnGeneration }
         try {
-            val enabled = Settings.Secure.getInt(context.contentResolver, DOZE_ALWAYS_ON, 1) != 0
+            val resolver = context.contentResolver
+            val enabled =
+                if (samsungAodSetting) {
+                    Settings.System.getInt(resolver, SAMSUNG_AOD_MODE, 1) != 0
+                } else {
+                    Settings.Secure.getInt(resolver, DOZE_ALWAYS_ON, 1) != 0
+                }
             synchronized(alwaysOnLock) {
                 if (alwaysOnGeneration == generation) alwaysOnSetting = enabled
             }
@@ -222,6 +235,7 @@ internal class CrtUiCoordination(
 
     private companion object {
         const val DOZE_ALWAYS_ON = "doze_always_on"
+        const val SAMSUNG_AOD_MODE = "aod_mode"
         const val START_TIMEOUT_MS = 300L
         const val CRT_DURATION_MS = 500L
         const val FINISH_GRACE_MS = 2_000L

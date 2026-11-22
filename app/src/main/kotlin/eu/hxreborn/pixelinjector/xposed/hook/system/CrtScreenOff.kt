@@ -11,6 +11,7 @@ import android.os.Message
 import android.os.PowerManager
 import android.util.Pair
 import android.util.SparseArray
+import android.view.Choreographer
 import android.view.Display
 import android.view.SurfaceControl
 import android.view.View
@@ -29,7 +30,9 @@ import eu.hxreborn.pixelinjector.util.signature
 import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
+import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedModule
+import java.lang.ref.WeakReference
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -41,6 +44,9 @@ import kotlin.math.ceil
 private const val TWEAK = "CrtScreenOff"
 private const val COLOR_FADE = "com.android.server.display.ColorFade"
 private const val LIGHT_REVEAL_SCRIM = "com.android.systemui.statusbar.LightRevealScrim"
+private const val REVEAL_SCRIM_BINDER =
+    "com.android.systemui.keyguard.ui.binder.LightRevealScrimViewBinder"
+private const val REVEAL_AMOUNT_TRACE = "light_reveal_amount "
 private const val KEYGUARD_LIFECYCLES = "com.android.systemui.keyguard.KeyguardLifecyclesDispatcher"
 private const val SYSTEMUI_DEPENDENCY = "com.android.systemui.Dependency"
 private const val SYSTEMUI_DUMP = "com.android.systemui.dump"
@@ -55,6 +61,10 @@ private const val DISPLAY_MANAGER_INTERNAL = "android.hardware.display.DisplayMa
 private const val DISPLAY_INFO = "android.view.DisplayInfo"
 private const val DISPLAY_MANAGER_SERVICE = "com.android.server.display.DisplayManagerService"
 private const val DISPLAY_MANAGER_LOCAL_SERVICE = "$DISPLAY_MANAGER_SERVICE\$LocalService"
+private const val DISPLAY_POWER_STATE = "com.android.server.display.DisplayPowerState"
+private const val DISPLAY_TRANSACTION_LISTENER =
+    "$DISPLAY_MANAGER_INTERNAL\$DisplayTransactionListener"
+private const val CALLBACK_TRAVERSAL = 3
 private val DISPLAY_POWER_CONTROLLERS =
     listOf(
         "com.android.server.display.DisplayPowerController",
@@ -238,23 +248,53 @@ private class ColorFadeBindings(
     val naturalSurfaceLayout: Constructor<*>,
     val onDisplayTransaction: Method,
     val disposeSurfaceLayout: Method,
+    val hasInlinedPrepare: Boolean,
 ) {
     fun newSurfaceLayout(
         colorFade: Any,
         displayManagerInternal: Any,
         displayId: Int,
         container: SurfaceControl,
+        width: Int,
+        height: Int,
     ): Any =
-        if (naturalSurfaceLayout.parameterCount == 4) {
-            naturalSurfaceLayout.newInstance(
-                colorFade,
-                displayManagerInternal,
-                displayId,
-                container,
-            )
-        } else {
-            naturalSurfaceLayout.newInstance(displayManagerInternal, displayId, container)
+        when {
+            hasInlinedPrepare -> {
+                naturalSurfaceLayout.newInstance(
+                    displayManagerInternal,
+                    displayId,
+                    container,
+                    null,
+                    null,
+                    width,
+                    height,
+                )
+            }
+
+            naturalSurfaceLayout.parameterCount == 4 -> {
+                naturalSurfaceLayout.newInstance(
+                    colorFade,
+                    displayManagerInternal,
+                    displayId,
+                    container,
+                )
+            }
+
+            else -> {
+                naturalSurfaceLayout.newInstance(displayManagerInternal, displayId, container)
+            }
         }
+
+    fun disposeLayout(
+        colorFade: Any,
+        layout: Any,
+    ) {
+        if (hasInlinedPrepare) {
+            disposeSurfaceLayout.invoke(displayManagerInternal.get(colorFade), layout)
+        } else {
+            disposeSurfaceLayout.invoke(layout)
+        }
+    }
 }
 
 private class DisplayInfoBindings(
@@ -288,7 +328,7 @@ private class StateControllerBindings(
     val overrideDozeState: Field?,
     val proximityController: Field,
     val displayId: Field,
-    val screenOffBecauseOfProximity: Method,
+    val screenOffBecauseOfProximity: (Any) -> Boolean,
     val resultState: Field?,
     val resultIsState: Boolean,
 ) {
@@ -312,7 +352,7 @@ private class StateControllerBindings(
         displayId.getInt(proximityController.get(controller)) == Display.DEFAULT_DISPLAY
 
     fun isScreenOffBecauseOfProximity(controller: Any): Boolean =
-        screenOffBecauseOfProximity.invoke(proximityController.get(controller)) == true
+        screenOffBecauseOfProximity(proximityController.get(controller)!!)
 }
 
 private class CrtLayer(
@@ -518,8 +558,17 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
             .getOrElse { return missing("ColorFade#draw(float)", it) }
     val prepare =
         resolving {
-            fade.requiredMethod("prepare", Context::class.java, Int::class.javaPrimitiveType)
+            orNullIfMissing {
+                fade.requiredMethod("prepare", Context::class.java, Int::class.javaPrimitiveType)
+            }
         }.getOrElse { return missing("ColorFade#prepare(Context,int)", it) }
+    val displayPowerPrepare =
+        if (prepare == null) {
+            resolving { DisplayPowerFadePrepare.resolve(cl, fade, draw) }
+                .getOrElse { return missing("DisplayPowerState#prepareColorFade(Context,int)", it) }
+        } else {
+            null
+        }
     val fadeBindings =
         resolving {
             val layout = cl.loadClass(NATURAL_SURFACE_LAYOUT)
@@ -537,17 +586,45 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
                 surfaceAlpha = fade.requiredField("mSurfaceAlpha"),
                 transaction = fade.requiredField("mTransaction"),
                 dismiss = fade.requiredMethod("dismiss"),
-                destroy = orNullIfMissing { fade.requiredMethod("destroy") },
+                destroy =
+                    if (displayPowerPrepare != null) {
+                        fade.requiredMethod("destroySurface")
+                    } else {
+                        orNullIfMissing { fade.requiredMethod("destroy") }
+                    },
                 naturalSurfaceLayout =
-                    layout.declaredConstructors
-                        .single { it.parameterTypes.last() == SurfaceControl::class.java }
-                        .apply { isAccessible = true },
+                    if (displayPowerPrepare != null) {
+                        val int = Int::class.javaPrimitiveType
+                        layout
+                            .getDeclaredConstructor(
+                                cl.loadClass(DISPLAY_MANAGER_INTERNAL),
+                                int,
+                                SurfaceControl::class.java,
+                                cl.loadClass("android.graphics.BLASTBufferQueue"),
+                                SurfaceControl::class.java,
+                                int,
+                                int,
+                            ).apply { isAccessible = true }
+                    } else {
+                        layout.declaredConstructors
+                            .single { it.parameterTypes.last() == SurfaceControl::class.java }
+                            .apply { isAccessible = true }
+                    },
                 onDisplayTransaction =
                     layout.requiredMethod(
                         "onDisplayTransaction",
                         SurfaceControl.Transaction::class.java,
                     ),
-                disposeSurfaceLayout = layout.requiredMethod("dispose"),
+                disposeSurfaceLayout =
+                    if (displayPowerPrepare != null) {
+                        cl.loadClass(DISPLAY_MANAGER_INTERNAL).requiredMethod(
+                            "unregisterDisplayTransactionListener",
+                            cl.loadClass(DISPLAY_TRANSACTION_LISTENER),
+                        )
+                    } else {
+                        layout.requiredMethod("dispose")
+                    },
+                hasInlinedPrepare = displayPowerPrepare != null,
             )
         }.getOrElse { return missing("ColorFade surface members", it) }
     val displayInfoBindings =
@@ -625,6 +702,15 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
             val resultType = updateDisplayState.returnType
             val resultIsState = resultType == Int::class.javaPrimitiveType
             val proximity = cl.loadClass(PROXIMITY_CONTROLLER)
+            val proximityCheck: (Any) -> Boolean =
+                if (displayPowerPrepare != null) {
+                    val field = proximity.requiredField("mScreenOffBecauseOfProximity")
+                    field::getBoolean
+                } else {
+                    proximity.requiredMethod("isScreenOffBecauseOfProximity").let { method ->
+                        { controller -> method.invoke(controller) == true }
+                    }
+                }
             StateControllerBindings(
                 stateController.requiredField("mPerformScreenOffTransition"),
                 stateController.optionalField("mShouldSkipScreenOffTransition"),
@@ -633,7 +719,7 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
                 stateController.optionalField("mDozeStateOverride"),
                 stateController.requiredField("mDisplayPowerProximityStateController"),
                 proximity.requiredField("mDisplayId"),
-                proximity.requiredMethod("isScreenOffBecauseOfProximity"),
+                proximityCheck,
                 resultType
                     .takeUnless { resultIsState || it == Pair::class.java }
                     ?.requiredField("state"),
@@ -641,8 +727,9 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
             )
         }.getOrElse { return missing("DisplayStateController#mPerformScreenOffTransition", it) }
     val crt = CrtColorFade(fadeBindings, displayInfoBindings, surfaceBindings, animatorBindings)
+    val prepareMethod = displayPowerPrepare?.prepare ?: checkNotNull(prepare)
     Logger.info(
-        "resolved tweak=$TWEAK members=${draw.signature()},${prepare.signature()}," +
+        "resolved tweak=$TWEAK members=${draw.signature()},${prepareMethod.signature()}," +
             "${fadeBindings.dismiss.signature()},${updateDisplayState.signature()}",
     )
     hook(updateDisplayState).intercept { chain ->
@@ -706,18 +793,20 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
     }
     installHooksOnEnable {
         val aodInstalled =
-            installCrtDozeEntry(cl, {
-                switch.enabled && !reloading
-            }, stateBindings::effectiveDozeState) { fade ->
-                crt.ownedSurface(fade) != null
-            }
+            displayPowerPrepare == null &&
+                installCrtDozeEntry(cl, {
+                    switch.enabled && !reloading
+                }, stateBindings::effectiveDozeState) { fade ->
+                    crt.ownedSurface(fade) != null
+                }
         if (!aodInstalled) {
             Logger.warn("crt aod unavailable tweak=$TWEAK build=${Build.ID}")
         }
         hook(draw).intercept { chain ->
             val colorFade = chain.thisObject!!
             val surface = crt.ownedSurface(colorFade) ?: return@intercept chain.proceed()
-            crt.draw(colorFade, surface, chain.getArg(0) as Float)
+            val drawn = crt.draw(colorFade, surface, chain.getArg(0) as Float)
+            if (displayPowerPrepare == null) drawn else null
         }
         hook(fadeBindings.dismiss).intercept { chain ->
             val colorFade = chain.thisObject!!
@@ -735,22 +824,155 @@ private fun XposedModule.installCrtScreenOff(cl: ClassLoader): Boolean {
                 try {
                     chain.proceed()
                 } finally {
-                    crtSurfaces.remove(colorFade)?.let { guarded(Unit) { it.release() } }
+                    if (displayPowerPrepare != null) {
+                        crt.releaseAfterDismiss(colorFade)
+                    } else {
+                        crtSurfaces.remove(colorFade)?.let { guarded(Unit) { it.release() } }
+                    }
                 }
             }
         }
-        hook(prepare).intercept { chain ->
-            val colorFade = chain.thisObject!!
-            val mode = chain.getArg(1) as Int
-            val prepared =
-                switch.enabled && (mode == MODE_COOL_DOWN || mode == MODE_FADE) &&
-                    crt.prepare(colorFade, mode)
-            if (prepared) return@intercept true
-            crt.restoreStockFade(colorFade)
-            chain.proceed()
+        if (displayPowerPrepare != null) {
+            installDisplayPowerFadePrepare(displayPowerPrepare, crt)
+        } else {
+            hook(prepareMethod).intercept { chain ->
+                val colorFade = chain.thisObject!!
+                val mode = chain.getArg(1) as Int
+                val prepared =
+                    switch.enabled && (mode == MODE_COOL_DOWN || mode == MODE_FADE) &&
+                        crt.prepare(colorFade, mode)
+                if (prepared) return@intercept true
+                crt.restoreStockFade(colorFade)
+                chain.proceed()
+            }
         }
     }
     return true
+}
+
+private class DisplayPowerFadePrepare(
+    val animateScreenStateChange: Method,
+    val powerState: Field,
+    val prepare: Method,
+    val colorFade: Field,
+    val screenState: Field,
+    private val prepared: Field,
+    private val ready: Field,
+    private val drawPending: Field,
+    private val choreographer: Field,
+    private val drawRunnable: Field,
+    private val postCallback: Method,
+) {
+    fun scheduleDraw(power: Any) {
+        val wasPrepared = prepared.getBoolean(power)
+        val wasReady = ready.getBoolean(power)
+        val wasPending = drawPending.getBoolean(power)
+        var scheduled = false
+        try {
+            prepared.setBoolean(power, true)
+            ready.setBoolean(power, false)
+            if (!wasPending) {
+                drawPending.setBoolean(power, true)
+                postCallback.invoke(
+                    choreographer.get(power),
+                    CALLBACK_TRAVERSAL,
+                    drawRunnable.get(power),
+                    null,
+                )
+            }
+            scheduled = true
+        } finally {
+            if (!scheduled) {
+                prepared.setBoolean(power, wasPrepared)
+                ready.setBoolean(power, wasReady)
+                drawPending.setBoolean(power, wasPending)
+            }
+        }
+    }
+
+    companion object {
+        fun resolve(
+            cl: ClassLoader,
+            fade: Class<*>,
+            draw: Method,
+        ): DisplayPowerFadePrepare {
+            if (draw.returnType !=
+                Void.TYPE
+            ) {
+                throw NoSuchMethodException("ColorFade.draw(float):void")
+            }
+            val power = cl.loadClass(DISPLAY_POWER_STATE)
+            val controller = cl.loadClass(DISPLAY_POWER_CONTROLLERS.first())
+            val int = Int::class.javaPrimitiveType
+            val colorFade = power.requiredField("mColorFade")
+            if (colorFade.type !=
+                fade
+            ) {
+                throw NoSuchFieldException("DisplayPowerState.mColorFade:ColorFade")
+            }
+            return DisplayPowerFadePrepare(
+                controller.requiredMethod(
+                    "animateScreenStateChange",
+                    int,
+                    int,
+                    Boolean::class.javaPrimitiveType,
+                ),
+                controller.requiredField("mPowerState"),
+                power.requiredMethod("prepareColorFade", Context::class.java, int),
+                colorFade,
+                power.requiredField("mScreenState"),
+                power.requiredField("mColorFadePrepared"),
+                power.requiredField("mColorFadeReady"),
+                power.requiredField("mColorFadeDrawPending"),
+                power.requiredField("mChoreographer"),
+                power.requiredField("mColorFadeDrawRunnable"),
+                Choreographer::class.java.requiredMethod(
+                    "postCallback",
+                    int,
+                    Runnable::class.java,
+                    Any::class.java,
+                ),
+            )
+        }
+    }
+}
+
+private fun XposedModule.installDisplayPowerFadePrepare(
+    bindings: DisplayPowerFadePrepare,
+    crt: CrtColorFade,
+) {
+    val screenOffPower = ThreadLocal<Any>()
+    hook(bindings.animateScreenStateChange).intercept { chain ->
+        if (!switch.enabled || chain.getArg(0) != Display.STATE_OFF || chain.getArg(2) != true) {
+            return@intercept chain.proceed()
+        }
+        val power = guarded(null) { bindings.powerState.get(chain.thisObject) }
+        val previous = screenOffPower.get()
+        screenOffPower.set(power)
+        try {
+            chain.proceed()
+        } finally {
+            if (previous == null) screenOffPower.remove() else screenOffPower.set(previous)
+        }
+    }
+    hook(bindings.prepare).intercept { chain ->
+        val power = chain.thisObject!!
+        val colorFade =
+            guarded(null) { bindings.colorFade.get(power) } ?: return@intercept chain.proceed()
+        if (switch.enabled && screenOffPower.get() === power &&
+            guarded(false) { bindings.screenState.getInt(power) == Display.STATE_ON } &&
+            crt.prepare(colorFade, chain.getArg(1) as Int)
+        ) {
+            val scheduled =
+                guarded(false) {
+                    bindings.scheduleDraw(power)
+                    true
+                }
+            if (scheduled) return@intercept true
+        }
+        crt.restoreStockFade(colorFade)
+        chain.proceed()
+    }
 }
 
 private class CrtColorFade(
@@ -865,7 +1087,14 @@ private class CrtColorFade(
                 surfaces.setLayerStack.invoke(transaction, container, layerStack)
                 surfaces.setWindowCrop.invoke(transaction, container, width, height)
                 val layout =
-                    fade.newSurfaceLayout(colorFade, displayManagerInternal, displayId, container)
+                    fade.newSurfaceLayout(
+                        colorFade,
+                        displayManagerInternal,
+                        displayId,
+                        container,
+                        width,
+                        height,
+                    )
                 surfaceLayout = layout
                 fade.onDisplayTransaction.invoke(layout, transaction)
                 transaction.apply()
@@ -894,7 +1123,7 @@ private class CrtColorFade(
             if (!surfacePrepared) {
                 crtSurfaces.remove(colorFade)?.let { guarded(Unit) { it.restoreAnimator() } }
                 surfaceLayout?.let { layout ->
-                    guarded(Unit) { fade.disposeSurfaceLayout.invoke(layout) }
+                    guarded(Unit) { fade.disposeLayout(colorFade, layout) }
                     guarded(Unit) {
                         fade.surfaceLayout.set(colorFade, null)
                         fade.surfaceControl.set(colorFade, null)
@@ -920,11 +1149,38 @@ private class CrtColorFade(
 }
 
 private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
-    val setRevealAmount =
+    val revealAmount =
         resolving {
-            cl
-                .loadClass(LIGHT_REVEAL_SCRIM)
-                .requiredMethod("setRevealAmount", Float::class.javaPrimitiveType)
+            val scrim = cl.loadClass(LIGHT_REVEAL_SCRIM)
+            val setter =
+                orNullIfMissing {
+                    scrim.requiredMethod(
+                        "setRevealAmount",
+                        Float::class.javaPrimitiveType,
+                    )
+                }
+            if (setter != null) {
+                RevealAmountBinding(setter, null)
+            } else {
+                val emit =
+                    DexKit.method(TWEAK, cl, "$REVEAL_SCRIM_BINDER emit") {
+                        it.findMethod { matcher { name("emit").usingStrings(REVEAL_AMOUNT_TRACE) } }
+                    }
+                if (!emit.declaringClass.name.startsWith("$REVEAL_SCRIM_BINDER\$") ||
+                    emit.parameterTypes.toList() !=
+                    listOf(Any::class.java, cl.loadClass("kotlin.coroutines.Continuation"))
+                ) {
+                    throw NoSuchMethodException("$REVEAL_SCRIM_BINDER emit(Object,Continuation)")
+                }
+                val scrimField =
+                    emit.declaringClass.declaredFields
+                        .singleOrNull { it.type == scrim }
+                        ?.apply { isAccessible = true }
+                        ?: throw NoSuchFieldException(
+                            "${emit.declaringClass.simpleName} LightRevealScrim",
+                        )
+                RevealAmountBinding(emit, scrimField)
+            }
         }.getOrElse { return missing("LightRevealScrim#setRevealAmount(float)", it) }
     val handleLifecycleMessage =
         resolving {
@@ -933,15 +1189,21 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
                     ?: cl.loadClass("$KEYGUARD_LIFECYCLES\$1")
             handler.requiredMethod("handleMessage", Message::class.java)
         }.getOrElse { return missing("KeyguardLifecyclesDispatcher handler", it) }
+    val samsungAodSetting =
+        revealAmount.scrimField != null && Build.MANUFACTURER.equals("samsung", ignoreCase = true)
     val alwaysOnDisplay =
-        resolving { bindAlwaysOnDisplay(cl) }.getOrElse {
-            Logger.warn(
-                "AOD lookup failed tweak=$TWEAK member=DozeParameters build=${Build.ID} " +
-                    "reason=${it.reason()}",
-            )
+        if (samsungAodSetting) {
             null
+        } else {
+            resolving { bindAlwaysOnDisplay(cl) }.getOrElse {
+                Logger.warn(
+                    "AOD lookup failed tweak=$TWEAK member=DozeParameters build=${Build.ID} " +
+                        "reason=${it.reason()}",
+                )
+                null
+            }
         }
-    val revealHold = ScreenOffRevealHold(setRevealAmount, alwaysOnDisplay)
+    val revealHold = ScreenOffRevealHold(revealAmount, alwaysOnDisplay, samsungAodSetting)
     val applicationAttach =
         resolving {
             Application::class.java.requiredMethod("attach", Context::class.java)
@@ -957,7 +1219,7 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
         }
     }
     Logger.info(
-        "resolved tweak=$TWEAK members=${setRevealAmount.signature()}," +
+        "resolved tweak=$TWEAK members=${revealAmount.method.signature()}," +
             handleLifecycleMessage.signature(),
     )
     installHooksOnEnable {
@@ -968,11 +1230,23 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
                 result
             }
         }
-        hook(setRevealAmount).intercept { chain ->
-            val scrim = chain.thisObject as View
-            val amount = chain.getArg(0) as Float
-            if (revealHold.hold(scrim, amount)) {
-                return@intercept chain.proceed(arrayOf<Any?>(FULL_REVEAL))
+        hook(revealAmount.method).intercept { chain ->
+            val receiver = chain.thisObject!!
+            val scrimField = revealAmount.scrimField
+            val scrim =
+                if (scrimField == null) {
+                    receiver as View
+                } else {
+                    guarded(null) { scrimField.get(receiver) as? View }
+                        ?: return@intercept chain.proceed()
+                }
+            val amount = (chain.getArg(0) as? Number)?.toFloat() ?: return@intercept chain.proceed()
+            val collector = receiver.takeIf { scrimField != null }
+            val continuation = collector?.let { chain.getArg(1) }
+            if (revealHold.hold(scrim, amount, collector, continuation)) {
+                val args = chain.args.toTypedArray<Any?>()
+                args[0] = FULL_REVEAL
+                return@intercept chain.proceed(args)
             }
             chain.proceed()
         }
@@ -984,6 +1258,24 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
         restoreUiCoordination?.invoke()
     }
     return true
+}
+
+private class RevealAmountBinding(
+    val method: Method,
+    val scrimField: Field?,
+) {
+    fun restore(
+        scrim: View,
+        request: RevealRequest,
+    ) {
+        if (scrimField == null) {
+            method.invoke(scrim, request.amount)
+        } else {
+            request.collector?.get()?.let {
+                method.invoke(it, request.amount, request.continuation)
+            }
+        }
+    }
 }
 
 private class AlwaysOnDisplayBindings(
@@ -1023,10 +1315,11 @@ private fun bindAlwaysOnDisplay(cl: ClassLoader): AlwaysOnDisplayBindings {
 }
 
 private class ScreenOffRevealHold(
-    private val setRevealAmount: Method,
+    private val revealAmount: RevealAmountBinding,
     private val alwaysOnDisplay: AlwaysOnDisplayBindings?,
+    private val samsungAodSetting: Boolean,
 ) {
-    private val requestedAmounts = WeakHashMap<View, Float>()
+    private val requestedAmounts = WeakHashMap<View, RevealRequest>()
     private var holdingAod = false
 
     fun onLifecycleMessage(what: Int) {
@@ -1035,7 +1328,9 @@ private class ScreenOffRevealHold(
                 val alwaysOn = alwaysOnDisplay?.isEnabled() ?: uiCoordination?.alwaysOnSetting()
                 synchronized(lifecycleLock) {
                     if (!reloading && switch.enabled) {
-                        holdingAod = alwaysOn == true && uiCoordination?.arm() == true
+                        holdingAod =
+                            revealAmount.scrimField == null &&
+                            alwaysOn == true && uiCoordination?.arm() == true
                         if (alwaysOn == false || holdingAod) holdingReveal = true
                     }
                 }
@@ -1057,13 +1352,16 @@ private class ScreenOffRevealHold(
     fun hold(
         scrim: View,
         amount: Float,
+        collector: Any?,
+        continuation: Any?,
     ): Boolean {
         if (Looper.myLooper() !== Looper.getMainLooper()) return false
         ensureCoordination(scrim.context)
         if ((switch.enabled || holdingAod) && holdingReveal &&
             guarded(false) { screenOffWithoutAod(scrim) }
         ) {
-            requestedAmounts[scrim] = amount
+            requestedAmounts[scrim] =
+                RevealRequest(amount, collector?.let(::WeakReference), continuation)
             if (holdingAod) uiCoordination?.heldAmountChanged()
             return true
         }
@@ -1078,10 +1376,11 @@ private class ScreenOffRevealHold(
                 uiCoordination =
                     CrtUiCoordination(
                         context,
+                        samsungAodSetting,
                         {
                             requestedAmounts.isNotEmpty() &&
                                 requestedAmounts.values.all {
-                                    it <= 0f
+                                    it.amount <= 0f
                                 }
                         },
                         { committed -> releaseHeldAmounts(committed) },
@@ -1114,7 +1413,11 @@ private class ScreenOffRevealHold(
             val amounts = requestedAmounts.toMap()
             requestedAmounts.clear()
             if (wasHoldingAod) {
-                Logger.info("crt aod reveal amounts tweak=$TWEAK amounts=${amounts.values}")
+                Logger.info(
+                    "crt aod reveal amounts tweak=$TWEAK amounts=${amounts.values.map {
+                        it.amount
+                    }}",
+                )
             }
             if (amounts.isEmpty()) committed?.invoke()
             val callbacks = ArrayList<Triple<View, ViewTreeObserver, FutureTask<Unit>>>()
@@ -1162,7 +1465,7 @@ private class ScreenOffRevealHold(
                 } else {
                     0L
                 }
-            amounts.forEach { (scrim, amount) ->
+            amounts.forEach { (scrim, request) ->
                 val applied =
                     guarded(false) {
                         if (committed != null) {
@@ -1197,7 +1500,7 @@ private class ScreenOffRevealHold(
                             observer.registerFrameCommitCallback(callback)
                             callbacks.add(Triple(scrim, observer, callback))
                         }
-                        setRevealAmount.invoke(scrim, amount)
+                        revealAmount.restore(scrim, request)
                         true
                     }
                 if (!applied) registrationFailed = true
@@ -1205,6 +1508,12 @@ private class ScreenOffRevealHold(
         }
     }
 }
+
+private class RevealRequest(
+    val amount: Float,
+    val collector: WeakReference<Any>?,
+    val continuation: Any?,
+)
 
 private const val REVEAL_COMMIT_TIMEOUT_MS = 1_000L
 
