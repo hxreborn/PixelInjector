@@ -135,7 +135,7 @@ private fun ChipFontTile(
     onSelect: (NowPlayingChipFont) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val options = NowPlayingChipFont.entries
+    val options = remember { NowPlayingChipFont.entries.filter { it.isAvailable } }
     Box {
         Tile(shape = TileShape, onClick = { open = true }) {
             TileText(

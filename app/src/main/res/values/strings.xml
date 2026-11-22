@@ -504,6 +504,8 @@
     <string name="now_playing_chip_font_condensed">Condensed</string>
     <string name="now_playing_chip_font_serif">Serif</string>
     <string name="now_playing_chip_font_monospace">Monospace</string>
+    <string name="now_playing_chip_font_google_sans_flex">Google Sans Flex</string>
+    <string name="now_playing_chip_font_google_sans_flex_rounded">Google Sans Flex Rounded</string>
     <string name="now_playing_chip_text_color">Text color</string>
     <string name="now_playing_chip_color">Chip color</string>
     <string name="now_playing_chip_color_follows">Status bar</string>

@@ -212,7 +212,7 @@ private fun attach(view: ViewGroup) {
                 ),
             )
         }
-    setTitleTypeface()
+    postUi(::setTitleTypeface)
     place()
     applyTint()
     updateSessions()
