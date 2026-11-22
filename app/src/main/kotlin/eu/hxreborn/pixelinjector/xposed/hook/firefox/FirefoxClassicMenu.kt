@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -35,9 +36,11 @@ import eu.hxreborn.pixelinjector.util.typeName
 import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
+import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import eu.hxreborn.pixelinjector.xposed.hook.proceedReplacing
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
+import org.luckypray.dexkit.result.MethodData
 import java.lang.ref.WeakReference
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
@@ -58,6 +61,9 @@ private const val BOTTOM_SHEET_BEHAVIOR =
     "com.google.android.material.bottomsheet.BottomSheetBehavior"
 private const val COORDINATOR_PARAMS =
     "androidx.coordinatorlayout.widget.CoordinatorLayout\$LayoutParams"
+private const val COORDINATOR_LAYOUT = "androidx.coordinatorlayout.widget.CoordinatorLayout"
+private const val SHEET_STATE_HIDDEN = 5
+private const val SHEET_STATE_COLLAPSED = 4
 private const val FENIX_CONTEXT = "org.mozilla.fenix.ext.ContextKt"
 private const val FENIX_COMPONENTS = "org.mozilla.fenix.components.Components"
 private const val FENIX_SETTINGS = "org.mozilla.fenix.utils.Settings"
@@ -137,6 +143,10 @@ private const val MIN_HEIGHT = 2
 private const val SURFACE_COLOR = 2
 private const val LIST_ITEM_DESCRIPTION = 5
 private const val LIST_ITEM_HEIGHT = 8
+private const val ICON_LIST_ITEM_MAX_LABEL_LINES = 4
+private const val TEXT_LIST_ITEM_MAX_LABEL_LINES = 2
+private const val TEXT_LIST_ITEM_DESCRIPTION = 3
+private const val TEXT_LIST_ITEM_HEIGHT = 6
 private const val LIST_ITEM_CONTENT_MAX_LINES = 5
 private val stockRowHeights = setOf(56f, 52f)
 
@@ -251,7 +261,8 @@ private fun Method.takes(
 private class WindowBindings(
     val fragments: List<MenuFragment>,
     val setOnShowListener: Method,
-    val viewRef: Field,
+    val viewRef: Field?,
+    val sheetId: Int?,
     val maxHeight: Field,
     val draggable: Field,
     val setHideable: Method,
@@ -275,16 +286,28 @@ private class WindowBindings(
             }
             val showListener = DialogInterface.OnShowListener::class.java
             val settings = cl.loadClass(FENIX_SETTINGS)
+            val viewRef = orNullIfMissing { behavior.requiredField("viewRef") }
+            val (maxHeight, draggable, setHideable, gravity) =
+                if (viewRef != null) {
+                    SheetBehavior(
+                        behavior.requiredField("maxHeight"),
+                        behavior.requiredField("draggable"),
+                        behavior.requiredMethod("setHideable", Boolean::class.javaPrimitiveType),
+                        cl.loadClass(COORDINATOR_PARAMS).getField("gravity"),
+                    )
+                } else {
+                    resolveSheetBehavior(cl, behavior)
+                }
             return WindowBindings(
                 fragments = fragments,
                 setOnShowListener =
                     Dialog::class.java.requiredMethod("setOnShowListener", showListener),
-                viewRef = behavior.requiredField("viewRef"),
-                maxHeight = behavior.requiredField("maxHeight"),
-                draggable = behavior.requiredField("draggable"),
-                setHideable =
-                    behavior.requiredMethod("setHideable", Boolean::class.javaPrimitiveType),
-                gravity = cl.loadClass(COORDINATOR_PARAMS).getField("gravity"),
+                viewRef = viewRef,
+                sheetId = if (viewRef == null) sheetId(cl, fragments) else null,
+                maxHeight = maxHeight,
+                draggable = draggable,
+                setHideable = setHideable,
+                gravity = gravity,
                 components =
                     cl
                         .loadClass(FENIX_CONTEXT)
@@ -292,6 +315,123 @@ private class WindowBindings(
                 settings = cl.loadClass(FENIX_COMPONENTS).requiredMethod("getSettings"),
                 shouldUseBottomToolbar = settings.requiredMethod("getShouldUseBottomToolbar"),
             )
+        }
+
+        private fun sheetId(
+            cl: ClassLoader,
+            fragments: List<MenuFragment>,
+        ): Int =
+            DexKit.query(cl) { bridge ->
+                val height =
+                    fragments
+                        .single()
+                        .behavior.declaringClass
+                        .requiredMethods("calculateMenuSheetHeight")
+                        .single()
+                val field =
+                    bridge
+                        .getMethodData(height)
+                        ?.usingFields
+                        .orEmpty()
+                        .filter { it.usingType.isRead() && it.field.name == "design_bottom_sheet" }
+                        .map { it.field }
+                        .distinct()
+                        .singleOrNull()
+                        ?: throw NoSuchFieldException("design_bottom_sheet")
+                field.getFieldInstance(cl).apply { isAccessible = true }.getInt(null)
+            }
+
+        private data class SheetBehavior(
+            val maxHeight: Field,
+            val draggable: Field,
+            val setHideable: Method,
+            val gravity: Field,
+        )
+
+        private fun resolveSheetBehavior(
+            cl: ClassLoader,
+            behavior: Class<*>,
+        ): SheetBehavior =
+            DexKit.query(cl) { bridge ->
+                val constructor =
+                    behavior.getDeclaredConstructor(
+                        Context::class.java,
+                        AttributeSet::class.java,
+                    )
+                val constructorData =
+                    bridge.getMethodData(constructor)
+                        ?: throw NoSuchMethodException("BottomSheetBehavior constructor")
+                val coordinator = cl.loadClass(COORDINATOR_LAYOUT)
+                val generateLayoutParams =
+                    coordinator.requiredMethod(
+                        "generateLayoutParams",
+                        AttributeSet::class.java,
+                    )
+                val paramsConstructor =
+                    bridge.getMethodData(generateLayoutParams)?.invokes?.singleOrNull {
+                        it.isConstructor &&
+                            it.paramTypeNames ==
+                            listOf(
+                                Context::class.java.name,
+                                AttributeSet::class.java.name,
+                            )
+                    } ?: throw NoSuchMethodException("CoordinatorLayout layout params constructor")
+                val setHideable =
+                    bridge
+                        .findMethod {
+                            matcher {
+                                declaredClass(behavior)
+                                paramTypes("boolean")
+                                returnType("void")
+                                usingNumbers(SHEET_STATE_HIDDEN, SHEET_STATE_COLLAPSED)
+                            }
+                        }.singleOrNull()
+                        ?: throw NoSuchMethodException("BottomSheetBehavior.setHideable")
+                SheetBehavior(
+                    maxHeight =
+                        constructorData.styleableField(
+                            cl,
+                            "BottomSheetBehavior_Layout_android_maxHeight",
+                            "int",
+                        ),
+                    draggable =
+                        constructorData.styleableField(
+                            cl,
+                            "BottomSheetBehavior_Layout_behavior_draggable",
+                            "boolean",
+                        ),
+                    setHideable =
+                        setHideable
+                            .getMethodInstance(
+                                cl,
+                            ).apply { isAccessible = true },
+                    gravity =
+                        paramsConstructor.styleableField(
+                            cl,
+                            "CoordinatorLayout_Layout_android_layout_gravity",
+                            "int",
+                        ),
+                )
+            }
+
+        private fun MethodData.styleableField(
+            cl: ClassLoader,
+            attribute: String,
+            type: String,
+        ): Field {
+            val accesses = usingFields
+            val attributeAt =
+                accesses.indices.lastOrNull { accesses[it].field.name == attribute }
+                    ?: throw NoSuchFieldException(attribute)
+            return accesses
+                .getOrNull(attributeAt + 1)
+                ?.takeIf {
+                    it.usingType.isWrite() && it.field.declaredClassName == declaredClassName &&
+                        it.field.typeName == type
+                }?.field
+                ?.getFieldInstance(cl)
+                ?.apply { isAccessible = true }
+                ?: throw NoSuchFieldException("$attribute backing field")
         }
 
         private fun menuFragment(fragment: Class<*>) =
@@ -762,8 +902,11 @@ private fun WindowBindings.showAsPopup(
             ?: return skipPopup("no-fragment")
     val behavior = behaviorField.get(fragment) ?: return skipPopup("no-behavior")
     val sheet =
-        (viewRef.get(behavior) as? WeakReference<*>)?.get() as? View
-            ?: return skipPopup("no-sheet")
+        if (viewRef != null) {
+            (viewRef.get(behavior) as? WeakReference<*>)?.get() as? View
+        } else {
+            sheetId?.let { dialog.findViewById<View>(it) }
+        } ?: return skipPopup("no-sheet")
     val bottomToolbar = isBottomToolbar(dialog.context)
     window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
     if ((window.decorView.background as? ColorDrawable)?.color != Color.TRANSPARENT) {
@@ -903,7 +1046,19 @@ private fun enterAnimation(bottomToolbar: Boolean) =
 
 private fun XposedModule.installFirefoxClassicMenu(cl: ClassLoader): Boolean {
     val bindings =
-        resolving { WindowBindings.resolve(cl) to ComposeBindings.resolve(cl) }.getOrElse {
+        resolving {
+            val window = WindowBindings.resolve(cl)
+            val compose =
+                if (orNullIfMissing { cl.loadClass("$MENU_COMPOSE.MainMenuKt") } == null) {
+                    val menu = ConfigurableMenuBindings.resolve(cl)
+                    menu.iconListItem.name to { hookConfigurableMenu(menu) }
+                } else {
+                    val menu = ComposeBindings.resolve(cl)
+                    val members = "${menu.iconListItem.name} rewind=${menu.rewind != null}"
+                    members to { hookMenuRows(menu) }
+                }
+            window to compose
+        }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
             )
@@ -912,12 +1067,68 @@ private fun XposedModule.installFirefoxClassicMenu(cl: ClassLoader): Boolean {
     val (window, compose) = bindings
     val fragments =
         window.fragments.joinToString(",") { it.onCreateDialog.declaringClass.simpleName }
-    Logger.info(
-        "resolved tweak=$TWEAK members=$fragments,${compose.iconListItem.name} rewind=${compose.rewind != null}",
-    )
+    val (members, hookCompose) = compose
+    Logger.info("resolved tweak=$TWEAK members=$fragments,$members")
     hookMenuWindow(window)
-    hookMenuRows(compose)
+    hookCompose()
     return true
+}
+
+private class ConfigurableMenuBindings(
+    val handle: Method,
+    val rows: List<Method>,
+    val iconListItem: Method,
+    val textListItem: Method,
+) {
+    companion object {
+        fun resolve(cl: ClassLoader): ConfigurableMenuBindings {
+            val sheet = cl.loadClass("$MENU_COMPOSE.MenuDialogBottomSheetKt")
+            val item = cl.loadClass("$MENU_COMPOSE.MenuItemKt")
+            val list = cl.loadClass(LIST_ITEM_KT)
+            return ConfigurableMenuBindings(
+                handle = sheet.requiredMethods("MenuBottomSheetHandle").single(),
+                rows =
+                    listOf("MenuItem", "MenuTextItem").map {
+                        item.requiredMethods(it).single()
+                    },
+                iconListItem =
+                    list.firstDeclared("ListItemKt.IconListItem") {
+                        it.name.startsWith("IconListItem-") &&
+                            it.takes(LIST_ITEM_DESCRIPTION, String::class.java) &&
+                            it.takes(LIST_ITEM_HEIGHT, Float::class.javaPrimitiveType) &&
+                            it.takes(ICON_LIST_ITEM_MAX_LABEL_LINES, Int::class.javaPrimitiveType)
+                    },
+                textListItem =
+                    list.firstDeclared("ListItemKt.TextListItem") {
+                        it.name.startsWith("TextListItem-") &&
+                            it.takes(TEXT_LIST_ITEM_DESCRIPTION, String::class.java) &&
+                            it.takes(TEXT_LIST_ITEM_HEIGHT, Float::class.javaPrimitiveType) &&
+                            it.takes(TEXT_LIST_ITEM_MAX_LABEL_LINES, Int::class.javaPrimitiveType)
+                    },
+            )
+        }
+    }
+}
+
+private fun XposedModule.hookConfigurableMenu(menu: ConfigurableMenuBindings) {
+    menuHook(menu.handle) { chain ->
+        if (switch.enabled) null else chain.proceed()
+    }
+    menu.rows.forEach { row ->
+        menuHook(row) { chain ->
+            if (switch.enabled) within(MenuScope.ROW) { chain.proceed() } else chain.proceed()
+        }
+    }
+    hookCompactRow(
+        menu.iconListItem,
+        maxLabelLinesAt = ICON_LIST_ITEM_MAX_LABEL_LINES,
+    )
+    hookCompactRow(
+        menu.textListItem,
+        descriptionAt = TEXT_LIST_ITEM_DESCRIPTION,
+        heightAt = TEXT_LIST_ITEM_HEIGHT,
+        maxLabelLinesAt = TEXT_LIST_ITEM_MAX_LABEL_LINES,
+    )
 }
 
 private fun XposedModule.hookMenuWindow(window: WindowBindings) {
@@ -1423,13 +1634,7 @@ private fun XposedModule.hookMenuRows(compose: ComposeBindings) {
             } ?: return@menuHook chain.proceed()
         chain.proceedReplacing(0, replacement)
     }
-    menuHook(compose.iconListItem) { chain ->
-        if (!switch.enabled || menuScope.get() != MenuScope.ROW) return@menuHook chain.proceed()
-        val args = chain.args.toTypedArray<Any?>()
-        args[LIST_ITEM_DESCRIPTION] = null
-        if (args[LIST_ITEM_HEIGHT] in stockRowHeights) args[LIST_ITEM_HEIGHT] = ROW_HEIGHT_DP
-        chain.proceed(args)
-    }
+    hookCompactRow(compose.iconListItem)
     menuHook(compose.listItemContent) { chain ->
         if (!switch.enabled || menuScope.get() != MenuScope.ROW) return@menuHook chain.proceed()
         chain.proceedReplacing(LIST_ITEM_CONTENT_MAX_LINES, SINGLE_LINE)
@@ -1442,4 +1647,20 @@ private fun XposedModule.hookMenuRows(compose: ComposeBindings) {
                 chain.proceedReplacing(colorAt, surface)
             }
         }
+}
+
+private fun XposedModule.hookCompactRow(
+    listItem: Method,
+    descriptionAt: Int = LIST_ITEM_DESCRIPTION,
+    heightAt: Int = LIST_ITEM_HEIGHT,
+    maxLabelLinesAt: Int? = null,
+) {
+    menuHook(listItem) { chain ->
+        if (!switch.enabled || menuScope.get() != MenuScope.ROW) return@menuHook chain.proceed()
+        val args = chain.args.toTypedArray<Any?>()
+        args[descriptionAt] = null
+        if (args[heightAt] in stockRowHeights) args[heightAt] = ROW_HEIGHT_DP
+        maxLabelLinesAt?.let { args[it] = SINGLE_LINE }
+        chain.proceed(args)
+    }
 }
