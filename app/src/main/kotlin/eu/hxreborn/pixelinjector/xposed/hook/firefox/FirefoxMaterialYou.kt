@@ -31,7 +31,9 @@ import eu.hxreborn.pixelinjector.util.signature
 import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
+import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedModule
+import org.luckypray.dexkit.DexKitBridge
 import java.lang.ref.WeakReference
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
@@ -48,6 +50,8 @@ private const val ACORN_THEME = "$THEME_PACKAGE.AcornThemeKt"
 private const val ACORN_COLORS = "$THEME_PACKAGE.AcornColorsKt"
 private const val COLOR_SCHEME = "androidx.compose.material3.ColorScheme"
 private const val ACORN_GRADIENT_SCHEME = "$THEME_PACKAGE.AcornGradientScheme"
+private const val ACORN_THEME_GROUP = 0xC3118A42.toInt()
+private const val COLOR_SCHEME_LABEL = "ColorScheme(primary="
 private const val COLOR_STOP = "mozilla.components.compose.base.utils.ColorStop"
 private const val TRUST_PANEL = "org.mozilla.fenix.settings.trustpanel.ui"
 private const val PROTECTION_BANNER = "$TRUST_PANEL.ProtectionPanelBannerKt"
@@ -326,6 +330,8 @@ private class Gradients(
     val colorStops: Field,
     val stopConstructor: Constructor<*>,
     val colorStop: Field,
+    val pairFields: List<Field>? = null,
+    val packedColor: Field? = null,
 ) {
     companion object {
         fun resolve(
@@ -356,6 +362,88 @@ private class Gradients(
                 colorStop = stopClass.requiredField("colorStop"),
             )
         }
+
+        fun resolveFromDex(
+            cl: ClassLoader,
+            bridge: DexKitBridge,
+            sample: Any,
+        ): Gradients {
+            val schemeClass = sample.javaClass
+            val schemeConstructor =
+                schemeClass.declaredConstructors.singleOrNull {
+                    it.parameterCount == gradientRoles.size + 1 &&
+                        it.parameterTypes.distinct().size == 1
+                } ?: throw NoSuchMethodException("AcornGradientScheme constructor")
+            val gradientClass = schemeConstructor.parameterTypes.first()
+            val schemeFields =
+                bridge
+                    .getMethodData(schemeConstructor)
+                    ?.usingFields
+                    .orEmpty()
+                    .filter {
+                        it.usingType.isWrite() && it.field.declaredClassName == schemeClass.name
+                    }.map { it.field.getFieldInstance(cl).apply { isAccessible = true } }
+                    .distinct()
+            if (schemeFields.size != schemeConstructor.parameterCount ||
+                schemeFields.any { it.type != gradientClass }
+            ) {
+                throw NoSuchFieldException("AcornGradientScheme constructor fields")
+            }
+            val gradientConstructor =
+                gradientClass.declaredConstructors.singleOrNull {
+                    it.parameterCount == 2 && it.parameterTypes[1] == List::class.java
+                } ?: throw NoSuchMethodException("AcornGradient constructor")
+            val type = gradientClass.onlyFieldOfType(gradientConstructor.parameterTypes[0])
+            val stops = gradientClass.onlyFieldOfType(List::class.java)
+            val gradient = schemeFields.first().get(sample)
+            val stop =
+                (stops.get(gradient) as List<*>).firstOrNull()
+                    ?: throw NoSuchFieldException("AcornGradient color stop sample")
+            val stopConstructor =
+                stop.javaClass.declaredConstructors.singleOrNull { it.parameterCount == 1 }
+                    ?: throw NoSuchMethodException("ColorStop constructor")
+            val pair = stop.javaClass.onlyFieldOfType(stopConstructor.parameterTypes[0])
+            val pairSample = pair.get(stop)
+            val pairConstructor =
+                pairSample.javaClass.getDeclaredConstructor(
+                    Any::class.java,
+                    Any::class.java,
+                )
+            val pairFields =
+                bridge
+                    .getMethodData(pairConstructor)
+                    ?.usingFields
+                    .orEmpty()
+                    .filter {
+                        it.usingType.isWrite() &&
+                            it.field.declaredClassName == pairSample.javaClass.name
+                    }.map { it.field.getFieldInstance(cl).apply { isAccessible = true } }
+                    .distinct()
+            val boxedColor = pairFields.getOrNull(1)?.get(pairSample)
+            if (pairFields.size != 2 ||
+                boxedColor == null
+            ) {
+                throw NoSuchFieldException("ColorStop pair")
+            }
+            return Gradients(
+                schemeClass,
+                schemeConstructor,
+                schemeFields,
+                gradientConstructor,
+                type,
+                stops,
+                stopConstructor,
+                pair,
+                pairFields,
+                boxedColor.javaClass.onlyFieldOfType(Long::class.javaPrimitiveType!!),
+            )
+        }
+
+        private fun Class<*>.onlyFieldOfType(type: Class<*>): Field =
+            declaredFields
+                .singleOrNull { it.type == type && !Modifier.isStatic(it.modifiers) }
+                ?.apply { isAccessible = true }
+                ?: throw NoSuchFieldException("$simpleName field of type ${type.simpleName}")
     }
 }
 
@@ -381,7 +469,10 @@ private class MaterialYouBindings(
         }
 
     companion object {
-        fun resolve(cl: ClassLoader): MaterialYouBindings {
+        fun resolve(cl: ClassLoader): MaterialYouBindings =
+            orNullIfMissing { resolveNamed(cl) } ?: resolveFromDex(cl)
+
+        private fun resolveNamed(cl: ClassLoader): MaterialYouBindings {
             val acornColors = cl.loadClass(ACORN_COLORS)
             val privatePalette =
                 acornColors.requiredField("privateColorPalette").get(null)
@@ -399,7 +490,159 @@ private class MaterialYouBindings(
                     } ?: throw NoSuchMethodException("$ACORN_THEME#AcornTheme")
             val gradients =
                 orNullIfMissing { Gradients.resolve(cl, cl.loadClass(ACORN_GRADIENT_SCHEME)) }
-            return MaterialYouBindings(
+            val schemeColors =
+                colorScheme.declaredFields
+                    .filter {
+                        it.type == Long::class.javaPrimitiveType && !Modifier.isStatic(it.modifiers)
+                    }.mapNotNull { it.asSchemeColor(it.name) }
+            return bindings(
+                acornTheme,
+                colorScheme,
+                privatePalette,
+                oledPalette,
+                schemeColors,
+                gradients,
+            )
+        }
+
+        private fun resolveFromDex(cl: ClassLoader): MaterialYouBindings =
+            DexKit.query(cl) { bridge ->
+                val schemeData =
+                    bridge
+                        .findMethod {
+                            matcher {
+                                name("toString")
+                                usingStrings(COLOR_SCHEME_LABEL)
+                            }
+                        }.singleOrNull() ?: throw NoSuchMethodException("ColorScheme.toString")
+                val colorScheme = schemeData.getClassInstance(cl)
+                val schemeColors = identifySchemeColors(colorScheme)
+                val themeData =
+                    bridge
+                        .findMethod {
+                            matcher {
+                                paramCount(7)
+                                returnType("void")
+                                usingNumbers(ACORN_THEME_GROUP)
+                            }
+                        }.singleOrNull { colorScheme.name in it.paramTypeNames }
+                        ?: throw NoSuchMethodException("AcornTheme ColorScheme group")
+                val acornTheme = themeData.getMethodInstance(cl).apply { isAccessible = true }
+                val paletteClass = acornTheme.parameterTypes.first()
+                val firefoxTheme =
+                    bridge
+                        .findMethod {
+                            matcher {
+                                name("FirefoxTheme")
+                                paramCount(5)
+                                returnType("void")
+                            }
+                        }.singleOrNull { method ->
+                            method.usingFields.any {
+                                it.field.typeName ==
+                                    paletteClass.name
+                            }
+                        }
+                        ?: throw NoSuchMethodException("FirefoxTheme Acorn palettes")
+
+                fun paletteFields(method: org.luckypray.dexkit.result.MethodData) =
+                    method.usingFields
+                        .filter { it.usingType.isRead() && it.field.typeName == paletteClass.name }
+                        .map { it.field }
+                        .distinct()
+                val palettes = paletteFields(firefoxTheme)
+                val defaults = paletteFields(themeData)
+                if (palettes.size != 4 || palettes.drop(2) != defaults) {
+                    throw NoSuchFieldException(
+                        "FirefoxTheme private, OLED, dark and light palettes",
+                    )
+                }
+                val (privatePalette, oledPalette) =
+                    palettes.take(2).map { field ->
+                        field.getFieldInstance(cl).apply { isAccessible = true }.get(null)
+                            ?: throw NoSuchFieldException("FirefoxTheme.${field.name}")
+                    }
+                val gradientClass =
+                    acornTheme.parameterTypes[
+                        acornTheme.parameterTypes.indexOf(colorScheme) +
+                            1,
+                    ]
+                val gradients =
+                    orNullIfMissing {
+                        val sample =
+                            firefoxTheme.usingFields
+                                .firstOrNull {
+                                    it.usingType.isRead() && it.field.typeName == gradientClass.name
+                                }?.field
+                                ?.getFieldInstance(cl)
+                                ?.apply { isAccessible = true }
+                                ?.get(null)
+                                ?: throw NoSuchFieldException("FirefoxTheme Acorn gradient scheme")
+                        Gradients.resolveFromDex(cl, bridge, sample)
+                    }
+                bindings(
+                    acornTheme,
+                    colorScheme,
+                    privatePalette,
+                    oledPalette,
+                    schemeColors,
+                    gradients,
+                )
+            }
+
+        private fun identifySchemeColors(colorScheme: Class<*>): List<SchemeColor> {
+            val constructor =
+                colorScheme.declaredConstructors.singleOrNull {
+                    it.parameterCount > 0 &&
+                        it.parameterTypes.all { type -> type == Long::class.javaPrimitiveType }
+                } ?: throw NoSuchMethodException("ColorScheme color constructor")
+            constructor.isAccessible = true
+            val sample =
+                constructor.newInstance(
+                    *Array<Any>(constructor.parameterCount) { packColor(BLACK) },
+                )
+            val stock = schemeLabels(sample)
+            return colorScheme.declaredFields.mapNotNull { field ->
+                if (field.type != Long::class.javaPrimitiveType ||
+                    Modifier.isStatic(field.modifiers)
+                ) {
+                    return@mapNotNull null
+                }
+                field.isAccessible = true
+                val original = field.getLong(sample)
+                val probe = if (isBlack(original)) packColor(-1) else packColor(BLACK)
+                field.setLong(sample, probe)
+                val labels = schemeLabels(sample)
+                field.setLong(sample, original)
+                labels.keys.singleOrNull { labels[it] != stock[it] }?.let {
+                    field.asSchemeColor(
+                        it,
+                    )
+                }
+            }
+        }
+
+        private fun schemeLabels(scheme: Any): Map<String, String> =
+            Regex("""(\w+)=(Color\([^)]*\))""")
+                .findAll(scheme.toString())
+                .associate { it.groupValues[1] to it.groupValues[2] }
+
+        private fun Field.asSchemeColor(name: String): SchemeColor? {
+            val role = name.replace(Regex("([A-Z])")) { "_" + it.value.lowercase() }
+            if (systemColorId(role, dark = true) == 0) return null
+            isAccessible = true
+            return SchemeColor(this, role)
+        }
+
+        private fun bindings(
+            acornTheme: Method,
+            colorScheme: Class<*>,
+            privatePalette: Any,
+            oledPalette: Any?,
+            schemeColors: List<SchemeColor>,
+            gradients: Gradients?,
+        ): MaterialYouBindings =
+            MaterialYouBindings(
                 acornTheme = acornTheme,
                 applicationOnCreate = Application::class.java.requiredMethod("onCreate"),
                 privatePalette = privatePalette,
@@ -408,7 +651,9 @@ private class MaterialYouBindings(
                 schemeIndex = acornTheme.parameterTypes.indexOf(colorScheme),
                 gradientIndex =
                     gradients?.let { acornTheme.parameterTypes.indexOf(it.schemeClass) } ?: -1,
-                surface = colorScheme.requiredField("surface"),
+                surface =
+                    schemeColors.singleOrNull { it.role == "surface" }?.field
+                        ?: throw NoSuchFieldException("ColorScheme.surface"),
                 gradients = gradients,
                 overlayablesToString =
                     orNullIfMissing {
@@ -417,21 +662,8 @@ private class MaterialYouBindings(
                             String::class.java,
                         )
                     },
-                schemeColors =
-                    colorScheme.declaredFields
-                        .filter {
-                            it.type == Long::class.javaPrimitiveType &&
-                                !Modifier.isStatic(it.modifiers)
-                        }.map { field ->
-                            field.isAccessible = true
-                            SchemeColor(
-                                field,
-                                field.name.replace(Regex("([A-Z])")) { "_" + it.value.lowercase() },
-                            )
-                        }.filter { systemColorId(it.role, dark = true) != 0 }
-                        .ifEmpty { throw NoSuchFieldException("ColorScheme system color roles") },
+                schemeColors = schemeColors,
             )
-        }
     }
 }
 
@@ -443,9 +675,9 @@ private fun Gradients.recolor(
     val stops =
         (colorStops.get(gradient) as List<*>).mapIndexed { index, stop ->
             val pair = colorStop.get(stop)!!
-            val position = pair.javaClass.requiredField("first").get(pair)
-            val box = pair.javaClass.requiredField("second").get(pair)!!
-            val stockColor = box.javaClass.requiredField("value").getLong(box)
+            val position = (pairFields?.get(0) ?: pair.javaClass.requiredField("first")).get(pair)
+            val box = (pairFields?.get(1) ?: pair.javaClass.requiredField("second")).get(pair)!!
+            val stockColor = (packedColor ?: box.javaClass.requiredField("value")).getLong(box)
             val alpha = (stockColor ushr (COLOR_SHIFT + ALPHA_SHIFT)).toInt() and BYTE_MASK
             val rgb = (if (index == 0) startArgb else endArgb) and RGB_MASK
             val color =
@@ -470,7 +702,7 @@ private fun MaterialYouBindings.recolorGradients(
             val stock = gradients.schemeFields.map { it.get(scheme)!! }
             val copy = gradients.schemeConstructor.newInstance(*stock.toTypedArray())
             gradients.schemeFields.forEachIndexed { index, field ->
-                val roles = gradientRoles[field.name]
+                val roles = gradientRoles.values.elementAtOrNull(index)
                 field.isAccessible = true
                 val gradient =
                     roles?.let { (start, end) ->
