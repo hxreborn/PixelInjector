@@ -25,6 +25,15 @@ internal object DexKit {
 
     private val found = HashMap<String, List<Method>>()
 
+    fun <T> query(
+        cl: ClassLoader,
+        query: (DexKitBridge) -> T,
+    ): T {
+        nativeLib.getOrThrow()
+        val live = bridge ?: DexKitBridge.create(cl, false).also { bridge = it }
+        return query(live)
+    }
+
     fun methods(
         tweak: String,
         cl: ClassLoader,

@@ -28,7 +28,9 @@ import eu.hxreborn.pixelinjector.util.signature
 import eu.hxreborn.pixelinjector.xposed.Logger
 import eu.hxreborn.pixelinjector.xposed.Switch
 import eu.hxreborn.pixelinjector.xposed.Tweak
+import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedModule
+import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -215,6 +217,13 @@ private class RefreshBindings(
     companion object {
         fun resolve(cl: ClassLoader): RefreshBindings {
             val layout = cl.loadClass(SWIPE_REFRESH_LAYOUT)
+            return orNullIfMissing { resolveNamed(cl, layout) } ?: resolveFromDex(cl, layout)
+        }
+
+        private fun resolveNamed(
+            cl: ClassLoader,
+            layout: Class<*>,
+        ): RefreshBindings {
             val circle = orNullIfMissing { cl.loadClass(CIRCLE_IMAGE_VIEW) }
             return RefreshBindings(
                 constructor =
@@ -238,6 +247,111 @@ private class RefreshBindings(
                 circleBackgroundColor = circle?.optionalField("mBackgroundColor"),
             )
         }
+
+        private fun resolveFromDex(
+            cl: ClassLoader,
+            layout: Class<*>,
+        ): RefreshBindings =
+            DexKit.query(cl) { bridge ->
+                val constructor =
+                    layout.getDeclaredConstructor(
+                        Context::class.java,
+                        AttributeSet::class.java,
+                    )
+                val circleView = layout.fieldOfType(ImageView::class.java)
+                val progress = layout.fieldOfType(Drawable::class.java)
+                val progressClass = progress.type
+                val animation =
+                    bridge
+                        .findMethod {
+                            matcher {
+                                declaredClass(progressClass)
+                                returnType("void")
+                                paramCount(3)
+                                usingNumbers(MAX_PROGRESS_TRIM)
+                            }
+                        }.singleOrNull()
+                        ?: throw NoSuchMethodException(
+                            "CircularProgressDrawable applyTransformation",
+                        )
+                val ringClass = animation.paramTypes[1].getInstance(cl)
+                val ring = progressClass.fieldOfType(ringClass)
+                val draw =
+                    bridge.getMethodData(
+                        progressClass.requiredMethod("draw", android.graphics.Canvas::class.java),
+                    )
+                        ?: throw NoSuchMethodException("CircularProgressDrawable.draw")
+                val drawnFields = draw.fields(ringClass, "float", reads = true)
+                val trimAndRotation =
+                    animation.fields(ringClass, "float", reads = false).filter { it in drawnFields }
+                if (trimAndRotation.size != 3) {
+                    throw NoSuchFieldException(
+                        "CircularProgressDrawable ring start trim, end trim and rotation",
+                    )
+                }
+                val (_, endTrim) = trimAndRotation
+
+                fun layoutInt(
+                    method: String,
+                    reads: Boolean,
+                    vararg parameters: Class<*>,
+                ) = bridge
+                    .getMethodData(layout.requiredMethod(method, *parameters))
+                    ?.fields(layout, "int", reads)
+                    ?.singleOrNull()
+                    ?.getFieldInstance(cl)
+                    ?.apply { isAccessible = true }
+                    ?: throw NoSuchFieldException("SwipeRefreshLayout.$method int field")
+
+                val colorSetter =
+                    orNullIfMissing {
+                        circleView.type.requiredMethod(
+                            "setBackgroundColor",
+                            Int::class.javaPrimitiveType,
+                        )
+                    }
+                val backgroundColor =
+                    colorSetter
+                        ?.let { bridge.getMethodData(it) }
+                        ?.fields(circleView.type, "int", reads = false)
+                        ?.singleOrNull()
+                        ?.getFieldInstance(cl)
+                        ?.apply { isAccessible = true }
+                return@query RefreshBindings(
+                    constructor = constructor,
+                    circleView = circleView,
+                    progress = progress,
+                    circleDiameter = layoutInt("getProgressCircleDiameter", true),
+                    originalOffsetTop = layoutInt("getProgressViewStartOffset", true),
+                    currentTargetOffsetTop =
+                        layoutInt(
+                            "setTargetOffsetTopAndBottom",
+                            false,
+                            Int::class.javaPrimitiveType!!,
+                        ),
+                    ring = ring,
+                    endTrim = endTrim.getFieldInstance(cl).apply { isAccessible = true },
+                    circleSetBackgroundColor = colorSetter,
+                    circleBackgroundColor = backgroundColor,
+                )
+            }
+
+        private fun Class<*>.fieldOfType(type: Class<*>): Field =
+            declaredFields
+                .singleOrNull { type.isAssignableFrom(it.type) }
+                ?.apply { isAccessible = true }
+                ?: throw NoSuchFieldException("$simpleName field of type ${type.simpleName}")
+
+        private fun MethodData.fields(
+            owner: Class<*>,
+            type: String,
+            reads: Boolean,
+        ) = usingFields
+            .filter {
+                it.field.declaredClassName == owner.name && it.field.typeName == type &&
+                    it.usingType.isRead() == reads
+            }.map { it.field }
+            .distinct()
     }
 }
 
