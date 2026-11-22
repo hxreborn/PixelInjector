@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -106,7 +107,7 @@ import kotlinx.coroutines.launch
 
 private const val FLASH_STAGGER_MS = 120L
 private val RowEndPadding = 4.dp
-private val LineLabelWidth = 64.dp
+private val LineLabelMinWidth = 64.dp
 private val ValueGap = 8.dp
 private val CardRadius = RoundedCornerShape(20.dp)
 private val ListBottom = 24.dp
@@ -641,7 +642,8 @@ private fun ValueLine(
                 stringResource(R.string.betterfox_in_use),
                 style = AppText.tileSupporting,
                 color = scheme.onSurfaceVariant,
-                modifier = Modifier.width(LineLabelWidth),
+                modifier = Modifier.widthIn(min = LineLabelMinWidth),
+                maxLines = 1,
             )
             Text(formatPrefValue(shown), style = AppText.meta.copy(fontWeight = FontWeight.Bold), color = scheme.onSurface)
             SourceChip(source)
@@ -652,7 +654,8 @@ private fun ValueLine(
                     stringResource(R.string.betterfox_mode_betterfox),
                     style = AppText.tileSupporting,
                     color = scheme.outline,
-                    modifier = Modifier.width(LineLabelWidth),
+                    modifier = Modifier.widthIn(min = LineLabelMinWidth),
+                    maxLines = 1,
                 )
                 Text(
                     stringResource(R.string.betterfox_not_applied, formatPrefValue(entry.value)),
