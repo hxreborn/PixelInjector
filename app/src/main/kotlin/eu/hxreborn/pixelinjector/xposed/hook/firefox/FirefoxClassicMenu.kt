@@ -102,6 +102,8 @@ private const val FUNCTION0 = "kotlin.jvm.functions.Function0"
 private const val FUNCTION2 = "kotlin.jvm.functions.Function2"
 private const val KOTLIN_UNIT = "kotlin.Unit"
 private const val MENU_WIDTH_DP = 270f
+private const val CONFIGURABLE_MENU_WIDTH_DP = 320f
+private const val LIBRARY_SECTION = "library"
 private const val CORNER_DP = 24f
 private const val MARGIN_DP = 6f
 private const val BOTTOM_GAP_DP = 13f
@@ -1048,8 +1050,18 @@ private fun XposedModule.installFirefoxClassicMenu(cl: ClassLoader): Boolean {
     val bindings =
         resolving {
             val window = WindowBindings.resolve(cl)
+            val configurable = orNullIfMissing { cl.loadClass("$MENU_COMPOSE.MainMenuKt") } == null
+            val menuResources =
+                if (configurable) {
+                    window.fragments
+                        .first()
+                        .onCreateDialog.declaringClass
+                        .getMethod("getResources")
+                } else {
+                    null
+                }
             val compose =
-                if (orNullIfMissing { cl.loadClass("$MENU_COMPOSE.MainMenuKt") } == null) {
+                if (configurable) {
                     val menu = ConfigurableMenuBindings.resolve(cl)
                     menu.iconListItem.name to { hookConfigurableMenu(menu) }
                 } else {
@@ -1057,19 +1069,19 @@ private fun XposedModule.installFirefoxClassicMenu(cl: ClassLoader): Boolean {
                     val members = "${menu.iconListItem.name} rewind=${menu.rewind != null}"
                     members to { hookMenuRows(menu) }
                 }
-            window to compose
+            Triple(window, menuResources, compose)
         }.getOrElse {
             Logger.error(
                 "target not found tweak=$TWEAK member=${it.member()} build=${Build.ID} reason=${it.reason()}",
             )
             return false
         }
-    val (window, compose) = bindings
+    val (window, menuResources, compose) = bindings
     val fragments =
         window.fragments.joinToString(",") { it.onCreateDialog.declaringClass.simpleName }
     val (members, hookCompose) = compose
     Logger.info("resolved tweak=$TWEAK members=$fragments,$members")
-    hookMenuWindow(window)
+    hookMenuWindow(window, menuResources)
     hookCompose()
     return true
 }
@@ -1079,12 +1091,18 @@ private class ConfigurableMenuBindings(
     val rows: List<Method>,
     val iconListItem: Method,
     val textListItem: Method,
+    val sectionId: Method,
+    val presentationMode: Method,
+    val rowPresentation: Any,
 ) {
     companion object {
         fun resolve(cl: ClassLoader): ConfigurableMenuBindings {
             val sheet = cl.loadClass("$MENU_COMPOSE.MenuDialogBottomSheetKt")
             val item = cl.loadClass("$MENU_COMPOSE.MenuItemKt")
             val list = cl.loadClass(LIST_ITEM_KT)
+            val section = cl.loadClass("$MENU_PACKAGE.configuration.MenuSectionConfiguration")
+            val presentationMode = section.requiredMethod("getPresentationMode")
+            val row = cl.loadClass("${presentationMode.returnType.name}\$Row")
             return ConfigurableMenuBindings(
                 handle = sheet.requiredMethods("MenuBottomSheetHandle").single(),
                 rows =
@@ -1105,6 +1123,11 @@ private class ConfigurableMenuBindings(
                             it.takes(TEXT_LIST_ITEM_HEIGHT, Float::class.javaPrimitiveType) &&
                             it.takes(TEXT_LIST_ITEM_MAX_LABEL_LINES, Int::class.javaPrimitiveType)
                     },
+                sectionId = section.requiredMethod("getId"),
+                presentationMode = presentationMode,
+                rowPresentation =
+                    row.requiredField("INSTANCE").get(null)
+                        ?: throw NoSuchFieldException("MenuPresentationMode.Row.INSTANCE"),
             )
         }
     }
@@ -1113,6 +1136,14 @@ private class ConfigurableMenuBindings(
 private fun XposedModule.hookConfigurableMenu(menu: ConfigurableMenuBindings) {
     menuHook(menu.handle) { chain ->
         if (switch.enabled) null else chain.proceed()
+    }
+    menuHook(menu.presentationMode) { chain ->
+        val stock = chain.proceed()
+        if (switch.enabled && menu.sectionId.invoke(chain.thisObject) == LIBRARY_SECTION) {
+            menu.rowPresentation
+        } else {
+            stock
+        }
     }
     menu.rows.forEach { row ->
         menuHook(row) { chain ->
@@ -1131,7 +1162,10 @@ private fun XposedModule.hookConfigurableMenu(menu: ConfigurableMenuBindings) {
     )
 }
 
-private fun XposedModule.hookMenuWindow(window: WindowBindings) {
+private fun XposedModule.hookMenuWindow(
+    window: WindowBindings,
+    menuResources: Method?,
+) {
     window.fragments.forEach { fragment ->
         hook(fragment.onCreateDialog).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
@@ -1148,8 +1182,16 @@ private fun XposedModule.hookMenuWindow(window: WindowBindings) {
         hook(fragment.sheetWidth).intercept { chain ->
             val stock = chain.proceed() as Int
             if (!switch.enabled) return@intercept stock
-            val density = Resources.getSystem().displayMetrics.density
-            minOf((MENU_WIDTH_DP * density).toInt(), stock)
+            val resources = menuResources?.invoke(chain.thisObject) as? Resources
+            if (resources == null) {
+                minOf((MENU_WIDTH_DP * Resources.getSystem().displayMetrics.density).toInt(), stock)
+            } else {
+                val config = resources.configuration
+                val preferredWidth = CONFIGURABLE_MENU_WIDTH_DP * config.fontScale.coerceAtLeast(1f)
+                val availableWidth = config.screenWidthDp - 2 * MARGIN_DP
+                val width = minOf(preferredWidth, availableWidth)
+                minOf((width * resources.displayMetrics.density).toInt(), stock)
+            }
         }
     }
     hook(window.setOnShowListener).intercept { chain ->
