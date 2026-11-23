@@ -49,7 +49,7 @@ Pixel tweaks for Xposed, each behind its own switch. Off tweaks change nothing. 
 - **Always expand notifications**: opens notifications expanded unless you collapsed one by hand.
 - **Pin ongoing notifications**: stops swiping away ongoing notifications like media and VPN.
 - **Charging details**: adds watts, volts, amps and battery temperature under the lock screen charging text.
-- **Now playing chip**: shows the playing track and app icon in a status bar chip.
+- **Now playing chip**: shows the playing track and app icon in a status bar chip, with your choice of font and colors.
 - **Download chip**: shows a download's progress as a chip in the status bar. Ported from [Iconify](https://github.com/Mahmud0808/Iconify)'s ongoing action chip.
 - **Fingerprint icon**: replaces the lock screen fingerprint icon with a custom ROM icon or your own image. Under-display sensors only.
 - **Hide shortcut circles**: removes the circle behind the lock screen shortcuts while they're off.
