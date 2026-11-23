@@ -1,3 +1,26 @@
+## [1.31.0](https://github.com/hxreborn/PixelInjector/compare/v1.30.0...v1.31.0) (2026-11-23)
+
+### Features
+
+* **tweak:** add Google Sans Flex fonts to NowPlayingChip ([a95fb6f](https://github.com/hxreborn/PixelInjector/commit/a95fb6f28771d2a8c50776d9a92fb7bbbcd6d2c8))
+* **tweak:** add title fonts to NowPlayingChip ([e6e0ac0](https://github.com/hxreborn/PixelInjector/commit/e6e0ac04331c6f876043c3e8c5524889c6a2495f)), closes [#90](https://github.com/hxreborn/PixelInjector/issues/90)
+* **ui:** add color swatches and a live preview to NowPlayingChip ([f430701](https://github.com/hxreborn/PixelInjector/commit/f4307017cee2d7a7796922110db9b9ac0d6f2c9d))
+* **ui:** add Reset to default to the NowPlayingChip sheet ([2a943f5](https://github.com/hxreborn/PixelInjector/commit/2a943f57a97f5b18cf8a23e3b9bae489cdd43962))
+
+### Bug Fixes
+
+* **reload:** open the process picker when no target is stale ([30d7b7a](https://github.com/hxreborn/PixelInjector/commit/30d7b7ac29324eac12eaf3d5101d051c2b92b893))
+* **tweak:** allow hot reload after a CrtScreenOff screen-off ([96f1242](https://github.com/hxreborn/PixelInjector/commit/96f12426ac261fcce041646d5cae1db1eb6aeac4))
+* **tweak:** customize EmptyShade text on One UI 9 ([a9aa3d5](https://github.com/hxreborn/PixelInjector/commit/a9aa3d5776420c02d3f2642059a8c3759eb973b9)), closes [#98](https://github.com/hxreborn/PixelInjector/issues/98)
+* **tweak:** fit FirefoxClassicMenu labels on Nightly ([3e4d2df](https://github.com/hxreborn/PixelInjector/commit/3e4d2dfe2fa27dacc32999df9a7be8becdca8e86)), closes [#97](https://github.com/hxreborn/PixelInjector/issues/97)
+* **tweak:** remove the shade option from NowPlayingChip ([9fe85c0](https://github.com/hxreborn/PixelInjector/commit/9fe85c0528ec2e32959a94301d1fe2e0eab38c37))
+* **tweak:** restore FirefoxClassicMenu on Nightly ([62f1972](https://github.com/hxreborn/PixelInjector/commit/62f1972c20e1c95bf9a602205559a42deaf8fe91)), closes [#97](https://github.com/hxreborn/PixelInjector/issues/97)
+* **tweak:** restore FirefoxLoadingIndicator on Nightly ([22fdda9](https://github.com/hxreborn/PixelInjector/commit/22fdda9d2b15c1b30205aac9754c2a15f187f565)), closes [#97](https://github.com/hxreborn/PixelInjector/issues/97)
+* **tweak:** restore FirefoxMaterialYou on Nightly ([d4fa341](https://github.com/hxreborn/PixelInjector/commit/d4fa3413fe6b7a4cf671f30c148545c395bb0efa)), closes [#97](https://github.com/hxreborn/PixelInjector/issues/97)
+* **tweak:** support CrtScreenOff on One UI 9 ([d55c47f](https://github.com/hxreborn/PixelInjector/commit/d55c47fdba222aa1c5565366ccc513f89056bbac)), closes [#98](https://github.com/hxreborn/PixelInjector/issues/98)
+* **ui:** keep Betterfox value labels on one line ([0e10064](https://github.com/hxreborn/PixelInjector/commit/0e10064f3c276a02c57969ada156fa94e4b57386))
+* **ui:** pin the NowPlayingChip preview above its settings ([f42ca5d](https://github.com/hxreborn/PixelInjector/commit/f42ca5d77853296803eabe0ad741247e6e104063))
+
 ## [1.30.0](https://github.com/hxreborn/PixelInjector/compare/v1.29.1...v1.30.0) (2026-11-21)
 
 ### Features
