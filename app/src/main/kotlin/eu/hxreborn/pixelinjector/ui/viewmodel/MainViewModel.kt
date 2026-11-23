@@ -203,9 +203,6 @@ class MainViewModel(
             .map { list -> list.sortedWith(compareBy(::targetRank, HookedTarget::getProcessName)) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private fun selectReloadTargets(list: List<HookedTarget>): List<HookedTarget> =
-        list.filter { it.state == HookedTarget.State.STALE }.ifEmpty { list }
-
     val reloadCount: StateFlow<Int> =
         reloadTargets
             .map { list -> list.count { it.state == HookedTarget.State.STALE } }
@@ -664,7 +661,7 @@ class MainViewModel(
         reloadRunner.start(service, selected)
     }
 
-    fun hotReloadPending() = hotReload(selectReloadTargets(reloadTargets.value))
+    fun hotReloadStale() = hotReload(reloadTargets.value.filter { it.state == HookedTarget.State.STALE })
 
     fun retryUpdateReload(notice: UpdateNotice) {
         val service = notice.service

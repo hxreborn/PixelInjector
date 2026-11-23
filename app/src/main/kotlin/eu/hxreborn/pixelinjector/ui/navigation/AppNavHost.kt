@@ -193,7 +193,9 @@ fun AppNavHost(
                     viewModel.refreshLauncherApps()
                 },
                 onOpen = { push(it) },
-                onHotReload = viewModel::hotReloadPending,
+                onHotReload = {
+                    if (viewModel.reloadCount.value > 0) viewModel.hotReloadStale() else backStack.add(Destination.Targets)
+                },
                 onRetryUpdateReload = viewModel::retryUpdateReload,
                 onToggleTargets = {
                     if (backStack.lastOrNull() is Destination.Targets) backStack.removeLastOrNull() else backStack.add(Destination.Targets)

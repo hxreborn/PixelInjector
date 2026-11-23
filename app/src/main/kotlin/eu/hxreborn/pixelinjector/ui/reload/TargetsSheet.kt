@@ -85,7 +85,6 @@ fun TargetsSheet(
         mutableStateOf(
             targets
                 .filter { it.state == HookedTarget.State.STALE }
-                .ifEmpty { targets }
                 .map { it.pid }
                 .toSet(),
         )
