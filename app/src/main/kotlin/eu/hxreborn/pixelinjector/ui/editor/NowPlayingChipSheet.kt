@@ -129,7 +129,7 @@ fun NowPlayingChipSheet(
     var textColorDraft by remember(textColor) { mutableIntStateOf(textColor) }
     var chipColorDraft by remember(chipColor) { mutableIntStateOf(chipColor) }
     Column(
-        Modifier.fillMaxHeight(SHEET_HEIGHT).padding(SheetPadding).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxHeight(SHEET_HEIGHT).padding(SheetPadding),
         verticalArrangement = Arrangement.spacedBy(SectionGap),
     ) {
         SheetHeader(stringResource(R.string.tweak_now_playing_chip))
@@ -140,51 +140,56 @@ fun NowPlayingChipSheet(
             font = titleFont,
             titleWidth = titleWidth.roundToInt(),
         )
-        ChipChoiceTile(
-            title = stringResource(R.string.download_chip_side),
-            options =
-                listOf(
-                    Prefs.DOWNLOAD_CHIP_LEFT to stringResource(R.string.download_chip_left),
-                    Prefs.DOWNLOAD_CHIP_RIGHT to stringResource(R.string.download_chip_right),
-                ),
-            selected = side,
-            onSelect = onSideChange,
-        )
-        Tile(shape = TileShape) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.now_playing_chip_width), style = AppText.tileTitle)
-                Text(stringResource(R.string.now_playing_chip_width_value, titleWidth.roundToInt()), style = AppText.tileTitle)
-                Slider(
-                    value = titleWidth,
-                    onValueChange = { titleWidth = it },
-                    onValueChangeFinished = { onWidthChange(titleWidth.roundToInt()) },
-                    valueRange = Prefs.NOW_PLAYING_WIDTH_MIN.toFloat()..Prefs.NOW_PLAYING_WIDTH_MAX.toFloat(),
-                )
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(SectionGap),
+        ) {
+            ChipChoiceTile(
+                title = stringResource(R.string.download_chip_side),
+                options =
+                    listOf(
+                        Prefs.DOWNLOAD_CHIP_LEFT to stringResource(R.string.download_chip_left),
+                        Prefs.DOWNLOAD_CHIP_RIGHT to stringResource(R.string.download_chip_right),
+                    ),
+                selected = side,
+                onSelect = onSideChange,
+            )
+            Tile(shape = TileShape) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.now_playing_chip_width), style = AppText.tileTitle)
+                    Text(stringResource(R.string.now_playing_chip_width_value, titleWidth.roundToInt()), style = AppText.tileTitle)
+                    Slider(
+                        value = titleWidth,
+                        onValueChange = { titleWidth = it },
+                        onValueChangeFinished = { onWidthChange(titleWidth.roundToInt()) },
+                        valueRange = Prefs.NOW_PLAYING_WIDTH_MIN.toFloat()..Prefs.NOW_PLAYING_WIDTH_MAX.toFloat(),
+                    )
+                }
             }
-        }
-        ChipFontTile(titleFont, onTitleFontChange)
-        ChipColorTile(
-            title = stringResource(R.string.now_playing_chip_text_color),
-            color = textColorDraft,
-            onDraftChange = { textColorDraft = it },
-            onColorChange = onTextColorChange,
-        )
-        ChipColorTile(
-            title = stringResource(R.string.now_playing_chip_color),
-            color = chipColorDraft,
-            onDraftChange = { chipColorDraft = it },
-            onColorChange = onChipColorChange,
-        )
-        Tile(shape = TileShape) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.now_playing_chip_opacity), style = AppText.tileTitle)
-                Text(stringResource(R.string.now_playing_chip_opacity_value, chipOpacity.roundToInt()), style = AppText.tileTitle)
-                Slider(
-                    value = chipOpacity,
-                    onValueChange = { chipOpacity = it },
-                    onValueChangeFinished = { onOpacityChange(chipOpacity.roundToInt()) },
-                    valueRange = Prefs.NOW_PLAYING_OPACITY_MIN.toFloat()..Prefs.NOW_PLAYING_OPACITY_MAX.toFloat(),
-                )
+            ChipFontTile(titleFont, onTitleFontChange)
+            ChipColorTile(
+                title = stringResource(R.string.now_playing_chip_text_color),
+                color = textColorDraft,
+                onDraftChange = { textColorDraft = it },
+                onColorChange = onTextColorChange,
+            )
+            ChipColorTile(
+                title = stringResource(R.string.now_playing_chip_color),
+                color = chipColorDraft,
+                onDraftChange = { chipColorDraft = it },
+                onColorChange = onChipColorChange,
+            )
+            Tile(shape = TileShape) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.now_playing_chip_opacity), style = AppText.tileTitle)
+                    Text(stringResource(R.string.now_playing_chip_opacity_value, chipOpacity.roundToInt()), style = AppText.tileTitle)
+                    Slider(
+                        value = chipOpacity,
+                        onValueChange = { chipOpacity = it },
+                        onValueChangeFinished = { onOpacityChange(chipOpacity.roundToInt()) },
+                        valueRange = Prefs.NOW_PLAYING_OPACITY_MIN.toFloat()..Prefs.NOW_PLAYING_OPACITY_MAX.toFloat(),
+                    )
+                }
             }
         }
     }
