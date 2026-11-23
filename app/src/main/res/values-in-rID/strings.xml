@@ -497,7 +497,6 @@
     <string name="tweak_now_playing_chip_edit">Tata letak dan warna</string>
     <string name="now_playing_chip_width">Lebar judul maksimum</string>
     <string name="now_playing_chip_width_value">%1$d dp</string>
-    <string name="now_playing_chip_hide_shade">Sembunyikan saat panel notifikasi terbuka</string>
     <string name="now_playing_chip_font">Font judul</string>
     <string name="now_playing_chip_font_default">Bawaan</string>
     <string name="now_playing_chip_font_medium">Sans serif sedang</string>

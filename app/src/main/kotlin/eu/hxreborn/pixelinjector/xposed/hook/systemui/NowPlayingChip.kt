@@ -39,12 +39,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 private const val TWEAK = "NowPlayingChip"
-private const val SHADE_EXPANSION_STATE_MANAGER =
-    "com.android.systemui.shade.ShadeExpansionStateManager"
 private const val STATE_BAR = "bar"
 private const val STATE_CHIP = "chip"
 private const val STATE_TINT = "tint"
-private const val STATE_SHADE = "shade"
 private const val ICON_INDEX = 0
 private const val TITLE_INDEX = 1
 private const val ICON_DP = 12
@@ -63,7 +60,6 @@ private var chip: LinearLayout? = null
 @Volatile private var sessions: ChipSessions? = null
 private val closing = CopyOnWriteArrayList<ChipSessions>()
 private var tint = Color.WHITE
-private var shadeExpanded = false
 private var hasTrack = false
 private var retired = false
 private val enabled = Switch(Prefs.NOW_PLAYING_CHIP) { updateSessions() }
@@ -76,7 +72,6 @@ private val titleWidth =
     Value(Prefs.NOW_PLAYING_CHIP_WIDTH, onLoad = {
         postUi(::place)
     }) { it.coerceIn(Prefs.NOW_PLAYING_WIDTH_MIN, Prefs.NOW_PLAYING_WIDTH_MAX) }
-private val hideShade = Switch(Prefs.NOW_PLAYING_CHIP_HIDE_SHADE) { postUi(::render) }
 private val titleFont =
     Value(
         Prefs.NOW_PLAYING_CHIP_FONT,
@@ -101,7 +96,6 @@ internal val nowPlayingChip =
                 enabled,
                 rightSide,
                 titleWidth,
-                hideShade,
                 titleFont,
                 textColor,
                 chipColor,
@@ -121,7 +115,6 @@ internal val nowPlayingChip =
                 postUi {
                     if (!savedBar.isAttachedToWindow) return@postUi
                     tint = saved[STATE_TINT] as? Int ?: Color.WHITE
-                    shadeExpanded = saved[STATE_SHADE] as? Boolean ?: false
                     chip = saved[STATE_CHIP] as? LinearLayout
                     attach(savedBar)
                 }
@@ -149,23 +142,18 @@ private fun saveNowPlayingChipState(): HashMap<String, Any?> {
         STATE_BAR to bar,
         STATE_CHIP to chip,
         STATE_TINT to tint,
-        STATE_SHADE to shadeExpanded,
     )
 }
 
 private class NowPlayingBindings(
     val inflate: Method,
     val tint: List<Method>,
-    val shade: Method,
 ) {
     companion object {
         fun resolve(cl: ClassLoader): NowPlayingBindings =
             NowPlayingBindings(
                 cl.loadClass(STATUS_BAR_VIEW).requiredMethod("onFinishInflate"),
                 resolveStatusBarTint(cl).also { check(it.isNotEmpty()) { "Clock.onDarkChanged" } },
-                cl
-                    .loadClass(SHADE_EXPANSION_STATE_MANAGER)
-                    .requiredMethod("updateStateInternal", Int::class.javaPrimitiveType),
             )
     }
 }
@@ -245,7 +233,7 @@ private fun customColor(stored: Int): Int? = stored.takeIf { it ushr ALPHA_SHIFT
 
 private fun render() {
     chip?.visibility =
-        if (enabled.enabled && hasTrack && !(hideShade.enabled && shadeExpanded)) {
+        if (enabled.enabled && hasTrack) {
             View.VISIBLE
         } else {
             View.GONE
@@ -404,10 +392,7 @@ private fun XposedModule.installNowPlayingChip(cl: ClassLoader): Boolean {
             return false
         }
     val tintMembers = bindings.tint.joinToString { it.signature() }
-    Logger.info(
-        "resolved tweak=$TWEAK members=${bindings.inflate.signature()},$tintMembers," +
-            "${bindings.shade.signature()}",
-    )
+    Logger.info("resolved tweak=$TWEAK members=${bindings.inflate.signature()},$tintMembers")
     hook(bindings.inflate).intercept { chain ->
         val result = chain.proceed()
         isolateChipCallback(TWEAK, "inflate") {
@@ -421,17 +406,6 @@ private fun XposedModule.installNowPlayingChip(cl: ClassLoader): Boolean {
             tint = color
             applyTint()
         }
-    }
-    hook(bindings.shade).intercept { chain ->
-        val result = chain.proceed()
-        isolateChipCallback(TWEAK, "shade") {
-            val expanded = chain.getArg(0) as Int != 0
-            postUi {
-                shadeExpanded = expanded
-                render()
-            }
-        }
-        result
     }
     postUi {
         if (bar == null) findLiveStatusBar(bindings.inflate.declaringClass)?.let(::attach)

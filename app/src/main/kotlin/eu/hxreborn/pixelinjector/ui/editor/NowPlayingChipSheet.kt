@@ -111,14 +111,12 @@ private val customColorFill = Brush.sweepGradient(hueColors)
 fun NowPlayingChipSheet(
     side: String,
     width: Int,
-    hideShade: Boolean,
     titleFont: NowPlayingChipFont,
     textColor: Int,
     chipColor: Int,
     opacity: Int,
     onSideChange: (String) -> Unit,
     onWidthChange: (Int) -> Unit,
-    onHideShadeChange: (Boolean) -> Unit,
     onTitleFontChange: (NowPlayingChipFont) -> Unit,
     onTextColorChange: (Int) -> Unit,
     onChipColorChange: (Int) -> Unit,
@@ -165,7 +163,6 @@ fun NowPlayingChipSheet(
             }
         }
         ChipFontTile(titleFont, onTitleFontChange)
-        ChipSwitchTile(stringResource(R.string.now_playing_chip_hide_shade), hideShade, onHideShadeChange)
         ChipColorTile(
             title = stringResource(R.string.now_playing_chip_text_color),
             color = textColorDraft,

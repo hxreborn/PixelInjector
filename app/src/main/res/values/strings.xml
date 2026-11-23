@@ -497,7 +497,6 @@
     <string name="tweak_now_playing_chip_edit">Layout and colors</string>
     <string name="now_playing_chip_width">Maximum title width</string>
     <string name="now_playing_chip_width_value">%1$d dp</string>
-    <string name="now_playing_chip_hide_shade">Hide when the shade is open</string>
     <string name="now_playing_chip_font">Title font</string>
     <string name="now_playing_chip_font_default">Default</string>
     <string name="now_playing_chip_font_medium">Sans serif medium</string>
