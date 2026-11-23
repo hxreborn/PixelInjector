@@ -321,6 +321,7 @@ fun AppNavHost(
                         onTextColorChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_TEXT_COLOR, it) },
                         onChipColorChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_COLOR, it) },
                         onOpacityChange = { viewModel.save(Prefs.NOW_PLAYING_CHIP_OPACITY, it) },
+                        onResetToDefault = { viewModel.resetToDefault(Prefs.NOW_PLAYING_CHIP_LAYOUT) },
                     )
                 }
                 entry<Destination.DownloadChipEditor>(metadata = BottomSheetSceneStrategy.bottomSheet()) {

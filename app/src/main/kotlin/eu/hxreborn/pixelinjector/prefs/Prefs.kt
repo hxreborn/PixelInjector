@@ -74,6 +74,15 @@ object Prefs {
             "systemui.nowPlayingChip.chipOpacity",
             NOW_PLAYING_OPACITY_DEFAULT,
         ).register()
+    val NOW_PLAYING_CHIP_LAYOUT =
+        listOf(
+            NOW_PLAYING_CHIP_SIDE,
+            NOW_PLAYING_CHIP_WIDTH,
+            NOW_PLAYING_CHIP_FONT,
+            NOW_PLAYING_CHIP_TEXT_COLOR,
+            NOW_PLAYING_CHIP_COLOR,
+            NOW_PLAYING_CHIP_OPACITY,
+        )
     val DOWNLOAD_CHIP = BoolPref("systemui.downloadChip", false).register()
     const val DOWNLOAD_CHIP_LEFT = "left"
     const val DOWNLOAD_CHIP_RIGHT = "right"

@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.prefs.NowPlayingChipFont
 import eu.hxreborn.pixelinjector.prefs.Prefs
+import eu.hxreborn.pixelinjector.ui.component.ResetToDefaultButton
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.component.Tile
 import eu.hxreborn.pixelinjector.ui.component.TileText
@@ -121,6 +122,7 @@ fun NowPlayingChipSheet(
     onTextColorChange: (Int) -> Unit,
     onChipColorChange: (Int) -> Unit,
     onOpacityChange: (Int) -> Unit,
+    onResetToDefault: () -> Unit,
 ) {
     var titleWidth by remember(width) { mutableFloatStateOf(width.toFloat()) }
     var chipOpacity by remember(opacity) {
@@ -132,7 +134,17 @@ fun NowPlayingChipSheet(
         Modifier.fillMaxHeight(SHEET_HEIGHT).padding(SheetPadding),
         verticalArrangement = Arrangement.spacedBy(SectionGap),
     ) {
-        SheetHeader(stringResource(R.string.tweak_now_playing_chip))
+        val isDefault =
+            side == Prefs.NOW_PLAYING_CHIP_SIDE.default &&
+                width == Prefs.NOW_PLAYING_CHIP_WIDTH.default &&
+                titleFont.preferenceValue == Prefs.NOW_PLAYING_CHIP_FONT.default &&
+                textColor == Prefs.NOW_PLAYING_CHIP_TEXT_COLOR.default &&
+                chipColor == Prefs.NOW_PLAYING_CHIP_COLOR.default &&
+                opacity == Prefs.NOW_PLAYING_CHIP_OPACITY.default
+        SheetHeader(
+            title = stringResource(R.string.tweak_now_playing_chip),
+            action = { ResetToDefaultButton(enabled = !isDefault, onClick = onResetToDefault) },
+        )
         ChipPreview(
             textColor = textColorDraft,
             chipColor = chipColorDraft,
@@ -308,6 +320,7 @@ private fun ChipColorTile(
     val isCustom = !follows && color !in presets
     val customSeed = if (isCustom) color else MaterialTheme.colorScheme.primary.toArgb()
     var customEditorOpen by rememberSaveable { mutableStateOf(isCustom) }
+    LaunchedEffect(follows) { if (follows) customEditorOpen = false }
     val choose = { chosen: Int ->
         customEditorOpen = false
         onDraftChange(chosen)

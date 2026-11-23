@@ -238,6 +238,7 @@
     <string name="targets_empty">No process has loaded this module</string>
     <string name="filter_processes">Filter processes</string>
     <string name="cancel">Cancel</string>
+    <string name="reset_to_default">Reset to default</string>
     <string name="close">Close</string>
     <string name="copy">Copy</string>
     <string name="navigate_up">Navigate up</string>

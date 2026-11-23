@@ -238,6 +238,7 @@
     <string name="targets_empty">Belum ada proses yang memuat modul ini</string>
     <string name="filter_processes">Filter proses</string>
     <string name="cancel">Batal</string>
+    <string name="reset_to_default">Atur ulang ke bawaan</string>
     <string name="close">Tutup</string>
     <string name="copy">Salin</string>
     <string name="navigate_up">Navigasi ke atas</string>

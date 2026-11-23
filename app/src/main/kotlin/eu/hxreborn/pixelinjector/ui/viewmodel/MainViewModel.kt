@@ -697,6 +697,12 @@ class MainViewModel(
         commit(pref, value)
     }
 
+    fun resetToDefault(prefs: List<PrefSpec<*>>) {
+        prefs.forEach { commitDefault(it) }
+    }
+
+    private fun <T : Any> commitDefault(pref: PrefSpec<T>) = commit(pref, pref.default)
+
     private fun <T : Any> commit(
         pref: PrefSpec<T>,
         value: T,
