@@ -5,9 +5,11 @@
   </picture>
 </h1>
 
-[![libxposed API 102](https://img.shields.io/badge/libxposed_API-102-ff69b4?style=flat-square)](https://central.sonatype.com/artifact/io.github.libxposed/api)
-[![Release](https://img.shields.io/github/v/release/hxreborn/PixelInjector?style=flat-square)](https://github.com/hxreborn/PixelInjector/releases/latest)
-[![Android 14+](https://img.shields.io/badge/Android-14%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](#install)
+<p align="center">
+  <a href="https://central.sonatype.com/artifact/io.github.libxposed/api"><img src="https://img.shields.io/badge/libxposed_API-102-ff69b4?style=for-the-badge" alt="libxposed API 102"></a>
+  <a href="https://github.com/hxreborn/PixelInjector/releases/latest"><img src="https://img.shields.io/github/v/release/hxreborn/PixelInjector?style=for-the-badge" alt="Release"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/Android-14%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 14+"></a>
+</p>
 
 Pixel tweaks for Xposed, each behind its own switch. Off tweaks change nothing. Switches apply live and updates hot reload in apps that support it.
 
