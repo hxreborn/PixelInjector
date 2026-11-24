@@ -1,3 +1,18 @@
+## [1.32.0](https://github.com/hxreborn/PixelInjector/compare/v1.31.0...v1.32.0) (2026-11-24)
+
+### Features
+
+* **tweak:** scroll long NowPlayingChip titles ([607d05e](https://github.com/hxreborn/PixelInjector/commit/607d05e964d02075e89d6587dcc3b9e7470722df))
+
+### Bug Fixes
+
+* **tweak:** hide NowPlayingChip on the lock screen ([708807f](https://github.com/hxreborn/PixelInjector/commit/708807ff156777b03cac6f77c9cd035b0075f846))
+* **tweak:** stop the CrtScreenOff connection during hot reload ([18421f2](https://github.com/hxreborn/PixelInjector/commit/18421f2364bab3994beaa1d0b4b0b4274f927ec8))
+
+### Refactor
+
+* simplify switch tiles and build tooling ([4db4d79](https://github.com/hxreborn/PixelInjector/commit/4db4d791bc436474e1cd0bab3ac02abd8240c486))
+
 ## [1.31.0](https://github.com/hxreborn/PixelInjector/compare/v1.30.0...v1.31.0) (2026-11-23)
 
 ### Features
