@@ -56,6 +56,7 @@ internal class CrtConnection(
                 onStart()
                 while (!closed) {
                     if (relay == null) connect()
+                    if (closed) break
                     val action =
                         if (relay ==
                             null
