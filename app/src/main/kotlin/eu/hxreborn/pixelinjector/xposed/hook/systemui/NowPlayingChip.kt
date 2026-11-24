@@ -52,6 +52,7 @@ private const val ALPHA_OPAQUE = 0xFF
 private const val ALPHA_SHIFT = 24
 private const val COLOR_MASK = 0x00FFFFFF
 private const val TEARDOWN_SECONDS = 3L
+private const val MARQUEE_FOREVER = -1
 
 private val main = Handler(Looper.getMainLooper())
 private var bar: ViewGroup? = null
@@ -190,7 +191,6 @@ private fun attach(view: ViewGroup) {
             addView(
                 TextView(context).apply {
                     setSingleLine()
-                    ellipsize = TextUtils.TruncateAt.END
                     textSize = TITLE_SP
                     includeFontPadding = false
                 },
@@ -210,7 +210,12 @@ private fun attach(view: ViewGroup) {
 private fun place() {
     val view = chip ?: return
     val statusBar = bar ?: return
-    view.titleView.maxWidth = view.context.dp(titleWidth.value)
+    view.titleView.apply {
+        maxWidth = context.dp(titleWidth.value)
+        ellipsize = TextUtils.TruncateAt.MARQUEE
+        marqueeRepeatLimit = MARQUEE_FOREVER
+        isSelected = true
+    }
     placeStatusBarChip(statusBar, view, rightSide.value, ViewGroup.LayoutParams.WRAP_CONTENT, TWEAK)
 }
 
