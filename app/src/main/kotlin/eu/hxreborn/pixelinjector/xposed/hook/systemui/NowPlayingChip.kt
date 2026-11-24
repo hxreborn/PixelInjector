@@ -1,5 +1,6 @@
 package eu.hxreborn.pixelinjector.xposed.hook.systemui
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -62,6 +63,7 @@ private var chip: LinearLayout? = null
 private val closing = CopyOnWriteArrayList<ChipSessions>()
 private var tint = Color.WHITE
 private var hasTrack = false
+private var keyguardShown = false
 private var retired = false
 private val enabled = Switch(Prefs.NOW_PLAYING_CHIP) { updateSessions() }
 private val rightSide =
@@ -149,12 +151,20 @@ private fun saveNowPlayingChipState(): HashMap<String, Any?> {
 private class NowPlayingBindings(
     val inflate: Method,
     val tint: List<Method>,
+    val keyguardState: Method?,
 ) {
     companion object {
         fun resolve(cl: ClassLoader): NowPlayingBindings =
             NowPlayingBindings(
                 cl.loadClass(STATUS_BAR_VIEW).requiredMethod("onFinishInflate"),
                 resolveStatusBarTint(cl).also { check(it.isNotEmpty()) { "Clock.onDarkChanged" } },
+                resolving {
+                    cl.loadClass(KEYGUARD_STATE).requiredMethod(
+                        "notifyKeyguardState",
+                        Boolean::class.javaPrimitiveType,
+                        Boolean::class.javaPrimitiveType,
+                    )
+                }.getOrNull(),
             )
     }
 }
@@ -200,6 +210,8 @@ private fun attach(view: ViewGroup) {
                 ),
             )
         }
+    keyguardShown =
+        view.context.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
     postUi(::setTitleTypeface)
     place()
     applyTint()
@@ -238,7 +250,7 @@ private fun customColor(stored: Int): Int? = stored.takeIf { it ushr ALPHA_SHIFT
 
 private fun render() {
     chip?.visibility =
-        if (enabled.enabled && hasTrack) {
+        if (enabled.enabled && hasTrack && !keyguardShown) {
             View.VISIBLE
         } else {
             View.GONE
@@ -397,7 +409,10 @@ private fun XposedModule.installNowPlayingChip(cl: ClassLoader): Boolean {
             return false
         }
     val tintMembers = bindings.tint.joinToString { it.signature() }
-    Logger.info("resolved tweak=$TWEAK members=${bindings.inflate.signature()},$tintMembers")
+    val keyguardMember = bindings.keyguardState?.signature() ?: "no-keyguard"
+    Logger.info(
+        "resolved tweak=$TWEAK members=${bindings.inflate.signature()},$tintMembers,$keyguardMember",
+    )
     hook(bindings.inflate).intercept { chain ->
         val result = chain.proceed()
         isolateChipCallback(TWEAK, "inflate") {
@@ -410,6 +425,19 @@ private fun XposedModule.installNowPlayingChip(cl: ClassLoader): Boolean {
         postUi {
             tint = color
             applyTint()
+        }
+    }
+    bindings.keyguardState?.let { method ->
+        hook(method).intercept { chain ->
+            val result = chain.proceed()
+            isolateChipCallback(TWEAK, "keyguard") {
+                val shown = chain.getArg(0) as Boolean && !(chain.getArg(1) as Boolean)
+                postUi {
+                    keyguardShown = shown
+                    render()
+                }
+            }
+            result
         }
     }
     postUi {
