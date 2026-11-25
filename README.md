@@ -14,7 +14,7 @@
 Pixel tweaks for Xposed, each behind its own switch. Switches apply live and updates hot reload.
 
 > [!NOTE]
-> Built and tested on Pixels. A tweak broken on your ROM? Report it from the app.
+> I build and test it on Pixel phones. On other ROMs a tweak can miss its target. For LineageOS and other ROMs with public source, I fix the tweak from that source. A closed ROM like HyperOS, One UI or ColorOS has no source to read, so the fix needs that ROM's own SystemUI or `services.jar`.
 
 <details>
 <summary><img src="assets/icons/photo_library.svg" width="20" alt=""> Screenshots</summary>
