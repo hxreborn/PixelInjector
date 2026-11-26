@@ -54,6 +54,10 @@ private const val TWEAK = "FingerprintIcon"
 private const val ICON_VIEW = "com.android.systemui.keyguard.ui.view.DeviceEntryIconView"
 private const val UDFPS_VIEW = "com.android.systemui.biometrics.UdfpsKeyguardView"
 private const val SAMSUNG_LOCK_ICON_VIEW = "com.android.keyguard.SecLockIconView"
+private const val TRANSSION_OPTICAL_HELPER =
+    "com.transsion.keyguard.biometricfunc.KeyguardFingerPrintOpticalHelper"
+private const val TRANSSION_FINGERPRINT_STATE =
+    "com.transsion.aod.dreams.controller.FingerprintUIStateController"
 private const val OPLUS_ICON_VIEW =
     "com.oplus.systemui.biometrics.finger.udfps.OnScreenFingerprintIcon"
 private const val ACCENT_ATTR = "wallpaperTextColorAccent"
@@ -166,6 +170,7 @@ private class DeviceEntryTarget(
     val bgView: Field,
     val getIconState: Method,
     val fingerprint: Any,
+    val missingReason: String,
 ) : IconTarget {
     override val viewClass: Class<*> = iconView.declaringClass
     override val members = "${iconView.signature()},${bgView.signature()}"
@@ -400,11 +405,12 @@ private class FingerprintBindings(
     }
 
     private fun reportMissingIcon() {
+        val entry = target as? DeviceEntryTarget ?: return
         keyguardChecked = true
         stopWatchingUnlock()
         val message =
-            "target not found tweak=$TWEAK member=${target.viewClass.simpleName} " +
-                "build=${Build.ID} reason=$NO_ICON_VIEW_REASON"
+            "target not found tweak=$TWEAK member=${entry.viewClass.simpleName} " +
+                "build=${Build.ID} reason=${entry.missingReason}"
         module.recordDeferredInstallFailure(TWEAK, message)
         Logger.error(message)
     }
@@ -674,6 +680,20 @@ private class FingerprintBindings(
                     iconType,
                     Boolean::class.javaPrimitiveType,
                 )
+            val transsionOptical =
+                resolving {
+                    cl
+                        .loadClass(TRANSSION_OPTICAL_HELPER)
+                        .requiredMethod(
+                            "setKeyguardClientVisible",
+                            Boolean::class.javaPrimitiveType,
+                        )
+                    cl
+                        .loadClass(
+                            TRANSSION_FINGERPRINT_STATE,
+                        ).requiredField("OPTICAL_FINGERPRINT")
+                        .getBoolean(null)
+                }.getOrDefault(false)
             return DeviceEntryTarget(
                 iconView = view.requiredField("iconView"),
                 bgView = view.requiredField("bgView"),
@@ -681,6 +701,12 @@ private class FingerprintBindings(
                 fingerprint =
                     iconType.enumConstants.first {
                         (it as Enum<*>).name == "FINGERPRINT"
+                    },
+                missingReason =
+                    if (transsionOptical) {
+                        "Transsion-draws-fingerprint-icon-outside-SystemUI"
+                    } else {
+                        NO_ICON_VIEW_REASON
                     },
             )
         }

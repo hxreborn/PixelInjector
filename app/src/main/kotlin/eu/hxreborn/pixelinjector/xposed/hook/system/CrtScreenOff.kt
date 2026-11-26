@@ -1220,13 +1220,10 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
                 RevealAmountBinding(emit, scrimField)
             }
         }.getOrElse { return missing("LightRevealScrim#setRevealAmount(float)", it) }
-    val handleLifecycleMessage =
-        resolving {
-            val handler =
-                orNullIfMissing { cl.loadClass("$KEYGUARD_LIFECYCLES\$KeyguardLifecycleHandler") }
-                    ?: cl.loadClass("$KEYGUARD_LIFECYCLES\$1")
-            handler.requiredMethod("handleMessage", Message::class.java)
-        }.getOrElse { return missing("KeyguardLifecyclesDispatcher handler", it) }
+    val lifecycle =
+        resolving { KeyguardHandlerBinding.resolve(cl) }.getOrElse {
+            return missing("KeyguardLifecyclesDispatcher handler", it)
+        }
     val samsungAodSetting =
         revealAmount.scrimField != null && Build.MANUFACTURER.equals("samsung", ignoreCase = true)
     val alwaysOnDisplay =
@@ -1258,7 +1255,7 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
     }
     Logger.info(
         "resolved tweak=$TWEAK members=${revealAmount.method.signature()}," +
-            handleLifecycleMessage.signature(),
+            lifecycle.handleMessage.signature(),
     )
     installHooksOnEnable {
         applicationAttach?.let { attach ->
@@ -1288,14 +1285,43 @@ private fun XposedModule.installRevealHold(cl: ClassLoader): Boolean {
             }
             chain.proceed()
         }
-        hook(handleLifecycleMessage).intercept { chain ->
-            val message = chain.getArg(0) as Message
-            guarded(Unit) { revealHold.onLifecycleMessage(message.what) }
+        hook(lifecycle.handleMessage).intercept { chain ->
+            guarded(Unit) {
+                if (lifecycle.isKeyguardHandler(chain.thisObject)) {
+                    revealHold.onLifecycleMessage((chain.getArg(0) as Message).what)
+                }
+            }
             chain.proceed()
         }
         restoreUiCoordination?.invoke()
     }
     return true
+}
+
+private class KeyguardHandlerBinding(
+    val handleMessage: Method,
+    val isKeyguardHandler: (Any?) -> Boolean,
+) {
+    companion object {
+        fun resolve(cl: ClassLoader): KeyguardHandlerBinding {
+            val handler =
+                orNullIfMissing { cl.loadClass("$KEYGUARD_LIFECYCLES\$KeyguardLifecycleHandler") }
+                    ?: orNullIfMissing { cl.loadClass("$KEYGUARD_LIFECYCLES\$1") }
+            if (handler != null) {
+                return KeyguardHandlerBinding(
+                    handler.requiredMethod("handleMessage", Message::class.java),
+                ) { true }
+            }
+            val merged = cl.loadClass(KEYGUARD_LIFECYCLES).requiredField("mHandler").type
+            val screenLifecycle = cl.loadClass("com.android.systemui.keyguard.ScreenLifecycle")
+            val screen = merged.requiredField("screenRecordingUris")
+            return KeyguardHandlerBinding(
+                merged.requiredMethod("handleMessage", Message::class.java),
+            ) {
+                screenLifecycle.isInstance(screen.get(it))
+            }
+        }
+    }
 }
 
 private class RevealAmountBinding(
