@@ -92,6 +92,13 @@ private class ScreenshotBindings(
             val data = cl.loadClass(DATA)
             val handleScreenshot =
                 resolving { controller.requiredMethods("handleScreenshot") }.getOrElse { failure ->
+                    if (Build.FINGERPRINT == HMD_CREST_MAX_FINGERPRINT) {
+                        val entry =
+                            cl.loadClass(
+                                "com.android.systemui.screenshot.TakeScreenshotService\$\$ExternalSyntheticLambda1",
+                            )
+                        return@getOrElse listOf(entry.requiredMethod("accept", Any::class.java))
+                    }
                     if (orNullIfMissing { cl.loadClass(TRANSSION_VIEW) } == null) throw failure
                     listOf(
                         DexKit.method(
@@ -130,7 +137,9 @@ private class ScreenshotBindings(
                     null
                 }
             val captureBitmap =
-                if (entryService != null) {
+                if (entryService != null && Build.FINGERPRINT == HMD_CREST_MAX_FINGERPRINT) {
+                    cl.loadClass(CAPTURE).requiredMethod("captureDisplay", Rect::class.java)
+                } else if (entryService != null) {
                     Bitmap::class.java.requiredMethod(
                         "wrapHardwareBuffer",
                         HardwareBuffer::class.java,
@@ -148,7 +157,7 @@ private class ScreenshotBindings(
                 handleScreenshot = handleScreenshot,
                 captureBitmap = captureBitmap,
                 captureCaller =
-                    if (entryService != null) {
+                    if (captureBitmap?.declaringClass == Bitmap::class.java) {
                         orNullIfMissing { cl.loadClass(CAPTURE_BUFFER).requiredMethod("asBitmap") }
                     } else {
                         null

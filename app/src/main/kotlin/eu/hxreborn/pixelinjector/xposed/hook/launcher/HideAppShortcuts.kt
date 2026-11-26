@@ -4,6 +4,7 @@ import android.os.Build
 import eu.hxreborn.pixelinjector.Target
 import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.member
+import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.resolving
@@ -30,7 +31,7 @@ internal val hideAppShortcuts =
     )
 
 private class PopupBindings(
-    val showRows: Method,
+    val showRows: List<Method>,
     val countIndex: Int,
     val loadAppShortcuts: Method?,
 ) {
@@ -47,7 +48,7 @@ private class PopupBindings(
                         List::class.java,
                     )
                 }.getOrNull()
-            if (iconRows != null) return PopupBindings(iconRows, 1, null)
+            if (iconRows != null) return PopupBindings(listOf(iconRows), 1, null)
             val showRows =
                 resolving {
                     popup.requiredMethod(
@@ -66,15 +67,46 @@ private class PopupBindings(
             if (showRows == null) {
                 // Pixel Launcher 17 CP2A.260605.012
                 val countRows =
-                    popup.requiredMethod(
-                        "populateAndShowRows",
-                        Int::class.javaPrimitiveType,
-                        List::class.java,
+                    orNullIfMissing {
+                        popup.requiredMethod(
+                            "populateAndShowRows",
+                            Int::class.javaPrimitiveType,
+                            List::class.java,
+                        )
+                    }
+                if (countRows != null) return PopupBindings(listOf(countRows), 0, null)
+                val icon = cl.loadClass(BUBBLE_TEXT_VIEW)
+                val count = Int::class.javaPrimitiveType
+                val list = List::class.java
+                val legacyRows =
+                    listOfNotNull(
+                        orNullIfMissing {
+                            popup.requiredMethod(
+                                "populateAndShowRowsMaterialU",
+                                icon,
+                                count,
+                                list,
+                            )
+                        },
+                        orNullIfMissing {
+                            popup.requiredMethod(
+                                "populateAndShow",
+                                icon,
+                                count,
+                                list,
+                                list,
+                            )
+                        },
                     )
-                return PopupBindings(countRows, 0, null)
+                if (legacyRows.isEmpty()) {
+                    throw NoSuchMethodException(
+                        "${popup.simpleName} popup rows",
+                    )
+                }
+                return PopupBindings(legacyRows, 1, null)
             }
             return PopupBindings(
-                showRows = showRows,
+                showRows = listOf(showRows),
                 countIndex = showRows.parameterTypes.indexOf(Int::class.javaPrimitiveType),
                 loadAppShortcuts =
                     popup.requiredMethod(
@@ -94,11 +126,13 @@ private fun XposedModule.installHideAppShortcuts(cl: ClassLoader): Boolean {
             )
             return false
         }
-    val members = listOfNotNull(bindings.showRows, bindings.loadAppShortcuts)
+    val members = bindings.showRows + listOfNotNull(bindings.loadAppShortcuts)
     Logger.info("resolved tweak=$TWEAK members=${members.joinToString(",") { it.signature() }}")
-    hook(bindings.showRows).intercept { chain ->
-        if (!switch.enabled) return@intercept chain.proceed()
-        chain.proceed(chain.args.toTypedArray<Any?>().also { it[bindings.countIndex] = 0 })
+    for (showRows in bindings.showRows) {
+        hook(showRows).intercept { chain ->
+            if (!switch.enabled) return@intercept chain.proceed()
+            chain.proceed(chain.args.toTypedArray<Any?>().also { it[bindings.countIndex] = 0 })
+        }
     }
     bindings.loadAppShortcuts?.let { loadAppShortcuts ->
         hook(loadAppShortcuts).intercept { chain ->

@@ -11,6 +11,7 @@ import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.detail
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.optionalField
+import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
 import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethod
@@ -188,7 +189,11 @@ private class TaskbarBindings(
                 controllers = context.requiredField("mControllers"),
                 insetsController = insets,
                 recomputeInsets =
-                    insets.type.requiredMethod("onTaskbarOrBubblebarWindowHeightOrInsetsChanged"),
+                    orNullIfMissing {
+                        insets.type.requiredMethod(
+                            "onTaskbarOrBubblebarWindowHeightOrInsetsChanged",
+                        )
+                    } ?: insets.type.requiredMethod("onTaskbarWindowHeightOrInsetsChanged"),
                 insetsType = provider.requiredMethod("getType"),
                 getInsetsSize = provider.requiredMethod("getInsetsSize"),
                 setInsetsSize = provider.requiredMethod("setInsetsSize", Insets::class.java),

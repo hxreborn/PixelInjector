@@ -8,6 +8,7 @@ import eu.hxreborn.pixelinjector.prefs.Prefs
 import eu.hxreborn.pixelinjector.util.member
 import eu.hxreborn.pixelinjector.util.orNullIfMissing
 import eu.hxreborn.pixelinjector.util.reason
+import eu.hxreborn.pixelinjector.util.requiredField
 import eu.hxreborn.pixelinjector.util.requiredMethod
 import eu.hxreborn.pixelinjector.util.resolving
 import eu.hxreborn.pixelinjector.xposed.Logger
@@ -17,6 +18,9 @@ import eu.hxreborn.pixelinjector.xposed.hook.DexKit
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
 
+internal const val HMD_CREST_MAX_FINGERPRINT =
+    "HMD/ArrowPro_0AWW/ARP:14/QP1A.190711.020/00WW_1_59I:user/release-keys"
+private const val CREST_MAX_SHUTTER_BRANCH = 1
 private const val TWEAK = "ScreenshotSound"
 private const val PLAY_LAMBDA =
     "com.android.systemui.screenshot.ScreenshotSoundControllerImpl\$playScreenshotSound\$2"
@@ -46,12 +50,24 @@ private class SoundBindings(
     val skipped: Any?,
     val playbackCallback: Method? = null,
     val soundId: Int? = null,
+    val isShutterCallback: ((Any) -> Boolean)? = null,
 ) {
     val member: String
         get() = "${play.declaringClass.name.substringAfterLast('.')}#${play.name}"
 
     companion object {
         fun resolve(cl: ClassLoader): List<SoundBindings> {
+            if (Build.FINGERPRINT == HMD_CREST_MAX_FINGERPRINT) {
+                val callback = cl.loadClass("$CONTROLLER\$\$ExternalSyntheticLambda4")
+                val branch = callback.requiredField("\$r8\$classId")
+                return listOf(
+                    SoundBindings(
+                        play = callback.requiredMethod("run"),
+                        skipped = null,
+                        isShutterCallback = { branch.getInt(it) == CREST_MAX_SHUTTER_BRANCH },
+                    ),
+                )
+            }
             if (orNullIfMissing { cl.loadClass(MOTO_SESSION) } != null) {
                 val callback =
                     try {
@@ -171,6 +187,9 @@ private fun XposedModule.installScreenshotSound(cl: ClassLoader): Boolean {
         }
         hook(binding.play).intercept { chain ->
             if (!switch.enabled) return@intercept chain.proceed()
+            if (binding.isShutterCallback?.invoke(chain.thisObject) == false) {
+                return@intercept chain.proceed()
+            }
             if (binding.playbackCallback != null && screenshotPlayback.get() != true) {
                 return@intercept chain.proceed()
             }
