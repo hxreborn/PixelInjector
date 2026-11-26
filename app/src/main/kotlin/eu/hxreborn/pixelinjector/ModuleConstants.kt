@@ -9,6 +9,9 @@ object ModuleConstants {
     const val GITHUB_PACKAGE: String = "com.github.android"
     const val SAFE_MODE_REASON: String = "safe-mode"
 
+    const val SAMSUNG_FINGERPRINT_REASON = "Samsung-draws-fingerprint-icon-outside-SystemUI"
+    const val TRANSSION_FINGERPRINT_REASON = "Transsion-draws-fingerprint-icon-outside-SystemUI"
+
     val GBOARD_PACKAGES: Set<String> =
         setOf(
             "com.google.android.inputmethod.latin",

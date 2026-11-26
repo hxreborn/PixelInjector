@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import eu.hxreborn.pixelinjector.prefs.AppPrefs
 import eu.hxreborn.pixelinjector.prefs.BoolPref
 import eu.hxreborn.pixelinjector.prefs.IntPref
+import eu.hxreborn.pixelinjector.ui.log.InstallError
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.viewmodel.HomeApp
 import eu.hxreborn.pixelinjector.ui.viewmodel.UpdateNotice
@@ -21,7 +22,7 @@ data class DashboardState(
     val bound: Boolean,
     val everBound: Boolean,
     val reloadCount: Int,
-    val errors: Map<String, String>,
+    val errors: Map<String, InstallError>,
     val errorLines: Map<String, String>,
     val homeApp: HomeApp?,
     val packages: Map<TweakGroup, HookedPackages>,

@@ -704,7 +704,7 @@ private class FingerprintBindings(
                     },
                 missingReason =
                     if (transsionOptical) {
-                        "Transsion-draws-fingerprint-icon-outside-SystemUI"
+                        ModuleConstants.TRANSSION_FINGERPRINT_REASON
                     } else {
                         NO_ICON_VIEW_REASON
                     },
@@ -763,7 +763,7 @@ private fun XposedModule.installFingerprintIcon(cl: ClassLoader): Boolean {
         Logger.error(
             "target not found tweak=$TWEAK member=${samsungLockIcon.simpleName} " +
                 "build=${Build.ID} " +
-                "reason=Samsung-draws-fingerprint-icon-outside-SystemUI",
+                "reason=${ModuleConstants.SAMSUNG_FINGERPRINT_REASON}",
         )
         return false
     }

@@ -51,12 +51,14 @@ import eu.hxreborn.pixelinjector.ui.dashboard.TweakGroup
 import eu.hxreborn.pixelinjector.ui.dashboard.restartOnChange
 import eu.hxreborn.pixelinjector.ui.dashboard.tweakUis
 import eu.hxreborn.pixelinjector.ui.editor.fingerprintImageFile
+import eu.hxreborn.pixelinjector.ui.log.InstallError
 import eu.hxreborn.pixelinjector.ui.log.ModuleLogState
 import eu.hxreborn.pixelinjector.ui.log.deriveErrorLines
 import eu.hxreborn.pixelinjector.ui.log.deriveErrors
 import eu.hxreborn.pixelinjector.ui.log.installFailureBodies
+import eu.hxreborn.pixelinjector.ui.log.isReportableMissingTarget
 import eu.hxreborn.pixelinjector.ui.log.parseModuleLog
-import eu.hxreborn.pixelinjector.ui.log.safeModeSkips
+import eu.hxreborn.pixelinjector.ui.log.skippedInstalls
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.navigation.TestNavigation
 import eu.hxreborn.pixelinjector.ui.navigation.testBetterfoxCommand
@@ -315,8 +317,8 @@ class MainViewModel(
     private val _moduleLog = MutableStateFlow(ModuleLogState())
     val moduleLog: StateFlow<ModuleLogState> = _moduleLog.asStateFlow()
 
-    private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
-    val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()
+    private val _errors = MutableStateFlow<Map<String, InstallError>>(emptyMap())
+    val errors: StateFlow<Map<String, InstallError>> = _errors.asStateFlow()
     private val errorLines = MutableStateFlow<Map<String, String>>(emptyMap())
 
     val dashboard: StateFlow<DashboardState> =
@@ -417,12 +419,13 @@ class MainViewModel(
     fun reportFacts(): ReportFacts {
         val service = app.service.value
         val log = _moduleLog.value
-        val errors = _errors.value
+        val failures = installFailures
+        val errors = deriveErrors(failures)
         val prefsNow = prefs.value
-        val skipped = safeModeSkips(installFailures)
+        val skipped = skippedInstalls(failures)
         val missesByProcess =
-            installFailures.mapValues { (_, failures) ->
-                failures.filterValues { it.startsWith("target not found") }
+            failures.mapValues { (_, outcomes) ->
+                outcomes.filterValues(::isReportableMissingTarget)
             }
         val missing =
             missesByProcess.values
@@ -438,7 +441,7 @@ class MainViewModel(
         val (romCodes, unreadableRomCodes) =
             romCodes(missesByProcess.mapValues { (_, misses) -> misses.keys })
         val installDiagnosticLines =
-            installFailures.flatMap { (process, failures) ->
+            failures.flatMap { (process, failures) ->
                 failures.values.map { "install diagnostic proc=$process version=${BuildConfig.VERSION_CODE} $it" }
             }
         return ReportFacts(

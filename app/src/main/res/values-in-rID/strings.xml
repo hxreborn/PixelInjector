@@ -192,6 +192,7 @@
     <string name="betterfox_reset_done">Pengaturan ulang diminta untuk pembukaan peramban berikutnya</string>
     <string name="betterfox_gecko_channel">Pembaruan mesin peramban</string>
     <string name="target_not_found">Target tidak ditemukan di %1$s. Buka log modul</string>
+    <string name="fingerprint_icon_outside_systemui">ROM ini menampilkan ikon sidik jari di luar SystemUI</string>
     <string name="tweak_failed">Gagal saat terakhir digunakan. Buka log modul</string>
     <string name="sleep_root_failed">Gagal tidur. Berikan akses root ke %1$s di pengelola root Anda</string>
     <string name="home_app_unsupported">Aplikasi layar utama adalah %1$s. Memerlukan Pixel Launcher atau Launcher3</string>

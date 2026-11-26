@@ -2,6 +2,8 @@ package eu.hxreborn.pixelinjector.ui.log
 
 import eu.hxreborn.pixelinjector.BuildConfig
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val SYSTEMUI = "com.android.systemui"
@@ -34,14 +36,14 @@ class SafeModeSkipsTest {
     fun tweakSkippedOnlyBySafeModeIsASkip() {
         val failures = mapOf(SYSTEMUI to mapOf("WarmTiles" to SAFE_MODE_SKIP))
 
-        assertEquals(setOf("WarmTiles"), safeModeSkips(failures))
+        assertEquals(setOf("WarmTiles"), skippedInstalls(failures))
     }
 
     @Test
     fun targetNotFoundIsNotASkip() {
         val failures = mapOf(SYSTEMUI to mapOf("FingerprintIcon" to NOT_FOUND))
 
-        assertEquals(emptySet<String>(), safeModeSkips(failures))
+        assertEquals(emptySet<String>(), skippedInstalls(failures))
     }
 
     @Test
@@ -52,7 +54,37 @@ class SafeModeSkipsTest {
                 SYSTEM to mapOf("FingerprintIcon" to NOT_FOUND),
             )
 
-        assertEquals(emptySet<String>(), safeModeSkips(failures))
+        assertEquals(emptySet<String>(), skippedInstalls(failures))
+    }
+
+    @Test
+    fun externalFingerprintRendererIsSkippedButAnUnknownTargetIsReported() {
+        for (vendor in listOf("Samsung", "Transsion")) {
+            val external = NOT_FOUND.replace("no-class", "$vendor-draws-fingerprint-icon-outside-SystemUI")
+            val failures = mapOf(SYSTEMUI to mapOf("FingerprintIcon" to external))
+
+            assertFalse(isReportableMissingTarget(external))
+            assertTrue(deriveErrors(failures).getValue("FingerprintIcon").externalFingerprintIcon)
+            assertEquals(setOf("FingerprintIcon"), skippedInstalls(failures))
+            assertTrue(isReportableMissingTarget(external.replace("FingerprintIcon ", "WarmTiles ")))
+            val unknown = mapOf(SYSTEM to mapOf("FingerprintIcon" to NOT_FOUND))
+            for (mixed in listOf(failures + unknown, unknown + failures)) {
+                assertEquals(emptySet<String>(), skippedInstalls(mixed))
+                assertFalse(deriveErrors(mixed).getValue("FingerprintIcon").externalFingerprintIcon)
+            }
+        }
+        assertTrue(isReportableMissingTarget(NOT_FOUND))
+    }
+
+    @Test
+    fun externalFingerprintDiagnosticPreservesAnotherRuntimeError() {
+        val runtimeError = "apply failed tweak=FingerprintIcon reason=no-drawable"
+        val install = log(101, 'I', "install proc=$SYSTEMUI version=${BuildConfig.VERSION_CODE}")
+        val external = log(101, 'E', NOT_FOUND.replace("no-class", "Transsion-draws-fingerprint-icon-outside-SystemUI"))
+
+        assertTrue(deriveErrorLines(parseModuleLog(listOf(install, external)), setOf(101)).isEmpty())
+        val entries = parseModuleLog(listOf(install, log(101, 'E', runtimeError), external))
+        assertEquals(runtimeError, deriveErrorLines(entries, setOf(101))["FingerprintIcon"])
     }
 
     private fun log(

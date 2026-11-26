@@ -322,8 +322,15 @@ fun DashboardScreen(
                     }
                 put(tweak, error)
             }
-            state.errors.forEach { (tweak, build) ->
-                put(tweak, TileError(stringResource(R.string.target_not_found, build), reportable = true))
+            state.errors.forEach { (tweak, error) ->
+                if (error.externalFingerprintIcon && tweak in state.errorLines) return@forEach
+                val message =
+                    if (error.externalFingerprintIcon) {
+                        stringResource(R.string.fingerprint_icon_outside_systemui)
+                    } else {
+                        stringResource(R.string.target_not_found, error.build)
+                    }
+                put(tweak, TileError(message, reportable = true))
             }
             launcherError?.let { error ->
                 tweakUis.filter { it.group == TweakGroup.LAUNCHER }.forEach { put(it.key, TileError(error, reportable = false)) }

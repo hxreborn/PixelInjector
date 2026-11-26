@@ -192,6 +192,7 @@
     <string name="betterfox_reset_done">Reset requested for the next browser start</string>
     <string name="betterfox_gecko_channel">Browser engine updates</string>
     <string name="target_not_found">Target not found on %1$s. Open the module log</string>
+    <string name="fingerprint_icon_outside_systemui">This ROM draws the fingerprint icon outside SystemUI</string>
     <string name="tweak_failed">Failed when last used. Open the module log</string>
     <string name="sleep_root_failed">Sleep failed. Grant root to %1$s in your root manager</string>
     <string name="home_app_unsupported">Home app is %1$s. Needs Pixel Launcher or Launcher3</string>

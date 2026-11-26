@@ -115,13 +115,28 @@ internal fun installFailureBodies(
     return failures
 }
 
-internal fun deriveErrors(failures: Map<String, Map<String, String>>): Map<String, String> =
+data class InstallError(
+    val build: String,
+    val externalFingerprintIcon: Boolean,
+)
+
+private fun isExternalFingerprintIcon(body: String): Boolean =
+    body.startsWith("target not found tweak=FingerprintIcon ") &&
+        field(body, "reason") in externalFingerprintReasons
+
+private val externalFingerprintReasons =
+    setOf(ModuleConstants.SAMSUNG_FINGERPRINT_REASON, ModuleConstants.TRANSSION_FINGERPRINT_REASON)
+
+internal fun isReportableMissingTarget(body: String): Boolean =
+    body.startsWith("target not found tweak=") && !isExternalFingerprintIcon(body)
+
+internal fun deriveErrors(failures: Map<String, Map<String, String>>): Map<String, InstallError> =
     buildMap {
         failures.forEach { (proc, failuresByTweak) ->
             failuresByTweak.forEach { (tweak, body) ->
-                val build = field(body, "build") ?: "?"
-                put(tweak, build)
-                put(processKey(tweak, proc), build)
+                val error = InstallError(field(body, "build") ?: "?", isExternalFingerprintIcon(body))
+                if (!error.externalFingerprintIcon || tweak !in this) put(tweak, error)
+                put(processKey(tweak, proc), error)
             }
         }
     }
@@ -129,11 +144,13 @@ internal fun deriveErrors(failures: Map<String, Map<String, String>>): Map<Strin
 private fun isSafeModeSkip(body: String): Boolean =
     body.startsWith("install failed tweak=") && field(body, "reason") == ModuleConstants.SAFE_MODE_REASON
 
-internal fun safeModeSkips(failures: Map<String, Map<String, String>>): Set<String> =
+private fun isSkippedInstall(body: String): Boolean = isSafeModeSkip(body) || isExternalFingerprintIcon(body)
+
+internal fun skippedInstalls(failures: Map<String, Map<String, String>>): Set<String> =
     failures.values
         .flatMap { it.entries }
         .groupBy({ it.key }, { it.value })
-        .filterValues { outcomes -> outcomes.all(::isSafeModeSkip) }
+        .filterValues { outcomes -> outcomes.all(::isSkippedInstall) }
         .keys
 
 fun processKey(
@@ -160,7 +177,7 @@ fun deriveErrorLines(
                 }
             }
 
-            tweak == null || pid !in currentVersionPids || isSafeModeSkip(body) -> {}
+            tweak == null || pid !in currentVersionPids || isSkippedInstall(body) -> {}
 
             level == 'E' -> {
                 errorLinesByPid.getOrPut(pid) { mutableMapOf() }[tweak] = body
