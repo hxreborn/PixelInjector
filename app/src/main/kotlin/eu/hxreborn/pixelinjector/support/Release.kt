@@ -41,6 +41,14 @@ data class Release(
 
     val newer: Boolean get() = versionCode > BuildConfig.VERSION_CODE
 
+    val apkUrl: String?
+        get() {
+            val name = apkName(versionName)
+            val expected =
+                "https://github.com/${ReportConfig.repo}/releases/download/v$versionName/$name"
+            return asset?.url?.takeIf { it == expected }
+        }
+
     companion object {
         private const val MAJOR = 10_000
         private const val MINOR = 100

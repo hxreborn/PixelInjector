@@ -19,101 +19,64 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import eu.hxreborn.pixelinjector.R
-import eu.hxreborn.pixelinjector.support.InstallStep
 import eu.hxreborn.pixelinjector.support.Release
 import eu.hxreborn.pixelinjector.support.SentReport
+import eu.hxreborn.pixelinjector.support.assetDownloadUrl
 import eu.hxreborn.pixelinjector.ui.component.SheetHeader
 import eu.hxreborn.pixelinjector.ui.theme.AppText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val ActionHeight = 56.dp
-private val FailureTextSpacing = 4.dp
-private const val PERCENT = 100
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun UpdateSheet(
-    release: Release?,
+    release: Release,
     fixes: Map<String, List<SentReport>>,
-    install: InstallStep,
-    onInstall: () -> Unit,
-    onOpenRelease: () -> Unit,
+    onOpenUrl: (String) -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    var resolving by remember { mutableStateOf(false) }
     Column(
         Modifier.padding(start = 16.dp, end = 16.dp, bottom = 20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         SheetHeader(
-            if (release == null) stringResource(R.string.update) else stringResource(R.string.update_sheet_title, release.versionName),
+            stringResource(R.string.update_sheet_title, release.versionName),
         )
-        if (release != null) ReleaseNotes(release, fixes)
-        if (!install.busy && release?.asset == null) {
-            Primary(stringResource(R.string.update_open_release), Icons.AutoMirrored.Outlined.OpenInNew, true, onOpenRelease)
+        ReleaseNotes(release, fixes)
+        val apkUrl = release.apkUrl
+        if (apkUrl == null) {
+            Primary(stringResource(R.string.update_open_release), Icons.AutoMirrored.Outlined.OpenInNew) {
+                onOpenUrl(release.url)
+            }
             return@Column
         }
-        if (install is InstallStep.Failed) Failure(install)
-        Primary(
-            installLabel(install),
-            Icons.Outlined.Download,
-            !install.busy,
-            onInstall,
+        Text(
+            stringResource(R.string.update_browser_hint),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
         )
-        if (install is InstallStep.Failed) {
-            TextButton(onClick = onOpenRelease, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.update_open_release))
+        Primary(stringResource(R.string.update_install), Icons.Outlined.Download, enabled = !resolving) {
+            resolving = true
+            scope.launch {
+                val downloadUrl = withContext(Dispatchers.IO) { assetDownloadUrl(apkUrl) }
+                resolving = false
+                onOpenUrl(downloadUrl)
             }
-        }
-    }
-}
-
-@Composable
-private fun installLabel(install: InstallStep): String =
-    when (install) {
-        is InstallStep.Downloading -> {
-            val percent = if (install.total > 0) (install.bytes * PERCENT / install.total).toInt() else 0
-            stringResource(R.string.update_downloading, percent)
-        }
-
-        InstallStep.Verifying -> {
-            stringResource(R.string.update_verifying)
-        }
-
-        is InstallStep.Failed -> {
-            stringResource(R.string.update_try_again)
-        }
-
-        InstallStep.Confirming -> {
-            stringResource(R.string.update_confirming)
-        }
-
-        InstallStep.Idle -> {
-            stringResource(R.string.update_install)
-        }
-    }
-
-@Composable
-private fun Failure(failure: InstallStep.Failed) {
-    val title =
-        when (failure.cause) {
-            InstallStep.Failed.Cause.DOWNLOAD -> R.string.update_failed_download
-            InstallStep.Failed.Cause.ASSET -> R.string.update_failed_asset
-            InstallStep.Failed.Cause.NO_CHECKSUM -> R.string.update_failed_no_checksum
-            InstallStep.Failed.Cause.CHECKSUM -> R.string.update_failed_checksum
-            InstallStep.Failed.Cause.PACKAGE -> R.string.update_failed_package
-            InstallStep.Failed.Cause.VERSION -> R.string.update_failed_version
-            InstallStep.Failed.Cause.SIGNER -> R.string.update_failed_signer
-            InstallStep.Failed.Cause.INSTALL -> R.string.update_failed_install
-        }
-    Column(verticalArrangement = Arrangement.spacedBy(FailureTextSpacing)) {
-        Text(stringResource(title), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        failure.detail?.let {
-            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = AppText.count)
         }
     }
 }
@@ -122,7 +85,7 @@ private fun Failure(failure: InstallStep.Failed) {
 private fun Primary(
     label: String,
     icon: ImageVector,
-    enabled: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Button(

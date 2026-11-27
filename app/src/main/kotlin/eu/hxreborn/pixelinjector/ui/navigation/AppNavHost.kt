@@ -7,7 +7,6 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
-import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
@@ -22,7 +21,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,11 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -54,6 +49,7 @@ import eu.hxreborn.pixelinjector.support.ReportConfig
 import eu.hxreborn.pixelinjector.support.UPDATE_NOTIFICATION_CHANNEL
 import eu.hxreborn.pixelinjector.support.UpdateNotificationAccess
 import eu.hxreborn.pixelinjector.support.UpdateWatch
+import eu.hxreborn.pixelinjector.support.browserIntent
 import eu.hxreborn.pixelinjector.ui.betterfox.BackupEntry
 import eu.hxreborn.pixelinjector.ui.betterfox.BetterfoxActions
 import eu.hxreborn.pixelinjector.ui.betterfox.BetterfoxBackupSheet
@@ -89,7 +85,6 @@ import eu.hxreborn.pixelinjector.ui.support.UpdateSheet
 import eu.hxreborn.pixelinjector.ui.support.WhatsNewSheet
 import eu.hxreborn.pixelinjector.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.withContext
 
 private val SlideDistance = 30.dp
@@ -132,37 +127,6 @@ fun AppNavHost(
     val updatedNotice by viewModel.updatedNotice.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    val install by viewModel.support.install.collectAsStateWithLifecycle()
-    var handoffAttempt by rememberSaveable { mutableStateOf<Long?>(null) }
-    val installHandoff =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            handoffAttempt?.let(viewModel.support::finishInstallHandoff)
-            handoffAttempt = null
-        }
-    val activity = LocalActivity.current
-    DisposableEffect(activity) {
-        onDispose {
-            if (activity?.isFinishing == true) {
-                handoffAttempt?.let(viewModel.support::abandonInstallHandoff)
-            }
-        }
-    }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            viewModel.support.installHandoff.filterNotNull().collect {
-                if (handoffAttempt != null) return@collect
-                val handoff = viewModel.support.takeInstallHandoff() ?: return@collect
-                handoffAttempt = handoff.attempt
-                try {
-                    installHandoff.launch(handoff.intent)
-                } catch (e: ActivityNotFoundException) {
-                    handoffAttempt = null
-                    viewModel.support.installHandoffUnavailable(handoff.attempt, e.message)
-                }
-            }
-        }
-    }
 
     fun push(destination: NavKey) {
         if (backStack.lastOrNull() != destination) backStack.add(destination)
@@ -595,23 +559,20 @@ fun AppNavHost(
                     )
                 }
                 entry<Destination.Update>(metadata = BottomSheetSceneStrategy.bottomSheet()) {
-                    val release = if (install.step.busy) install.release else support.available
-                    if (release == null && !install.step.busy) {
+                    val release = support.available
+                    if (release == null) {
                         LaunchedEffect(Unit) { backStack.remove(Destination.Update) }
                     } else {
                         UpdateSheet(
                             release = release,
                             fixes = support.fixesByLine,
-                            install = install.step,
-                            onInstall = { release?.let(viewModel.support::startInstall) },
-                            onOpenRelease = {
-                                val available = release ?: return@UpdateSheet
+                            onOpenUrl = { url ->
                                 try {
-                                    uriHandler.openUri(available.url)
-                                } catch (_: IllegalArgumentException) {
+                                    context.startActivity(browserIntent(context, url))
+                                } catch (_: ActivityNotFoundException) {
                                     context
                                         .getSystemService(ClipboardManager::class.java)
-                                        .setPrimaryClip(ClipData.newPlainText(available.versionName, available.url))
+                                        .setPrimaryClip(ClipData.newPlainText(release.versionName, url))
                                 }
                             },
                         )

@@ -18,7 +18,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -87,22 +86,12 @@ class Support(
     private val reportStore = ReportStore(context.filesDir)
     private val sendLock = Mutex()
     private val romCodeLock = Mutex()
-    private val updater = Updater(context)
 
     private val _reports = MutableStateFlow(reportStore.read())
     val reports: StateFlow<List<SentReport>> = _reports.asStateFlow()
 
     private val _release = MutableStateFlow<ReleaseCheck>(cachedRelease())
     val release: StateFlow<ReleaseCheck> = _release.asStateFlow()
-
-    private val _install = MutableStateFlow(UpdateInstall(InstallStep.Idle))
-    val install: StateFlow<UpdateInstall> = _install.asStateFlow()
-
-    private val _installHandoff = MutableStateFlow<InstallHandoff?>(null)
-    val installHandoff: StateFlow<InstallHandoff?> = _installHandoff.asStateFlow()
-    private val handoffLock = Any()
-    private var activeHandoff: Long? = null
-    private var installJob: Job? = null
 
     private val _autoCheckUpdates = MutableStateFlow(prefs.getBoolean(AUTO_CHECK_UPDATES, true))
     val autoCheckUpdates: StateFlow<Boolean> = _autoCheckUpdates.asStateFlow()
@@ -132,10 +121,6 @@ class Support(
         updateNoticePending = false
         prefs.edit { putInt(LAST_RUN_VERSION, BuildConfig.VERSION_CODE) }
         return true
-    }
-
-    init {
-        installJob = scope.launch { updater.clearStale() }
     }
 
     private fun cachedRelease(): ReleaseCheck {
@@ -635,112 +620,6 @@ class Support(
         }
     }
 
-    fun startInstall(release: Release) {
-        val asset = release.asset ?: return
-        if (_install.value.step.busy) return
-        updater.preflight(release)?.let {
-            failInstall(it)
-            return
-        }
-        _install.value = UpdateInstall(InstallStep.Downloading(0, asset.size), release)
-        val previous = installJob
-        installJob =
-            scope.launch {
-                previous?.join()
-                val job = coroutineContext.job
-                val (file, sha256) =
-                    try {
-                        updater.download(asset, { !job.isActive }) {
-                            updateInstallStep(InstallStep.Downloading(it, asset.size))
-                        }
-                    } catch (e: Exception) {
-                        failInstall(e.toFailure(InstallStep.Failed.Cause.DOWNLOAD))
-                        return@launch
-                    }
-                updateInstallStep(InstallStep.Verifying)
-                val rejection =
-                    try {
-                        updater.verify(file, sha256, release)
-                    } catch (e: Exception) {
-                        e.toFailure(InstallStep.Failed.Cause.PACKAGE)
-                    }
-                if (rejection != null) {
-                    file.delete()
-                    failInstall(rejection)
-                    return@launch
-                }
-                val intent =
-                    try {
-                        updater.installIntent(file)
-                    } catch (e: Exception) {
-                        file.delete()
-                        failInstall(e.toFailure(InstallStep.Failed.Cause.INSTALL))
-                        return@launch
-                    }
-                if (intent == null) {
-                    file.delete()
-                    failInstall(
-                        InstallStep.Failed(InstallStep.Failed.Cause.INSTALL, NO_SYSTEM_INSTALLER),
-                    )
-                    return@launch
-                }
-                synchronized(handoffLock) {
-                    val attempt = System.nanoTime()
-                    activeHandoff = attempt
-                    updateInstallStep(InstallStep.Confirming)
-                    _installHandoff.value = InstallHandoff(attempt, intent)
-                }
-            }
-    }
-
-    private fun Exception.toFailure(cause: InstallStep.Failed.Cause) =
-        InstallStep.Failed(cause, message ?: javaClass.simpleName)
-
-    fun takeInstallHandoff(): InstallHandoff? = _installHandoff.getAndUpdate { null }
-
-    fun finishInstallHandoff(attempt: Long) {
-        synchronized(handoffLock) {
-            if (activeHandoff != attempt) return
-            activeHandoff = null
-            installJob = scope.launch { updater.clear() }
-            updateInstallStep(InstallStep.Idle)
-        }
-    }
-
-    fun abandonInstallHandoff(attempt: Long) {
-        synchronized(handoffLock) {
-            if (activeHandoff != attempt) return
-            activeHandoff = null
-            updateInstallStep(InstallStep.Idle)
-        }
-    }
-
-    fun installHandoffUnavailable(
-        attempt: Long,
-        detail: String?,
-    ) {
-        synchronized(handoffLock) {
-            if (activeHandoff != attempt) return
-            failInstall(InstallStep.Failed(InstallStep.Failed.Cause.INSTALL, detail))
-        }
-    }
-
-    private fun failInstall(failure: InstallStep.Failed) {
-        Log.w(
-            ModuleConstants.LOG_TAG,
-            "update install failed cause=${failure.cause} detail=${failure.detail}",
-        )
-        synchronized(handoffLock) {
-            activeHandoff = null
-            _installHandoff.value = null
-            updateInstallStep(failure)
-        }
-    }
-
-    private fun updateInstallStep(step: InstallStep) {
-        _install.update { UpdateInstall(step, it.release.takeIf { step.busy }) }
-    }
-
     companion object {
         private const val AUTO_CHECK_UPDATES = "autoCheckUpdates"
         private const val UPDATE_NOTIFICATIONS = "updateNotifications"
@@ -751,7 +630,6 @@ class Support(
         private const val POSTPONED_VERSION = "postponedVersion"
         private const val LAST_RUN_VERSION = "lastRunVersion"
         private const val NOTIFIED_VERSION = "notifiedVersion"
-        private const val NO_SYSTEM_INSTALLER = "no system app handles the APK"
         private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
         private const val UNDO_WINDOW_MS = 6_000L
         private const val MILLIS = 1000L

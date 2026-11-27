@@ -32,7 +32,6 @@ import eu.hxreborn.pixelinjector.icons.FingerprintStyles
 import eu.hxreborn.pixelinjector.prefs.AppPrefs
 import eu.hxreborn.pixelinjector.prefs.PrefSpec
 import eu.hxreborn.pixelinjector.prefs.Prefs
-import eu.hxreborn.pixelinjector.support.ACTION_INSTALL_UPDATE
 import eu.hxreborn.pixelinjector.support.EXTRA_OPEN_UPDATE
 import eu.hxreborn.pixelinjector.support.EXTRA_UPDATE_VERSION
 import eu.hxreborn.pixelinjector.support.Framework
@@ -301,11 +300,6 @@ class MainViewModel(
         val versionCode = intent.getIntExtra(EXTRA_UPDATE_VERSION, 0)
         app.support.clearUpdateNotification(versionCode)
         _updateRequested.value = true
-        if (intent.action == ACTION_INSTALL_UPDATE) {
-            app.support.release.value.known
-                ?.takeIf { it.newer && it.versionCode == versionCode }
-                ?.let(app.support::startInstall)
-        }
     }
 
     fun consumeUpdateRequest() {
