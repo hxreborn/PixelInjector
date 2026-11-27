@@ -10,7 +10,12 @@ val versionCodeProvider = providers.gradleProperty("version.code").map(String::t
 
 android {
     namespace = "eu.hxreborn.pixelinjector"
-    compileSdk = 37
+    compileSdk {
+        version =
+            release(37) {
+                minorApiLevel = 1
+            }
+    }
 
     defaultConfig {
         applicationId = "eu.hxreborn.pixelinjector"
