@@ -1,3 +1,15 @@
+## [1.33.0](https://github.com/hxreborn/PixelInjector/compare/v1.32.0...v1.33.0) (2026-11-27)
+
+### Features
+
+* **update:** show the version change and a badge on the update card ([170ee60](https://github.com/hxreborn/PixelInjector/commit/170ee60d92cbd1ef452c55c60181111a4a39202c))
+
+### Bug Fixes
+
+* **report:** skip known fingerprint icon limitations in missing targets ([3b58a46](https://github.com/hxreborn/PixelInjector/commit/3b58a4665c5855e76c78c519cd344254409ef7dc))
+* **tweak:** handle HMD Crest Max screenshot and launcher hooks ([2307b59](https://github.com/hxreborn/PixelInjector/commit/2307b596b73cf68c78b08875503b53c36085f594)), closes [#100](https://github.com/hxreborn/PixelInjector/issues/100)
+* **tweak:** handle Infinix keyguard events and diagnose the optical icon ([fa757a0](https://github.com/hxreborn/PixelInjector/commit/fa757a0ea2cf08f963e0d1605c556e6d0f13738b))
+
 ## [1.32.0](https://github.com/hxreborn/PixelInjector/compare/v1.31.0...v1.32.0) (2026-11-24)
 
 ### Features
