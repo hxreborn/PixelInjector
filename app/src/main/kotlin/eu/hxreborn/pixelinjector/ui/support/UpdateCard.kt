@@ -3,7 +3,9 @@ package eu.hxreborn.pixelinjector.ui.support
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,13 +13,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material.icons.rounded.Upgrade
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -32,11 +34,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import eu.hxreborn.pixelinjector.BuildConfig
 import eu.hxreborn.pixelinjector.R
 import eu.hxreborn.pixelinjector.support.Release
 import eu.hxreborn.pixelinjector.support.SentReport
@@ -46,6 +50,11 @@ private val FixMarkIndent = 14.dp
 private const val SHORT_ID_LENGTH = 8
 private val FixMarkIconSize = 16.dp
 private val ExpandIconSize = 20.dp
+private val BadgeSize = 40.dp
+private val BadgeIconSize = 24.dp
+private val CardHorizontalPadding = 20.dp
+private val CardVerticalPadding = 18.dp
+private const val SUBTITLE_ALPHA = 0.8f
 
 @Composable
 fun UpdateCard(
@@ -67,32 +76,67 @@ fun UpdateCard(
         contentColor = scheme.onPrimaryContainer,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Outlined.NewReleases, contentDescription = null)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            Modifier.padding(horizontal = CardHorizontalPadding, vertical = CardVerticalPadding),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(BadgeSize).clip(CircleShape).background(scheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Upgrade,
+                        contentDescription = null,
+                        tint = scheme.onPrimary,
+                        modifier = Modifier.size(BadgeIconSize),
+                    )
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        stringResource(R.string.update_card_title, release.versionName),
+                        stringResource(R.string.update_notification_title),
                         style = MaterialTheme.typography.titleMediumEmphasized,
                     )
+                    Text(
+                        "${BuildConfig.VERSION_NAME} \u2192 ${release.versionName}",
+                        style = AppText.buttonCount,
+                        color = scheme.onPrimaryContainer.copy(alpha = SUBTITLE_ALPHA),
+                    )
+                }
+            }
+            if (newLines.isNotEmpty() || fixedLines.isNotEmpty() || otherLines.isNotEmpty()) {
+                Column(
+                    Modifier.padding(start = BadgeSize + 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     NoteGroup(stringResource(R.string.notes_new), newLines, fixes)
                     NoteGroup(stringResource(R.string.notes_fixed), fixedLines, fixes)
                     NoteGroup(stringResource(R.string.notes_other), otherLines, fixes)
+                }
+            }
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.weight(1f).padding(start = BadgeSize + 16.dp)) {
                     if (hiddenWhenCollapsed > 0) {
                         val plural = if (hiddenWhenCollapsed == total) R.plurals.notes_count else R.plurals.notes_more
                         Row(
-                            Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { expanded = !expanded },
+                            Modifier
+                                .heightIn(min = 48.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable(role = Role.Button) { expanded = !expanded },
                             verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Text(
                                 if (expanded) {
-                                    stringResource(
-                                        R.string.notes_less,
-                                    )
+                                    stringResource(R.string.notes_less)
                                 } else {
                                     pluralStringResource(plural, hiddenWhenCollapsed, hiddenWhenCollapsed)
                                 },
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.labelLarge,
                             )
                             Icon(
                                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
@@ -102,19 +146,17 @@ fun UpdateCard(
                         }
                     }
                 }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 TextButton(
                     onClick = onLater,
                     shapes = ButtonDefaults.shapes(),
-                ) { Text(stringResource(R.string.later), color = scheme.onPrimaryContainer) }
+                ) { Text(stringResource(R.string.later), color = scheme.onPrimaryContainer, style = AppText.button) }
                 Button(
                     onClick = onUpdate,
                     shapes = ButtonDefaults.shapes(),
                     colors =
                         ButtonDefaults.buttonColors(
-                            containerColor = scheme.onPrimaryContainer,
-                            contentColor = scheme.primaryContainer,
+                            containerColor = scheme.primary,
+                            contentColor = scheme.onPrimary,
                         ),
                 ) {
                     Icon(
