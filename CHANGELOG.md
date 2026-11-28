@@ -1,3 +1,14 @@
+## [1.33.1](https://github.com/hxreborn/PixelInjector/compare/v1.33.0...v1.33.1) (2026-11-28)
+
+### Bug Fixes
+
+* **build:** update dexkit to 2.3.1 ([df9fe38](https://github.com/hxreborn/PixelInjector/commit/df9fe381cc8d62a57c6696f4c063e1a2b975ee8a))
+* **report:** block reports of a home app root sleep failure ([f8ff53a](https://github.com/hxreborn/PixelInjector/commit/f8ff53a278812b9608161d9c8de08cddc8572697)), closes [#102](https://github.com/hxreborn/PixelInjector/issues/102)
+
+### Dependencies
+
+* compile against android api 37.1 ([8526a1e](https://github.com/hxreborn/PixelInjector/commit/8526a1e2364aa5cfa2d6978e682b762794649d42))
+
 ## [1.33.0](https://github.com/hxreborn/PixelInjector/compare/v1.32.0...v1.33.0) (2026-11-27)
 
 ### Features
