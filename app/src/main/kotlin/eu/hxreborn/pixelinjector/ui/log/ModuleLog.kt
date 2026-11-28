@@ -27,6 +27,7 @@ private val logcatHead = Regex("""^(?:\d\d-\d\d )?(\d\d:\d\d:\d\d)\.\d+\s+(\d+)\
 private val fileHead = Regex("""(\d\d:\d\d:\d\d)\.\d+\s+\d+:\s*(\d+):\s*\d+\s+([VDIWEF])/""")
 private val fileTag = Regex("""\bPixelInjector,[^]]*]\s""")
 private val tweakRegex = Regex("""\btweak=(\w+)""")
+private val rootSleepFailureMarkers = listOf("Cannot run program \"su\"", "No such file or directory", "denied", "su timeout")
 
 private fun shortProcess(name: String): String =
     when (name) {
@@ -157,6 +158,8 @@ fun processKey(
     tweak: String,
     process: String,
 ): String = "$tweak@$process"
+
+fun isRootSleepFailure(line: String): Boolean = "path=root" in line && rootSleepFailureMarkers.any { line.contains(it, ignoreCase = true) }
 
 fun deriveErrorLines(
     entries: List<LogEntry>,

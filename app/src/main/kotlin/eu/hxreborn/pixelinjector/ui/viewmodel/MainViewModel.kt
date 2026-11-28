@@ -57,6 +57,7 @@ import eu.hxreborn.pixelinjector.ui.log.deriveErrorLines
 import eu.hxreborn.pixelinjector.ui.log.deriveErrors
 import eu.hxreborn.pixelinjector.ui.log.installFailureBodies
 import eu.hxreborn.pixelinjector.ui.log.isReportableMissingTarget
+import eu.hxreborn.pixelinjector.ui.log.isRootSleepFailure
 import eu.hxreborn.pixelinjector.ui.log.parseModuleLog
 import eu.hxreborn.pixelinjector.ui.log.skippedInstalls
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
@@ -447,6 +448,7 @@ class MainViewModel(
         return ReportFacts(
             framework = service?.let { Framework(it.frameworkName, it.frameworkVersion, it.apiVersion) },
             rootDenied = log.denied,
+            rootSleepFailed = errorLines.value.filterValues(::isRootSleepFailure).keys,
             logLines = rawLog?.plus(installDiagnosticLines),
             tweaks =
                 tweakUis.associate {

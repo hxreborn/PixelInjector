@@ -114,6 +114,7 @@ import eu.hxreborn.pixelinjector.ui.component.readableGutter
 import eu.hxreborn.pixelinjector.ui.component.sectionHeader
 import eu.hxreborn.pixelinjector.ui.component.tileGroup
 import eu.hxreborn.pixelinjector.ui.component.versionLabel
+import eu.hxreborn.pixelinjector.ui.log.isRootSleepFailure
 import eu.hxreborn.pixelinjector.ui.log.processKey
 import eu.hxreborn.pixelinjector.ui.navigation.Destination
 import eu.hxreborn.pixelinjector.ui.support.SupportState
@@ -315,7 +316,7 @@ fun DashboardScreen(
         buildMap {
             state.errorLines.forEach { (tweak, line) ->
                 val error =
-                    if ("path=root" in line && ("Cannot run program \"su\"" in line || "denied" in line.lowercase())) {
+                    if (isRootSleepFailure(line)) {
                         TileError(stringResource(R.string.sleep_root_failed, launcherTitle), reportable = false)
                     } else {
                         TileError(stringResource(R.string.tweak_failed), reportable = true)

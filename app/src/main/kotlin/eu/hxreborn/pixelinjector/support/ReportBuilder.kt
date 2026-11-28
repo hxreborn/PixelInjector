@@ -28,6 +28,7 @@ data class Framework(
 class ReportFacts(
     val framework: Framework?,
     val rootDenied: Boolean,
+    val rootSleepFailed: Set<String> = emptySet(),
     val logLines: List<String>?,
     val tweaks: Map<String, String>,
     val missing: List<MissingTarget>,

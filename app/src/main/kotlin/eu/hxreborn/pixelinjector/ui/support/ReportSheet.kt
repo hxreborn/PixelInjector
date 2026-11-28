@@ -133,6 +133,7 @@ fun ReportSheet(
     initialTweak: String?,
     replyTo: String?,
     preview: ReportPreview?,
+    homeAppLabel: String,
     phase: ReportPhase,
     message: String,
     onMessageChange: (String) -> Unit,
@@ -153,11 +154,12 @@ fun ReportSheet(
     val footerScrolls = compactHeight()
     val unreadable = preview?.facts?.unreadableRomCodeFor(tweak).takeIf { replyTo == null }
     val needsRoot = replyTo == null && preview?.facts?.rootDenied == true
+    val homeAppNeedsRoot = replyTo == null && tweak != null && tweak in preview?.facts?.rootSleepFailed.orEmpty()
     val notBound = replyTo == null && preview != null && preview.facts.framework == null
     val footer: @Composable () -> Unit = {
         Footer(
             phase,
-            ready = preview != null && unreadable == null && !needsRoot,
+            ready = preview != null && unreadable == null && !needsRoot && !homeAppNeedsRoot,
             onSend = { onSend(message.trim(), tweak) },
             onTryNow = onTryNow,
             onClose = onClose,
@@ -208,6 +210,9 @@ fun ReportSheet(
                     error = true,
                     action = stringResource(R.string.report_request_root) to onRequestRoot,
                 )
+            }
+            if (homeAppNeedsRoot) {
+                Notice(Icons.Outlined.Terminal, stringResource(R.string.sleep_root_failed, homeAppLabel), error = true)
             }
             if (notBound) {
                 Notice(Icons.Outlined.WarningAmber, stringResource(R.string.report_not_bound), error = false)

@@ -564,6 +564,7 @@ fun AppNavHost(
                         initialTweak = destination.tweak,
                         replyTo = destination.replyTo,
                         preview = reportPreview,
+                        homeAppLabel = dashboard.homeApp?.takeIf { it.supported }?.label ?: stringResource(R.string.scope_launcher),
                         phase = reportPhase,
                         message = reportDrafts[destination.replyTo.orEmpty()].orEmpty(),
                         onMessageChange = { viewModel.saveReportDraft(destination.replyTo, it) },
